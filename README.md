@@ -1,8 +1,10 @@
+<div dir="rtl">
+
 # ميدان — Maydan
 
 **منصة إدارة الفرق والمعدات والخدمات اللوجستية لمشاريع البنية التحتية**، تعمل بالكامل على خوادم Google: Apps Script للخادم، Google Sheets لقاعدة البيانات، Google Drive للمرفقات والنسخ الاحتياطية، وGmail للإشعارات ورموز الدخول.
 
-[![CI](../../actions/workflows/ci.yml/badge.svg)](../../actions/workflows/ci.yml)
+[![CI](https://github.com/alielgada2050-creator/maydan-v1.0/actions/workflows/ci.yml/badge.svg)](https://github.com/alielgada2050-creator/maydan-v1.0/actions/workflows/ci.yml)
 
 ## البدء السريع
 
