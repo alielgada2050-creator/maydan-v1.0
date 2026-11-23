@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-3kFEe6His8nQDzYpiiAn62qrFkl6VH2u6pIKMTv8oUk=' https://unpkg.com https://accounts.google.com/gsi/client; style-src 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com https://accounts.google.com/gsi/style; frame-src https://accounts.google.com/gsi/; font-src https://fonts.gstatic.com; img-src data: https://unpkg.com https://*.tile.openstreetmap.org https://tile.googleapis.com https://maps.gstatic.com; connect-src https: http://localhost:* http://127.0.0.1:*; form-action 'none'; base-uri 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-4hDDIN6VA+whhTAm6SkEc+Iafzhgu9c05X6IVUoPXOQ=' https://unpkg.com https://accounts.google.com/gsi/client; style-src 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com https://accounts.google.com/gsi/style; frame-src https://accounts.google.com/gsi/; font-src https://fonts.gstatic.com; img-src data: https://unpkg.com https://*.tile.openstreetmap.org https://tile.googleapis.com https://maps.gstatic.com; connect-src https: http://localhost:* http://127.0.0.1:*; form-action 'none'; base-uri 'none'; object-src 'none'">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex,nofollow">
 <meta name="maydan-server" content="0">
 <title>ميدان | إدارة الفرق والمعدات والخدمات اللوجستية</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Readex+Pro:wght@500;600;700&display=swap">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous">
 <style>
 :root{
@@ -239,6 +239,60 @@ details.tree>summary{cursor:pointer;font-size:14px;padding:6px 0}
 dialog:has(.printable){width:min(900px,96vw)}
 @media print{.printable .ftable th{background:#eee!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}dialog{padding:0}}
 @media print{body>*:not(dialog){display:none!important}dialog{position:static;box-shadow:none;width:100%;max-width:none}dialog::backdrop{display:none}.noprint{display:none!important}}
+/* ===== v5: palettes, headings, motion ===== */
+html[data-palette="navy"]{--acc:#A97C1F;--acc2:#7E5C14;--accs:#FBF4E4;--ink:#0B1F3A;--ink2:#112A4D;--ink3:#1B3A66}
+html[data-palette="green"]{--acc:#00733F;--acc2:#005A31;--accs:#E5F4EC;--ink:#0A2A1D;--ink2:#0F3A28;--ink3:#174D36}
+html[data-palette="sec"]{--acc:#0067B8;--acc2:#00508F;--accs:#E6F0FA;--ink:#0A1A30;--ink2:#102845;--ink3:#1A3A63}
+h1,h2,.hh-title b,.brand b{font-family:'Readex Pro','IBM Plex Sans Arabic',system-ui,sans-serif;letter-spacing:0}
+.swatch{display:block;width:16px;height:16px;border-radius:50%;background:conic-gradient(var(--acc) 0 50%,#fff 50% 100%);border:2px solid #fff}
+.navg{margin:14px 12px 4px;font-size:11px;font-weight:700;color:#7C8BA1;letter-spacing:.02em}
+.main.enter>*{animation:rise 300ms var(--ease-out) both}
+.main.enter>*:nth-child(2){animation-delay:30ms}.main.enter>*:nth-child(3){animation-delay:60ms}.main.enter>*:nth-child(4){animation-delay:90ms}.main.enter>*:nth-child(5){animation-delay:120ms}.main.enter>*:nth-child(n+6){animation-delay:150ms}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--sc) 45%,transparent)}50%{box-shadow:0 0 0 6px color-mix(in srgb,var(--sc) 0%,transparent)}}
+.t-warn{color:var(--warn-tx)}.t-bad{color:var(--red)}.t-info{color:var(--blue)}
+.flkpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.flk{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:4px;text-align:start;font:inherit;color:inherit}
+.flk span{font-size:12px;color:var(--mut)}.flk b{font-size:24px;font-family:'Readex Pro',sans-serif}
+button.flk{cursor:pointer;transition:transform 160ms var(--ease-out),border-color 160ms}button.flk.on{border-color:var(--acc)}button.flk:active{transform:scale(.98)}
+.board{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(230px,1fr);gap:12px;overflow-x:auto;padding-bottom:8px;scroll-snap-type:x proximity}
+.col{background:color-mix(in srgb,var(--card) 60%,var(--bg));border:1px solid var(--line);border-radius:14px;padding:10px;display:flex;flex-direction:column;gap:8px;scroll-snap-align:start;min-height:120px}
+.col h3{margin:0 2px 2px;font-size:13px;display:flex;justify-content:space-between;align-items:center;border-top:3px solid var(--sc);padding-top:8px}
+.flcard{all:unset;box-sizing:border-box;display:flex;flex-direction:column;gap:6px;background:var(--card);border:1px solid var(--line);border-inline-start:4px solid var(--sc);border-radius:12px;padding:10px 12px;cursor:pointer;transition:transform 160ms var(--ease-out),box-shadow 160ms var(--ease-out)}
+.flcard:focus-visible{outline:3px solid var(--acc);outline-offset:2px}.flcard.on{box-shadow:0 0 0 2px var(--sc)}
+@media (hover:hover) and (pointer:fine){.flcard:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(15,23,42,.08)}}
+.flk-t{font-weight:700;font-size:14px}
+.fldetail{border-top:4px solid var(--sc)}
+.stepper{list-style:none;margin:0;padding:0;display:flex;gap:6px;overflow-x:auto}
+.stepper li{flex:1;min-width:110px;border-radius:10px;padding:8px 10px;background:var(--bg);border:1px solid var(--line);display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--mut)}
+.stepper li b{font-size:13px;color:var(--tx)}.stepper li.done{background:color-mix(in srgb,var(--sc) 10%,var(--card));border-color:color-mix(in srgb,var(--sc) 35%,transparent)}
+.stepper li.cur{border-color:var(--sc);background:color-mix(in srgb,var(--sc) 14%,var(--card));animation:pulse 2.2s ease-in-out infinite}
+.gatebox{border:1px dashed var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px}
+.gatebox p{margin:0}
+[aria-disabled="true"]{opacity:.5}
+.flkv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:14px;align-content:start}.flkv span{color:var(--mut)}
+.nb{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}.nb li{display:flex;flex-wrap:wrap;gap:4px 10px;justify-content:space-between;font-size:13px;border-bottom:1px solid var(--line2);padding-bottom:6px}
+.lnk{all:unset;cursor:pointer;color:var(--blue);font-weight:600}
+.clwrap{display:grid;grid-template-columns:minmax(0,2fr) minmax(280px,1fr);gap:14px}
+.cmap{height:560px;width:100%}.cllist{display:flex;flex-direction:column;gap:10px;max-height:620px;overflow:auto}
+.clcard{padding:14px;gap:8px}.clcard.multi{border-color:color-mix(in srgb,var(--acc) 45%,var(--line))}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%}
+.aiout{white-space:pre-wrap;line-height:1.8;font-size:14px}
+.inbox{display:flex;flex-direction:column;gap:10px}.initem{padding:14px;gap:8px}.initem.done{opacity:.65}
+.inbody{white-space:pre-wrap;margin:0;font-size:13px;line-height:1.7;color:var(--tx)}
+.who-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:2px 4px 2px 10px;font-size:12px}
+.cardsec{display:flex;flex-direction:column;gap:10px}
+.slider{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(250px,280px);gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;padding:2px 2px 10px;overscroll-behavior-x:contain}
+.pcard{scroll-snap-align:start;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.pc-top{display:flex;gap:10px;align-items:center;position:relative}.pc-top div{display:flex;flex-direction:column;min-width:0}.pc-top span{font-size:12px;color:var(--mut)}
+.pc-ini{width:48px;height:48px;flex:none;border-radius:12px;display:grid;place-items:center;background:var(--accs);color:var(--acc2);font-weight:700;font-size:18px}
+.pc-img{width:48px;height:48px;flex:none;border-radius:12px;object-fit:cover;display:none}.pc-img.ok{display:block}.pc-img.ok+.pc-ini{display:none}
+.pc-meta{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:13px}.pc-meta span{color:var(--mut)}
+.pc-docs{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}.pc-docs li{display:flex;justify-content:space-between;font-size:12px;padding:5px 8px;border-radius:8px;background:var(--bg)}
+.pc-docs li.ok{background:var(--ok-bg);color:var(--ok-tx)}.pc-docs li.warn{background:var(--warn-bg);color:var(--warn-tx)}.pc-docs li.bad,.pc-docs li.miss{background:var(--bad-bg);color:var(--bad-tx)}.pc-docs li.na{opacity:.6}
+@media (max-width:900px){.clwrap{grid-template-columns:1fr}.cmap{height:420px}}
+html[data-theme="dark"] .col{background:#0D1524}html[data-theme="dark"] .stepper li,html[data-theme="dark"] .pc-docs li{background:#0F1726}
+@media (prefers-reduced-motion:reduce){.main.enter>*{animation:none}.stepper li.cur{animation:none}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:opacity 150ms ease!important}.btn:active,.chip:active{transform:none}}
 </style>
 </head>
@@ -441,7 +495,7 @@ const WORK_TYPES_DEFAULT = () => ({
 const WT_HAZARDS = { excav: ['الحفر والانهيار', 'الكابلات المدفونة', 'حركة المرور', 'المعدات الثقيلة', 'السقوط في الحفرة'], elec: ['الصعق الكهربائي', 'العمل قرب خطوط حية', 'الرفع', 'حركة المرور'], meters: ['الصعق الكهربائي', 'العمل داخل المباني', 'الأدوات اليدوية'], meterTest: ['الصعق الكهربائي', 'العمل داخل المباني'], station: ['الصعق الكهربائي', 'القوس الكهربائي', 'العزل والتأريض', 'الأماكن المحصورة'] };
 const WT = listProxy('workTypes');
 const isDriverEmp = (e) => /سائق|driver/i.test(e.job || '') || DB.crews.some((c) => c.eq.some((u) => u.driver && (u.driver.empId === e.id || (e.iqama && u.driver.iqama === e.iqama))) || c.workers.some((w) => w.dyna && w.dyna.driver && (w.dyna.driver.empId === e.id || (e.iqama && w.dyna.driver.iqama === e.iqama))));
-function empDocState(e, type) { const d = (e.docs || {})[type]; if (type === 'رخصة القيادة' && !isDriverEmp(e)) return d && (d.fileId || d.exp) ? { lvl: d.exp && daysTo(d.exp) < 0 ? 'bad' : 'ok', d } : { lvl: 'na', d }; if (!d || (!d.fileId && !d.exp && !d.url)) return { lvl: 'miss', d }; if (d.exp && daysTo(d.exp) < 0) return { lvl: 'bad', d }; if (d.exp && daysTo(d.exp) <= 30) return { lvl: 'warn', d }; return { lvl: 'ok', d }; }
+function empDocState(e, type) { const d = (e.docs || {})[type]; if (type === 'شهادة TUV' && !(isDriverEmp(e) || /مشغل|operator|tuv/i.test(e.job || ''))) return d && (d.fileId || d.exp) ? { lvl: d.exp && daysTo(d.exp) < 0 ? 'bad' : 'ok', d } : { lvl: 'na', d }; if (type === 'رخصة القيادة' && !isDriverEmp(e)) return d && (d.fileId || d.exp) ? { lvl: d.exp && daysTo(d.exp) < 0 ? 'bad' : 'ok', d } : { lvl: 'na', d }; if (!d || (!d.fileId && !d.exp && !d.url)) return { lvl: 'miss', d }; if (d.exp && daysTo(d.exp) < 0) return { lvl: 'bad', d }; if (d.exp && daysTo(d.exp) <= 30) return { lvl: 'warn', d }; return { lvl: 'ok', d }; }
 function empLink(e) { for (const c of DB.crews) { const m = (p) => p && (p.empId === e.id || (e.iqama && p.iqama === e.iqama)); if (m(c.eng)) return { crew: c, role: 'مهندس' }; if (m(c.sup)) return { crew: c, role: 'مراقب' }; for (const w of c.workers) { if (m(w)) return { crew: c, role: w.role || 'عامل' }; if (w.dyna && m(w.dyna.driver)) return { crew: c, role: 'سائق ديانة' }; } for (const u of c.eq) if (m(u.driver)) return { crew: c, role: 'سائق ' + u.kind }; } return null; }
 const empById = (id) => (DB.employees || []).find((e) => e.id === id);
 const empByIqama = (iq) => iq ? (DB.employees || []).find((e) => e.iqama === iq) : null;
@@ -469,6 +523,7 @@ function migrate3(d) {
     allUnitsOf(c).forEach((u) => { if (u.odo == null) u.odo = 0; if (!u.maint) u.maint = {}; if (!('regExp' in u)) u.regExp = ''; });
   });
   d.jobs.forEach((j) => { if (!('workType' in j)) j.workType = classifyWorkIn(d, j.title + ' ' + (j.dept || '')); if (!j.sec) j.sec = { no: '', date: '', by: '' }; if (!j.data) j.data = {}; });
+  migrateFlow(d);
   d.v = 3; return d;
 }
 const allUnitsOf = (c) => [c.sup.car].concat(c.eq, c.workers.filter((w) => w.dyna).map((w) => w.dyna));
@@ -677,7 +732,551 @@ function rowsToTasks(rows) {
   }).filter((x) => x.title);
 }
 
-const freshDB = () => seedV3(migrate3(seed()));
+// ---- module: 10-flow-core.js ----
+// ================================================================
+// Module: field transactions — workflow engine (منظومة المعاملات الميدانية)
+// Each transaction is one record (a job with flow=true) that moves through stages.
+// Every stage change notifies the role that owns the next step, by name and phone,
+// with the permit number and its expiry on every message.
+// Loaded before the DB is created, so only declarations live at top level.
+// ================================================================
+
+const FL_STAGES = {
+  plan: ['مجدولة', 'التخطيط والتنسيق الجغرافي'],
+  gate: ['بوابة الرخصة', 'إرفاق صورة الرخصة أو التعهد'],
+  safety: ['تأمين السلامة', 'صبات وإنارة LED وفحص HSE'],
+  dig: ['الحفر والتنفيذ المدني', 'حفر مفتوح / مسار'],
+  elec: ['الأعمال الكهربائية', 'تمديد الكابل / التركيب'],
+  asphalt: ['الردم والأسفلت', 'السفلتة وإعادة الوضع'],
+  lab: ['مختبر URS', 'فحص الدمك والأسفلت'],
+  pdc: ['الاستشاري PDC', 'مهلة 60 يوماً'],
+  ripc: ['مركز المشاريع RIPC', 'القبول النهائي'],
+  closed: ['مغلقة نهائياً', '']
+};
+const FL_FULL = ['plan', 'gate', 'safety', 'dig', 'elec', 'asphalt', 'lab', 'pdc', 'ripc', 'closed'];
+const FL_KINDS = {
+  'حفر مفتوح لتركيب ميني بيلر': FL_FULL,
+  'حفر مفتوح': FL_FULL,
+  'تمديد كابلات': FL_FULL,
+  'تركيب عدادات': ['plan', 'gate', 'elec', 'closed'],
+  'أسفلت وإعادة سفلتة': ['plan', 'gate', 'safety', 'asphalt', 'lab', 'pdc', 'ripc', 'closed']
+};
+const FL_OPEN = (j) => (FL_KINDS[j.kind] || FL_FULL).includes('safety');
+const FL_ROLES = {
+  permits_eng: 'مهندس قسم الرخص', permits_sup: 'مشرف التصاريح والإغلاقات', civil: 'مهندس التنفيذ المدني', elec: 'مهندس الكهرباء',
+  asphalt: 'مهندس الأسفلت', safety: 'السلامة والإنارة', hse: 'السلامة والصحة المهنية (HSE)', lab: 'مختبر URS',
+  sup_civil: 'مراقب مدني', sup_elec: 'مراقب كهرباء'
+};
+const FL_REPORT_KINDS = { lab: ['معاد من المختبر URS', 7], pdc: ['معاد من الاستشاري PDC', 60], ripc: ['معاد من مركز المشاريع RIPC', 60], b940: ['بلاغ البلدية 940', 3], viol: ['مخالفة مركز المشاريع', 7] };
+const FL_TRIP_SAR = 350; // assumed cost of one field trip (vehicle + crew time) for the savings estimate
+let FL_TICKED = '';
+
+function flRosterDefault() {
+  const r = (role, name, offices, phone) => ({ id: uid('ro'), role, name, offices: offices || [], phone: phone || '' });
+  return [
+    r('permits_eng', 'م. عبدالله السيد'), r('permits_sup', 'علي الجدع', [], '966597778853'),
+    r('civil', 'م. يحيى', ['مكتب خريص', 'مكتب الشمال']), r('civil', 'م. طارق', ['مكتب الشمال', 'مكتب الشرق']),
+    r('elec', 'م. أحمد عبدالعال', ['مكتب خريص']), r('elec', 'م. مصطفى بسيوني', ['مكتب الشمال', 'مكتب الشرق']),
+    r('asphalt', 'مهندس الأسفلت — سما الشام'), r('safety', 'مسؤول السلامة والإنارة'), r('hse', 'مفتش السلامة والصحة المهنية'), r('lab', 'م. محمد الجعفري'),
+    r('sup_civil', 'مراقب مدني — خريص', ['مكتب خريص']), r('sup_civil', 'مراقب مدني — الشمال', ['مكتب الشمال']), r('sup_civil', 'مراقب مدني — الشرق', ['مكتب الشرق']),
+    r('sup_elec', 'مراقب كهرباء — خريص', ['مكتب خريص']), r('sup_elec', 'مراقب كهرباء — الشمال والشرق', ['مكتب الشمال', 'مكتب الشرق'])
+  ];
+}
+
+// runs inside migrate3 on every load (idempotent)
+function migrateFlow(d) {
+  d.lists.offices = d.lists.offices || ['مكتب خريص', 'مكتب الشمال', 'مكتب الشرق'];
+  d.lists.flKinds = d.lists.flKinds || Object.keys(FL_KINDS);
+  if (!d.lists.empDocs.includes('شهادة TUV')) d.lists.empDocs.splice(2, 0, 'شهادة TUV');
+  d.roster = d.roster || flRosterDefault();
+  d.inbox = d.inbox || []; d.reports = d.reports || [];
+  d.settings.flow = d.settings.flow || { r1: 2, r2: 5, clusterKm: 2 };
+  d.jobs.forEach((j) => { if (j.flow) { j.alerts = j.alerts || {}; j.log = j.log || []; j.gate = j.gate || null; j.safety = j.safety || {}; } });
+  return d;
+}
+
+// ---------- helpers ----------
+const flJobs = () => DB.jobs.filter((j) => j.flow);
+const flPath = (j) => FL_KINDS[j.kind] || FL_FULL;
+const flIdx = (j) => flPath(j).indexOf(j.stage);
+const flNext = (j) => flPath(j)[flIdx(j) + 1] || '';
+const flActive = (j) => j.flow && j.stage !== 'closed';
+const flHasXY = (j) => isFinite(j.lat) && isFinite(j.lng) && j.lat && j.lng;
+const flPermitDays = (j) => (j.permitExp ? daysTo(j.permitExp) : null);
+const flFolderName = (j) => [j.baseNo, j.txNo, j.permit].filter(Boolean).join(' - ') || j.id;
+const flNav = (j) => (flHasXY(j) ? 'https://www.google.com/maps/dir/?api=1&destination=' + j.lat + ',' + j.lng : '');
+const flPin = (j) => (flHasXY(j) ? 'https://www.google.com/maps?q=' + j.lat + ',' + j.lng : '');
+function flPermitLine(j) {
+  if (!j.permit) return 'الرخصة: غير مسجلة';
+  const d = flPermitDays(j);
+  return 'الرخصة ' + j.permit + (j.permitType ? ' (' + j.permitType + ')' : '') + (j.permitExp ? ' · تنتهي ' + j.permitExp + (d < 0 ? ' — منتهية منذ ' + -d + ' يوم' : d === 0 ? ' — تنتهي اليوم' : ' — متبقي ' + d + ' يوم') : '');
+}
+function flPermitChip(j) {
+  if (!j.permit) return html`<span class="pill bad">بلا رخصة</span>`;
+  const d = flPermitDays(j); const c = d === null ? 'mutp' : d < 0 ? 'bad' : d <= 3 ? 'warn' : 'ok';
+  return html`<span class="pill ${c}" title="${flPermitLine(j)}">رخصة ${j.permit}${d === null ? '' : d < 0 ? ' · منتهية' : ' · ' + d + ' يوم'}</span>`;
+}
+function flGateOk(j) { const g = j.gate; return !!g && ((g.mode === 'permit' || g.mode === 'undertaking') ? !!g.fileId : g.mode === 'override'); }
+function flGateLabel(j) {
+  const g = j.gate; if (!g) return ['بانتظار إرفاق الرخصة', 'bad'];
+  if (g.mode === 'permit') return ['صورة الرخصة مرفقة', 'ok'];
+  if (g.mode === 'undertaking') return ['تعهد مرفق', 'ok'];
+  return [g.fileId ? 'تجاوز — أُرفقت الرخصة لاحقاً' : 'تجاوز المهندس — الإرفاق قبل ' + g.due, g.fileId ? 'ok' : 'warn'];
+}
+function flWho(role, offices) {
+  const off = (offices || []).filter(Boolean);
+  return DB.roster.filter((p) => p.role === role && (!p.offices.length || !off.length || p.offices.some((o) => off.includes(o))));
+}
+function flJobText(j) {
+  return j.kind + ' — ' + (j.district || '') + (j.station ? ' · محطة ' + j.station : '') + (j.plan ? ' · مخطط ' + j.plan : '') + (j.plot ? ' · قطعة ' + j.plot : '') +
+    '\nالأساس ' + (j.baseNo || '—') + ' · المعاملة ' + (j.txNo || '—') + '\n' + flPermitLine(j) + (j.lengthM ? '\nطول الحفر ' + j.lengthM + ' م' : '') + '\nالتاريخ ' + j.date;
+}
+
+// ---------- notification routing (inbox) ----------
+function flNotify(kind, roles, title, body, jobs, extra) {
+  const ids = [].concat(jobs || []).filter(Boolean).map((j) => j.id);
+  const offices = [...new Set([].concat(jobs || []).filter(Boolean).map((j) => j.office))];
+  const to = []; roles.forEach((r) => flWho(r, offices).forEach((p) => { if (!to.some((x) => x.id === p.id)) to.push({ id: p.id, role: r, name: p.name, phone: p.phone }); }));
+  const it = Object.assign({ id: uid('in'), tm: nowIso(), kind, roles, to, title, body, jobIds: ids, st: 'new', fwd: [], by: CUR ? CUR.name : 'النظام' }, extra || {});
+  DB.inbox.unshift(it); if (DB.inbox.length > 600) DB.inbox.length = 600;
+  return it;
+}
+function flWaText(it) { return '«ميدان» — ' + it.title + '\n' + it.body + (it.nav ? '\nالملاحة: ' + it.nav : ''); }
+
+// ---------- stage engine ----------
+function flLog(j, stage, note) { j.log.unshift({ tm: nowIso(), stage, by: CUR ? CUR.name : 'النظام', note: note || '' }); }
+function flSetStage(j, to, note) {
+  j.stage = to; j.st = to === 'closed' ? 'done' : to === 'plan' || to === 'gate' ? 'new' : 'prog'; if (to === 'closed') j.doneAt = nowIso();
+  flLog(j, to, note);
+  const t = flJobText(j);
+  if (to === 'safety') flSafetyRequest(j);
+  if (to === 'elec' && flPath(j).includes('dig')) flNotify('elec', ['elec'], 'انتهى الحفر — جاهز لتمديد الكابل / التركيب', t + '\nبعد الإطلاع حوّل التنبيه لمراقبي الكهرباء.', [j], { fwdRole: 'sup_elec', nav: flNav(j) });
+  if (to === 'elec' && !flPath(j).includes('dig')) flNotify('elec', ['elec'], 'معاملة جاهزة للتنفيذ الكهربائي', t, [j], { fwdRole: 'sup_elec', nav: flNav(j) });
+  if (to === 'asphalt') flNotify('asphalt', ['asphalt', 'civil'], 'جاهز للردم والسفلتة — تنسيق بالتوالي', t + '\nتم الانتهاء من ' + (flPath(j).includes('elec') ? 'تمديد الكابل والأعمال الكهربائية' : 'الحفر') + '. نسّق السفلتة قبل انتهاء الرخصة لتفادي الغرامات.', [j], { nav: flNav(j) });
+  if (to === 'lab') flNotify('lab', ['lab'], 'طلب فحص مختبر URS', t, [j], { nav: flNav(j) });
+  if (to === 'pdc') { j.pdc = { start: today(), due: addDays(60) }; flNotify('permit', ['permits_sup', 'permits_eng'], 'رُفعت للاستشاري PDC — بدأت مهلة 60 يوماً', t + '\nآخر موعد: ' + j.pdc.due, [j]); }
+  if (to === 'ripc') flNotify('permit', ['permits_sup'], 'قُبلت من الاستشاري — رُفعت لمركز المشاريع RIPC', t, [j]);
+  if (to === 'closed') flNotify('permit', ['permits_sup', 'permits_eng'], 'إغلاق نهائي للمعاملة', t, [j]);
+}
+function flSafetyRequest(j) {
+  if (j.safety.reqAt) return;
+  j.safety.reqAt = nowIso();
+  const items = (j.safety.barrier || 'صبات خرسانية') + ' · إنارة LED' + (j.lengthM ? ' لمسار ' + j.lengthM + ' م' : '');
+  flNotify('safety', ['safety'], 'توريد وتأمين موقع حفر مفتوح', flJobText(j) + '\nالمطلوب: ' + items + ' · لوحات تحذيرية.\nيُؤمَّن الموقع قبل بدء الحفر.', [j], { nav: flNav(j) });
+  const crew = crewById(j.crewId); const q = crew ? flCrewQual(crew) : [];
+  flNotify('hse', ['hse'], 'فحص السلامة والصحة المهنية قبل الحفر', flJobText(j) + '\nالتحقق من تأهيل المراقب والعمالة' + (crew ? ' (فرقة ' + crew.id + ')' : '') + (q.length ? ':\n- ' + q.slice(0, 8).join('\n- ') : ': لا ملاحظات على البطاقات.'), [j], { nav: flNav(j) });
+}
+// qualification of a crew: supervisor + workers + drivers need valid cards
+function flCrewQual(c) {
+  const out = []; const people = [c.sup].concat(c.workers, c.eq.map((u) => u.driver).filter(Boolean), c.workers.filter((w) => w.dyna && w.dyna.driver).map((w) => w.dyna.driver));
+  people.forEach((p) => {
+    const e = p && (empById(p.empId) || empByIqama(p.iqama)); if (!p || !p.name) return;
+    if (!e) { out.push(p.name + ': غير مربوط بسجل الموظفين'); return; }
+    ['كارت الأمن الصناعي', 'صورة الإقامة', 'شهادة TUV', 'رخصة القيادة'].forEach((t) => { const s = empDocState(e, t); if (s.lvl === 'bad' || s.lvl === 'miss') out.push(e.name + ': ' + t + (s.lvl === 'bad' ? ' منتهية' : ' ناقصة')); });
+  });
+  return out;
+}
+
+// coordination: same district / station / plan / plot, or within r km
+function flNeighbors(j, r) {
+  return flJobs().filter((o) => o.id !== j.id && flActive(o) && Math.abs(daysTo(o.date) - daysTo(j.date)) <= 7).map((o) => {
+    const dist = flHasXY(j) && flHasXY(o) ? km(j, o) : null; const why = [];
+    if (j.district && o.district === j.district) why.push('نفس الحي');
+    if (j.station && o.station === j.station) why.push('نفس المحطة');
+    if (j.plan && o.plan === j.plan) why.push('نفس المخطط');
+    if (j.plot && o.plot === j.plot && o.plan === j.plan) why.push('نفس القطعة');
+    if (dist !== null && dist <= r) why.push(dist <= cfg().flow.r1 ? 'ضمن ' + cfg().flow.r1 + ' كم' : 'ضمن ' + r + ' كم');
+    return { o, dist, why };
+  }).filter((x) => x.why.length).sort((a, b) => (a.dist == null ? 99 : a.dist) - (b.dist == null ? 99 : b.dist));
+}
+function flCoordinate(j, reason) {
+  const nb = flNeighbors(j, cfg().flow.r2); const when = j.date === addDays(1) ? 'غداً' : j.date === today() ? 'اليوم' : 'بتاريخ ' + j.date;
+  const head = 'في هذا الموقع سيتم ' + when + ' عمل ' + j.kind + (j.lengthM ? ' بطول ' + j.lengthM + ' م' : '') + '.';
+  const list = nb.map((x) => '• ' + x.o.kind + ' — ' + x.o.district + ' (' + (x.o.baseNo || x.o.id) + ')' + (x.dist != null ? ' على بعد ' + x.dist.toFixed(1) + ' كم' : '') + ' · ' + x.why.join('، ') + ' · ' + x.o.date).join('\n');
+  flNotify('coord', ['permits_eng', 'permits_sup'], when + ': ' + j.kind + ' — ' + (j.district || ''), head + '\n' + flJobText(j) + (nb.length ? '\nمعاملات قريبة في نفس النطاق (' + nb.length + '):\n' + list : ''), [j], { nav: flNav(j) });
+  if (nb.length) flNotify('coord', ['civil', 'elec'], 'تنسيق موحّد: ' + (nb.length + 1) + ' معاملات في نطاق ' + cfg().flow.r2 + ' كم — ' + (j.district || ''), head + '\n' + flJobText(j) + '\nالمعاملات القريبة:\n' + list + '\nنسّقوا مرة واحدة: سلامة وإنارة، معدات، مراقبين، وسفلتة بالتوالي. ثم حوّلوا للمراقبين.', [j].concat(nb.map((x) => x.o)), { fwdRole: 'sup_civil+sup_elec', nav: flNav(j) });
+  if (FL_OPEN(j)) flSafetyRequest(j);
+  j.alerts[reason || 'coord'] = today(); flLog(j, j.stage, 'تنبيه تنسيق' + (nb.length ? ' مع ' + nb.length + ' معاملات قريبة' : ''));
+  return nb.length;
+}
+
+// scheduler: runs on sign-in and every 5 minutes — tomorrow's alerts, permit expiry, attach-later deadlines, report deadlines
+function flTick() {
+  if (!CUR || !DB.jobs || !DB.roster) return 0; let n = 0; const td = today(), tm = addDays(1);
+  flJobs().forEach((j) => {
+    if (!flActive(j)) return;
+    if ((j.date === tm || j.date === td) && !j.alerts.d1 && flIdx(j) <= flPath(j).indexOf('gate')) { flCoordinate(j, 'd1'); n++; }
+    const pd = flPermitDays(j);
+    if (j.permit && pd !== null && pd <= 3 && j.alerts.exp !== td) { flNotify('permit', ['permits_eng', 'permits_sup', 'civil'], pd < 0 ? 'رخصة منتهية والعمل قائم — خطر غرامة' : 'رخصة تقترب من الانتهاء', flJobText(j) + '\nجدّد الرخصة أو أنهِ الأعمال وأغلق الموقع قبل الانتهاء لتفادي الغرامات.', [j]); j.alerts.exp = td; n++; }
+    if (j.gate && j.gate.mode === 'override' && !j.gate.fileId && j.gate.due < td && j.alerts.gate !== td) { flNotify('gate', ['permits_sup', 'civil'], 'تأخر إرفاق الرخصة بعد تجاوز المهندس', flJobText(j) + '\nتجاوز بواسطة ' + j.gate.by + ' — كان الإرفاق مطلوباً قبل ' + j.gate.due, [j]); j.alerts.gate = td; n++; }
+    if (j.pdc && j.stage === 'pdc' && daysTo(j.pdc.due) <= 10 && j.alerts.pdc !== td) { flNotify('permit', ['permits_sup', 'permits_eng'], 'مهلة الاستشاري (60 يوماً) تنتهي خلال ' + daysTo(j.pdc.due) + ' يوم', flJobText(j), [j]); j.alerts.pdc = td; n++; }
+  });
+  DB.reports.forEach((r) => { if (r.st !== 'resolved' && daysTo(r.due) <= 2 && r.alerted !== td) { const j = DB.jobs.find((x) => x.id === r.jobId); flNotify('report', ['permits_sup', 'civil'], r.kindName + ' — المهلة ' + (daysTo(r.due) < 0 ? 'انتهت' : 'تنتهي خلال ' + daysTo(r.due) + ' يوم'), (j ? flJobText(j) + '\n' : '') + (r.note || ''), j ? [j] : []); r.alerted = td; n++; } });
+  if (n) save();
+  return n;
+}
+
+// clusters: single-linkage within clusterKm, or same station / plan
+function flClusters(list, kmMax) {
+  const P = list.filter(flHasXY); const parent = P.map((_, i) => i); const f = (i) => (parent[i] === i ? i : (parent[i] = f(parent[i])));
+  for (let a = 0; a < P.length; a++) for (let b = a + 1; b < P.length; b++) {
+    const x = P[a], y = P[b];
+    if (km(x, y) <= kmMax || (x.station && x.station === y.station) || (x.plan && x.plan === y.plan && x.district === y.district)) parent[f(a)] = f(b);
+  }
+  const g = {}; P.forEach((j, i) => { (g[f(i)] = g[f(i)] || []).push(j); });
+  return Object.values(g).map((jobs) => {
+    const lat = jobs.reduce((s, j) => s + j.lat, 0) / jobs.length, lng = jobs.reduce((s, j) => s + j.lng, 0) / jobs.length;
+    const rad = Math.max(0.35, ...jobs.map((j) => km({ lat, lng }, j))) + 0.25;
+    const cnt = {}; jobs.forEach((j) => { cnt[j.district] = (cnt[j.district] || 0) + 1; }); const dist = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a])[0] || '';
+    return { jobs, lat, lng, rad, district: dist, offices: [...new Set(jobs.map((j) => j.office))], meters: jobs.reduce((s, j) => s + (+j.lengthM || 0), 0) };
+  }).sort((a, b) => b.jobs.length - a.jobs.length);
+}
+// shared trips when a cluster is coordinated once: safety delivery + safety removal + HSE visit + supervisor visit + asphalt mobilisation
+function flSavings(clusters) { const trips = clusters.reduce((s, c) => s + Math.max(0, c.jobs.length - 1) * 5, 0); return { trips, sar: trips * FL_TRIP_SAR }; }
+
+// ---- module: 20-flow-views.js ----
+// ================================================================
+// Module: field transactions — views, actions and demo data
+// Views: flow board (دورة المعاملات) · cluster map (خريطة الكلاستر)
+//        coordination inbox (مركز التنسيق) · reports & returns (البلاغات) · team cards (بطاقات الفريق)
+// ================================================================
+
+const FL_COLORS = { plan: '#64748B', gate: '#B91C1C', safety: '#D97706', dig: '#C2410C', elec: '#1D4ED8', asphalt: '#334155', lab: '#7C3AED', pdc: '#0F766E', ripc: '#4338CA', closed: '#15803D' };
+const FL_KIND_ICON = { coord: 'تنسيق', safety: 'سلامة', hse: 'HSE', elec: 'كهرباء', asphalt: 'أسفلت', lab: 'مختبر', permit: 'رخص', gate: 'بوابة', report: 'بلاغ', fwd: 'للمراقبين' };
+let CMAP = null;
+
+function flKpis() {
+  const J = flJobs().filter(flActive); const tm = addDays(1);
+  return [['معاملات نشطة', J.length, 'info'], ['أعمال الغد', J.filter((j) => j.date === tm).length, 'warn'], ['بانتظار الرخصة', J.filter((j) => flIdx(j) <= flPath(j).indexOf('gate') && !flGateOk(j) && daysTo(j.date) <= 2).length, 'bad'],
+    ['رخص ≤ 3 أيام', J.filter((j) => j.permit && flPermitDays(j) !== null && flPermitDays(j) <= 3).length, 'bad'], ['تنبيهات جديدة', DB.inbox.filter((i) => i.st === 'new').length, 'warn'], ['بلاغات مفتوحة', DB.reports.filter((r) => r.st !== 'resolved').length, 'warn']];
+}
+function flKpiRow() { return html`<div class="flkpi">${flKpis().map((k) => html`<div class="flk"><span>${k[0]}</span><b class="${k[1] ? 't-' + k[2] : ''}">${k[1]}</b></div>`)}</div>`; }
+function flTicket(j) {
+  const g = flGateLabel(j); const cl = UI.flSel === j.id ? ' on' : '';
+  return html`<button type="button" class="flcard${cl}" data-act="fl-open" data-id="${j.id}" style="--sc:${FL_COLORS[j.stage]}">
+    <span class="row between" style="gap:6px"><b class="ltr">${j.baseNo || j.id}</b>${flPermitChip(j)}</span>
+    <span class="flk-t">${j.kind}</span>
+    <span class="t-mut" style="font-size:12px">${j.district || '—'} · ${j.office || ''} · ${fmtD(j.date)}</span>
+    <span class="row" style="gap:6px"><span class="pill ${g[1]}">${g[0]}</span>${j.lengthM ? html`<span class="pill mutp">${j.lengthM} م</span>` : ''}</span></button>`;
+}
+function viewFlow() {
+  const off = UI.flOff || ''; const J = flJobs().filter((j) => !off || j.office === off).sort((a, b) => a.date.localeCompare(b.date));
+  const sel = UI.flSel && DB.jobs.find((x) => x.id === UI.flSel);
+  return html`<div class="ph"><div><h1 style="font-size:28px">دورة المعاملات الميدانية</h1><p>كل معاملة سجل واحد يتحرك بين المراحل: الرخصة ← السلامة ← الحفر ← الكهرباء ← الأسفلت ← المختبر ← الاستشاري ← المركز. كل انتقال يرسل تنبيهاً للمسؤول التالي برقم الرخصة وتاريخ انتهائها.</p></div>
+    <div class="row">${can('edit') ? html`<button class="btn pri" type="button" data-act="fl-add">+ معاملة ميدانية</button>` : ''}<button class="btn" type="button" data-act="nav" data-v="cluster">خريطة الكلاستر</button></div></div>
+  ${flKpiRow()}
+  <div class="chips" role="group" aria-label="المكتب"><button type="button" class="chip" data-act="fl-off" data-k="" aria-pressed="${!off}">كل المكاتب</button>${DB.lists.offices.map((o) => html`<button type="button" class="chip" data-act="fl-off" data-k="${o}" aria-pressed="${off === o}">${o}</button>`)}</div>
+  ${sel ? flDetail(sel) : ''}
+  <div class="board" aria-label="لوحة المراحل">${FL_FULL.map((s) => { const L = J.filter((j) => j.stage === s); return html`<section class="col"><h3 style="--sc:${FL_COLORS[s]}"><span>${FL_STAGES[s][0]}</span><span class="badge-n">${L.length}</span></h3>${L.length ? L.map(flTicket) : html`<p class="t-mut" style="font-size:12px;margin:6px">—</p>`}</section>`; })}</div>`;
+}
+function flStepper(j) {
+  const P = flPath(j); const i = flIdx(j);
+  return html`<ol class="stepper">${P.map((s, k) => html`<li class="${k < i ? 'done' : k === i ? 'cur' : ''}" style="--sc:${FL_COLORS[s]}"><b>${FL_STAGES[s][0]}</b><span>${FL_STAGES[s][1]}</span></li>`)}</ol>`;
+}
+function flStageActions(j) {
+  const E = can('edit'); const s = j.stage; const nx = flNext(j); const nxN = nx ? FL_STAGES[nx][0] : '';
+  if (!E) return html`<p class="t-mut">عرض فقط.</p>`;
+  if (s === 'plan') return html`<div class="row"><button class="btn" type="button" data-act="fl-coord" data-id="${j.id}">إرسال تنبيه التنسيق الآن</button><button class="btn pri" type="button" data-act="fl-adv" data-id="${j.id}">الانتقال إلى ${nxN}</button></div>`;
+  if (s === 'gate') {
+    const g = flGateLabel(j);
+    return html`<div class="gatebox"><p><b>لا يبدأ التنفيذ دون إرفاق صورة الرخصة أو التعهد.</b> يمكن للمهندس التجاوز بمبرر، على أن تُرفق الرخصة لاحقاً قبل موعد محدد.</p>
+      <div class="row"><span class="pill ${g[1]}">${g[0]}</span></div>
+      <div class="row"><button class="btn" type="button" data-act="fl-gate" data-id="${j.id}" data-k="permit">إرفاق صورة الرخصة</button><button class="btn" type="button" data-act="fl-gate" data-id="${j.id}" data-k="undertaking">إرفاق التعهد</button><button class="btn" type="button" data-act="fl-gate" data-id="${j.id}" data-k="override" style="color:var(--warn-tx)">تجاوز المهندس (إرفاق لاحقاً)</button></div>
+      <div class="row"><button class="btn pri" type="button" data-act="fl-adv" data-id="${j.id}" ${flGateOk(j) ? '' : new Safe('aria-disabled="true"')}>الانتقال إلى ${nxN}</button></div></div>`;
+  }
+  if (s === 'safety') {
+    const crew = crewById(j.crewId); const q = crew ? flCrewQual(crew) : [];
+    return html`<div class="gatebox"><p><b>قبل الحفر:</b> توريد ${j.safety.barrier || 'صبات خرسانية'} وإنارة LED ولوحات تحذيرية، وفحص السلامة والصحة المهنية لتأهيل المراقب والعمالة.</p>
+      <div class="row"><span class="pill ${j.safety.delivered ? 'ok' : 'warn'}">${j.safety.delivered ? 'تم التوريد والتأمين' : 'بانتظار التوريد'}</span><span class="pill ${j.safety.hse ? 'ok' : 'warn'}">${j.safety.hse ? 'اعتُمد فحص HSE' : 'بانتظار فحص HSE'}</span>${flNav(j) ? html`<a class="btn sm" href="${flNav(j)}" target="_blank" rel="noopener noreferrer">ملاحة فريق السلامة</a>` : ''}</div>
+      ${q.length ? html`<details><summary>ملاحظات تأهيل الفرقة (${q.length})</summary><ul class="t-mut" style="font-size:13px">${q.map((x) => html`<li>${x}</li>`)}</ul></details>` : html`<p class="t-ok" style="font-size:13px">بطاقات الفرقة سليمة.</p>`}
+      <div class="row"><button class="btn" type="button" data-act="fl-safety" data-id="${j.id}" data-k="req">إعادة إرسال طلب التوريد</button><button class="btn" type="button" data-act="fl-safety" data-id="${j.id}" data-k="delivered">تأكيد التوريد في الموقع</button><button class="btn" type="button" data-act="fl-safety" data-id="${j.id}" data-k="hse">اعتماد فحص HSE</button>
+      <button class="btn pri" type="button" data-act="fl-adv" data-id="${j.id}" ${j.safety.delivered && j.safety.hse ? '' : new Safe('aria-disabled="true"')}>بدء ${nxN}</button></div></div>`;
+  }
+  if (s === 'lab') return html`<div class="row"><button class="btn pri" type="button" data-act="fl-adv" data-id="${j.id}">ناجح — رفع للاستشاري</button><button class="btn" type="button" data-act="fl-ret" data-id="${j.id}" data-k="lab" style="color:var(--red)">راسب — إعادة سفلتة</button></div>`;
+  if (s === 'pdc') return html`<div class="row"><span class="pill ${j.pdc && daysTo(j.pdc.due) <= 10 ? 'bad' : 'info'}">مهلة الاستشاري: ${j.pdc ? daysTo(j.pdc.due) + ' يوم' : '—'}</span><button class="btn pri" type="button" data-act="fl-adv" data-id="${j.id}">قبول الاستشاري — رفع للمركز</button><button class="btn" type="button" data-act="fl-ret" data-id="${j.id}" data-k="pdc" style="color:var(--red)">إعادة من الاستشاري</button></div>`;
+  if (s === 'ripc') return html`<div class="row"><button class="btn pri" type="button" data-act="fl-adv" data-id="${j.id}">قبول المركز — إغلاق نهائي</button><button class="btn" type="button" data-act="fl-ret" data-id="${j.id}" data-k="ripc" style="color:var(--red)">إعادة من المركز</button></div>`;
+  if (s === 'closed') return html`<p class="t-ok">أُغلقت المعاملة نهائياً.</p>`;
+  return html`<div class="row"><button class="btn pri" type="button" data-act="fl-adv" data-id="${j.id}">إنهاء «${FL_STAGES[s][0]}» والانتقال إلى ${nxN}</button></div>`;
+}
+function flDetail(j) {
+  const nb = flNeighbors(j, cfg().flow.r2); const docs = DB.docs.filter((d) => d.taskId === j.id); const crew = crewById(j.crewId);
+  const gf = gwOn() && gcfg().jobFolders && gcfg().jobFolders[j.id];
+  return html`<article class="card fldetail" style="--sc:${FL_COLORS[j.stage]}"><div class="row between"><div><h2 style="font-size:20px">${j.kind} — ${j.district || ''}</h2>
+      <p class="t-mut ltr" style="margin:4px 0 0;text-align:start">${flFolderName(j)}</p></div>
+      <div class="row">${flPermitChip(j)}<button class="btn sm" type="button" data-act="fl-edit" data-id="${j.id}">تعديل</button><a class="btn sm wa" href="${wa('', '«ميدان» — ' + flJobText(j) + (flNav(j) ? '\nالموقع: ' + flPin(j) : ''))}" target="_blank" rel="noopener noreferrer">واتساب</a>${flNav(j) ? html`<a class="btn sm" href="${flNav(j)}" target="_blank" rel="noopener noreferrer">الملاحة</a>` : ''}<button class="btn sm" type="button" data-act="fl-close-detail">إغلاق</button></div></div>
+    ${flStepper(j)}
+    <div class="grid g2"><div class="flkv"><span>المكتب</span><b>${j.office || '—'}</b><span>الحي</span><b>${j.district || '—'}</b><span>المحطة / المخطط / القطعة</span><b>${[j.station, j.plan, j.plot].filter(Boolean).join(' / ') || '—'}</b><span>التاريخ</span><b>${j.date}</b><span>طول الحفر</span><b>${j.lengthM ? j.lengthM + ' م' : '—'}</b><span>الفرقة</span><b>${crew ? crew.id + ' · ' + crew.sup.name : '—'}</b></div>
+      <div class="flkv"><span>رقم الأساس</span><b class="ltr">${j.baseNo || '—'}</b><span>رقم المعاملة</span><b class="ltr">${j.txNo || '—'}</b><span>الرخصة</span><b>${flPermitLine(j)}</b><span>بوابة الرخصة</span><b>${flGateLabel(j)[0]}</b>
+        <span>مجلد Drive</span><b>${gf ? html`<a href="${'https://drive.google.com/drive/folders/' + gf.id}" target="_blank" rel="noopener noreferrer">فتح مجلد «${flFolderName(j)}»</a>` : gwOn() ? html`<button class="btn sm" type="button" data-act="fl-folder" data-id="${j.id}">إنشاء مجلد المعاملة</button>` : html`<span class="t-mut">يُنشأ عند الربط مع Google Drive</span>`}</b></div></div>
+    ${flStageActions(j)}
+    ${j.gate && j.gate.mode === 'override' && !j.gate.fileId ? html`<p class="alert wr">تجاوز بواسطة ${j.gate.by}: ${j.gate.reason} — يجب إرفاق الرخصة قبل ${j.gate.due}. <button class="btn sm" type="button" data-act="fl-gate" data-id="${j.id}" data-k="late">إرفاق الرخصة الآن</button></p>` : ''}
+    <div class="grid g2"><div><h3 style="font-size:15px">المعاملات القريبة (${nb.length}) — نطاق ${cfg().flow.r2} كم</h3>${nb.length ? html`<ul class="nb">${nb.map((x) => html`<li><button type="button" class="lnk" data-act="fl-open" data-id="${x.o.id}">${x.o.baseNo || x.o.id} — ${x.o.kind}</button><span class="t-mut">${x.o.district} · ${x.o.date}${x.dist != null ? ' · ' + x.dist.toFixed(1) + ' كم' : ''} · ${x.why.join('، ')}</span></li>`)}</ul>` : html`<p class="t-mut">لا توجد معاملات قريبة.</p>`}</div>
+      <div><h3 style="font-size:15px">المستندات (${docs.length})</h3>${docs.length ? html`<ul class="nb">${docs.map((d) => html`<li><span>${d.type} — ${d.fileName || d.title}</span>${d.fileId ? html`<button class="btn sm" type="button" data-act="doc-file" data-id="${d.id}">تنزيل</button>` : ''}</li>`)}</ul>` : html`<p class="t-mut">لا مستندات بعد.</p>`}</div></div>
+    <details><summary>سجل المعاملة (${j.log.length})</summary><ul class="nb">${j.log.slice(0, 30).map((l) => html`<li><span>${fmtT(l.tm)} · ${FL_STAGES[l.stage] ? FL_STAGES[l.stage][0] : l.stage}</span><span class="t-mut">${l.by}${l.note ? ' — ' + l.note : ''}</span></li>`)}</ul></details></article>`;
+}
+
+// ---------- cluster map ----------
+function flClusterList() {
+  const d = UI.flDay || 'week'; const off = UI.flOff || ''; const tm = addDays(1);
+  const J = flJobs().filter((j) => flActive(j) && (!off || j.office === off) && (d === 'all' || (d === 'tomorrow' ? j.date === tm : daysTo(j.date) >= -1 && daysTo(j.date) <= 7)));
+  return { J, C: flClusters(J, UI.flRad || cfg().flow.clusterKm) };
+}
+function viewCluster() {
+  const { J, C } = flClusterList(); const sv = flSavings(C); const rad = UI.flRad || cfg().flow.clusterKm; const d = UI.flDay || 'week';
+  return html`<div class="ph"><div><h1 style="font-size:28px">خريطة الكلاستر والنطاق الجغرافي</h1><p>تجميع المعاملات المتقاربة حسب المسافة والحي والمحطة والمخطط، لتنسيق السلامة والمعدات والمراقبين والسفلتة مرة واحدة. الإحداثيات في البيانات التجريبية تقريبية للعرض.</p></div></div>
+  <div class="row"><div class="chips" role="group" aria-label="نطاق التجميع">${[1, 2, 5].map((r) => html`<button type="button" class="chip" data-act="fl-rad" data-k="${r}" aria-pressed="${rad === r}">${r} كم</button>`)}</div>
+    <div class="chips" role="group" aria-label="الفترة">${[['tomorrow', 'الغد'], ['week', 'هذا الأسبوع'], ['all', 'الكل']].map((x) => html`<button type="button" class="chip" data-act="fl-day" data-k="${x[0]}" aria-pressed="${d === x[0]}">${x[1]}</button>`)}</div>
+    <div class="chips" role="group" aria-label="المكتب"><button type="button" class="chip" data-act="fl-off" data-k="" aria-pressed="${!UI.flOff}">كل المكاتب</button>${DB.lists.offices.map((o) => html`<button type="button" class="chip" data-act="fl-off" data-k="${o}" aria-pressed="${UI.flOff === o}">${o}</button>`)}</div></div>
+  <div class="flkpi"><div class="flk"><span>معاملات في الفترة</span><b>${J.length}</b></div><div class="flk"><span>كلاسترات</span><b>${C.length}</b></div><div class="flk"><span>كلاسترات متعددة</span><b class="t-warn">${C.filter((c) => c.jobs.length > 1).length}</b></div><div class="flk"><span>زيارات يمكن توفيرها</span><b class="t-ok">${sv.trips}</b></div><div class="flk"><span>وفر تقديري</span><b class="t-ok">${sv.sar.toLocaleString('en')} ر.س</b></div></div>
+  <div class="clwrap"><div class="card" style="padding:0;overflow:hidden"><div id="cmap" class="cmap" role="region" aria-label="خريطة الكلاستر"></div>
+    <div class="row" style="padding:10px 14px;font-size:12px;gap:12px">${FL_FULL.filter((s) => s !== 'closed').map((s) => html`<span class="row" style="gap:4px"><i class="dot" style="background:${FL_COLORS[s]}"></i>${FL_STAGES[s][0]}</span>`)}</div></div>
+    <div class="cllist">${C.map((c, i) => html`<article class="card clcard ${c.jobs.length > 1 ? 'multi' : ''}"><div class="row between"><b>كلاستر ${i + 1} — ${c.district}</b><span class="pill ${c.jobs.length > 1 ? 'warn' : 'mutp'}">${c.jobs.length} معاملة</span></div>
+      <span class="t-mut" style="font-size:12px">${c.offices.join('، ')} · ${c.meters} م حفر · نصف قطر ${c.rad.toFixed(1)} كم</span>
+      <ul class="nb">${c.jobs.map((j) => html`<li><button type="button" class="lnk" data-act="fl-open" data-id="${j.id}">${j.baseNo || j.id} — ${j.kind}</button><span class="t-mut">${j.date} · ${FL_STAGES[j.stage][0]}</span></li>`)}</ul>
+      ${c.jobs.length > 1 && can('edit') ? html`<button class="btn sm pri" type="button" data-act="fl-cl-coord" data-i="${i}">إرسال تنسيق موحّد للمهندسين</button>` : ''}</article>`)}${C.length ? '' : html`<p class="t-mut">لا توجد معاملات في هذه الفترة.</p>`}</div></div>
+  <div class="card"><div class="row between"><h2 style="font-size:17px">التحليل الذكي للتنسيق</h2><button class="btn pri" type="button" data-act="fl-ai" ${UI.flAi && UI.flAi.busy ? new Safe('disabled') : ''}>${UI.flAi && UI.flAi.busy ? 'جارٍ التحليل…' : 'حلّل خطة الأسبوع'}</button></div>
+    ${UI.flAi && UI.flAi.text ? html`<div class="aiout">${UI.flAi.text}</div><p class="t-mut" style="font-size:12px">المصدر: ${UI.flAi.via}</p>` : html`<p class="t-mut">يقترح ترتيب التنفيذ لكل كلاستر، وتوحيد توريد السلامة والإنارة، وتسلسل الكهرباء ثم السفلتة قبل انتهاء الرخص. يعمل بمزودي الذكاء الاصطناعي المجانيين (OpenRouter وGroq وGemini) أو بتحليل محلي.</p>`}</div>`;
+}
+function flMountCluster() {
+  const el = $('#cmap'); if (!el) return;
+  if (!window.L) { el.innerHTML = html`<p class="t-mut" style="padding:20px">تعذّر تحميل الخريطة. القائمة على اليمين تعرض الكلاسترات نفسها.</p>`.s; return; }
+  const { J, C } = flClusterList();
+  CMAP = L.map(el, { zoomControl: true });
+  const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' });
+  const key = mapsKey(); if (key) googleLayers(key).then((g) => { if (!CMAP) return; (g ? (UI.mapType === 'satellite' ? g.satellite : g.roadmap) : osm).addTo(CMAP); }); else osm.addTo(CMAP);
+  C.forEach((c, i) => { const multi = c.jobs.length > 1; L.circle([c.lat, c.lng], { radius: c.rad * 1000, color: multi ? '#C2410C' : '#64748B', weight: multi ? 2 : 1, dashArray: multi ? '' : '4 6', fillOpacity: multi ? 0.12 : 0.04 }).addTo(CMAP).bindTooltip(tr('كلاستر') + ' ' + (i + 1) + ' · ' + c.district + ' · ' + c.jobs.length, { permanent: multi, direction: 'top' }); });
+  J.forEach((j) => { if (!flHasXY(j)) return; const on = UI.flSel === j.id; const m = L.circleMarker([j.lat, j.lng], { radius: on ? 10 : 7, color: '#fff', weight: 2, fillColor: FL_COLORS[j.stage], fillOpacity: 1 }).addTo(CMAP); m.bindTooltip((j.baseNo || j.id) + ' · ' + j.kind + ' · ' + j.date); m.on('click', () => { UI.flSel = j.id; render(); }); });
+  const s = UI.flSel && DB.jobs.find((x) => x.id === UI.flSel);
+  if (s && flHasXY(s)) [cfg().flow.r1, cfg().flow.r2].forEach((r) => L.circle([s.lat, s.lng], { radius: r * 1000, color: '#1D4ED8', weight: 1.5, dashArray: '6 6', fill: false }).addTo(CMAP).bindTooltip(r + ' كم'));
+  const pts = J.filter(flHasXY).map((j) => [j.lat, j.lng]);
+  if (s && flHasXY(s)) CMAP.setView([s.lat, s.lng], 12); else if (pts.length) CMAP.fitBounds(L.latLngBounds(pts).pad(0.15)); else CMAP.setView([24.75, 46.72], 11);
+}
+async function flAi() {
+  const { J, C } = flClusterList(); UI.flAi = { busy: true, text: '', via: '' }; render();
+  const data = { radiusKm: UI.flRad || cfg().flow.clusterKm, clusters: C.map((c, i) => ({ n: i + 1, district: c.district, offices: c.offices, meters: c.meters, jobs: c.jobs.map((j) => ({ base: j.baseNo, kind: j.kind, date: j.date, stage: FL_STAGES[j.stage][0], permit: j.permit, permitExpires: j.permitExp, gate: flGateLabel(j)[0] })) })) };
+  const sys = 'أنت مخطط عمليات لمقاول شبكات كهرباء في الرياض. أعطِ خطة تنسيق عملية بالعربية في نقاط قصيرة: لكل كلاستر ترتيب التنفيذ، توحيد توريد السلامة والإنارة، تسلسل الكهرباء ثم السفلتة، الرخص المعرضة للانتهاء أو بلا إرفاق، وتقدير الوفر. لا تختلق بيانات.';
+  const a = await aiChat([{ role: 'system', content: sys }, { role: 'user', content: JSON.stringify(data).slice(0, 20000) }]);
+  if (a) { UI.flAi = { busy: false, text: a.text.slice(0, 6000), via: a.via }; audit(CUR.name, 'تحليل ذكي للتنسيق', a.via); }
+  else {
+    const lines = C.filter((c) => c.jobs.length > 1).map((c, i) => { const J2 = c.jobs.slice().sort((x, y) => x.date.localeCompare(y.date)); const risk = J2.filter((j) => !flGateOk(j) || (flPermitDays(j) !== null && flPermitDays(j) <= 3)); return '• كلاستر ' + (i + 1) + ' (' + c.district + '): نفّذ بالترتيب ' + J2.map((j) => (j.baseNo || j.id) + ' ' + j.date).join(' ← ') + '. ورّد السلامة والإنارة مرة واحدة لـ ' + c.meters + ' م، ونسّق السفلتة بعد آخر تمديد.' + (risk.length ? ' انتبه: ' + risk.map((j) => (j.baseNo || j.id) + ' (' + (!flGateOk(j) ? 'بلا رخصة مرفقة' : 'الرخصة تنتهي خلال ' + flPermitDays(j) + ' يوم') + ')').join('، ') + '.' : ''); });
+    const sv = flSavings(C); UI.flAi = { busy: false, text: (lines.length ? lines.join('\n') : 'لا توجد كلاسترات متعددة في هذه الفترة.') + '\nالوفر التقديري: ' + sv.trips + ' زيارة ≈ ' + sv.sar.toLocaleString('en') + ' ر.س.', via: 'تحليل محلي داخل المنصة (لا يوجد مزود ذكاء اصطناعي مضبوط)' };
+  }
+  render();
+}
+
+// ---------- coordination inbox ----------
+function viewInbox() {
+  const rf = UI.inRole || ''; const sf = UI.inSt || 'open';
+  const L = DB.inbox.filter((i) => (!rf || i.roles.includes(rf) || (rf.startsWith('sup') && i.kind === 'fwd')) && (sf === 'all' || (sf === 'open' ? i.st !== 'done' : i.st === sf)));
+  const cnt = (r) => DB.inbox.filter((i) => i.st !== 'done' && (i.roles.includes(r) || (r.startsWith('sup') && i.kind === 'fwd'))).length;
+  return html`<div class="ph"><div><h1 style="font-size:28px">مركز التنسيق والتنبيهات</h1><p>توجيه آلي لكل تنبيه إلى المسؤول بالاسم والجوال: قسم الرخص، مهندسو المدني والكهرباء، الأسفلت، السلامة، HSE، والمختبر. المهندس يحوّل التنبيه للمراقبين بضغطة.</p></div><div class="row"><button class="btn" type="button" data-act="fl-tick">تشغيل الفحص المجدول الآن</button></div></div>
+  <div class="chips" role="group" aria-label="المستلم"><button type="button" class="chip" data-act="in-role" data-k="" aria-pressed="${!rf}">الكل</button>${Object.keys(FL_ROLES).map((r) => html`<button type="button" class="chip" data-act="in-role" data-k="${r}" aria-pressed="${rf === r}">${FL_ROLES[r]}${cnt(r) ? ' (' + cnt(r) + ')' : ''}</button>`)}</div>
+  <div class="chips" role="group" aria-label="الحالة">${[['open', 'المفتوحة'], ['fwd', 'المحوّلة للمراقبين'], ['done', 'المعالجة'], ['all', 'الكل']].map((x) => html`<button type="button" class="chip" data-act="in-st" data-k="${x[0]}" aria-pressed="${sf === x[0]}">${x[1]}</button>`)}</div>
+  <div class="inbox">${L.slice(0, 120).map((i) => html`<article class="card initem ${i.st}"><div class="row between"><div class="row" style="gap:8px"><span class="pill ${i.kind === 'coord' ? 'warn' : i.kind === 'permit' || i.kind === 'gate' || i.kind === 'report' ? 'bad' : 'info'}">${FL_KIND_ICON[i.kind] || i.kind}</span><b>${i.title}</b></div><span class="t-mut" style="font-size:12px">${fmtT(i.tm)}</span></div>
+    <p class="inbody">${i.body}</p>
+    <div class="row" style="gap:6px">${i.to.map((p) => html`<span class="who-chip">${p.name}<a class="lnk w" href="${wa(p.phone, flWaText(i))}" target="_blank" rel="noopener noreferrer" aria-label="واتساب ${p.name}">واتساب ${p.name}</a></span>`)}${i.to.length ? '' : html`<span class="t-mut">لم يُحدَّد مسؤول لهذا الدور — أضفه في جدول المسؤوليات.</span>`}</div>
+    <div class="row">${i.fwdRole && i.st === 'new' && can('edit') ? html`<button class="btn sm pri" type="button" data-act="fl-fwd" data-id="${i.id}">تحويل للمراقبين</button>` : ''}${i.st === 'fwd' ? html`<span class="pill ok">حُوِّل إلى: ${i.fwd.join('، ')}</span>` : ''}${i.jobIds.length ? html`<button class="btn sm" type="button" data-act="fl-goto" data-id="${i.jobIds[0]}">فتح المعاملة</button>` : ''}${i.nav ? html`<a class="btn sm" href="${i.nav}" target="_blank" rel="noopener noreferrer">الملاحة</a>` : ''}${i.st !== 'done' ? html`<button class="btn sm" type="button" data-act="fl-done" data-id="${i.id}">تمت المعالجة</button>` : ''}</div></article>`)}${L.length ? '' : html`<p class="t-mut">لا تنبيهات.</p>`}</div>
+  <div class="card"><div class="row between"><h2 style="font-size:17px">جدول المسؤوليات والتوجيه</h2>${can('settings') ? html`<button class="btn sm" type="button" data-act="fl-ro" data-id="">+ مسؤول</button>` : ''}</div>
+    <div class="tblw"><table><thead><tr><th scope="col">الدور</th><th scope="col">الاسم</th><th scope="col">المكاتب</th><th scope="col">الجوال</th><th scope="col">إجراء</th></tr></thead><tbody>${DB.roster.map((p) => html`<tr><td>${FL_ROLES[p.role] || p.role}</td><td>${p.name}</td><td>${p.offices.length ? p.offices.join('، ') : 'كل المكاتب'}</td><td class="ltr">${p.phone || '—'}</td><td>${can('settings') ? html`<button class="btn sm" type="button" data-act="fl-ro" data-id="${p.id}">تعديل</button>` : ''}</td></tr>`)}</tbody></table></div></div>`;
+}
+
+// ---------- reports & returns ----------
+function viewReports() {
+  const kf = UI.repK || ''; const L = DB.reports.filter((r) => !kf || r.kind === kf).sort((a, b) => (a.st === 'resolved') - (b.st === 'resolved') || a.due.localeCompare(b.due));
+  return html`<div class="ph"><div><h1 style="font-size:28px">البلاغات والمعادات</h1><p>معالجة المعاد من المختبر URS والاستشاري PDC ومركز المشاريع RIPC، وبلاغات البلدية 940 ومخالفات المركز، مع عدّاد المهلة والتوجيه للأسفلت أو المختبر أو التنفيذ المدني.</p></div>${can('edit') ? html`<button class="btn pri" type="button" data-act="fl-rep" data-id="">+ بلاغ / معاد</button>` : ''}</div>
+  <div class="flkpi">${Object.keys(FL_REPORT_KINDS).map((k) => html`<button type="button" class="flk ${kf === k ? 'on' : ''}" data-act="rep-k" data-k="${kf === k ? '' : k}"><span>${FL_REPORT_KINDS[k][0]}</span><b>${DB.reports.filter((r) => r.kind === k && r.st !== 'resolved').length}</b></button>`)}</div>
+  <div class="tblw"><table><thead><tr><th scope="col">النوع</th><th scope="col">الأساس / الرخصة</th><th scope="col">الحي</th><th scope="col">الملاحظة</th><th scope="col">المهلة</th><th scope="col">الحالة</th><th scope="col">توجيه</th></tr></thead><tbody>
+  ${L.map((r) => { const dl = daysTo(r.due); return html`<tr><td>${r.kindName}</td><td class="ltr">${[r.baseNo, r.permit].filter(Boolean).join(' / ') || '—'}</td><td>${r.district || '—'}</td><td style="max-width:280px">${r.note || ''}</td>
+    <td><span class="pill ${r.st === 'resolved' ? 'mutp' : dl < 0 ? 'bad' : dl <= 3 ? 'warn' : 'info'}">${r.st === 'resolved' ? '—' : dl < 0 ? 'متأخر ' + -dl + ' يوم' : dl + ' يوم'}</span></td>
+    <td><span class="pill ${r.st === 'resolved' ? 'ok' : r.st === 'routed' ? 'info' : 'warn'}">${r.st === 'resolved' ? 'تمت المعالجة' : r.st === 'routed' ? 'موجّه: ' + (FL_ROLES[r.to] || '') : 'مفتوح'}</span></td>
+    <td><div class="row" style="gap:4px">${r.st !== 'resolved' && can('edit') ? html`${['asphalt', 'lab', 'civil'].map((t) => html`<button class="btn sm" type="button" data-act="fl-rep-to" data-id="${r.id}" data-k="${t}">${FL_ROLES[t]}</button>`)}<button class="btn sm" type="button" data-act="fl-rep-done" data-id="${r.id}">تمت</button>` : ''}${r.jobId ? html`<button class="btn sm" type="button" data-act="fl-goto" data-id="${r.jobId}">المعاملة</button>` : ''}</div></td></tr>`; })}</tbody></table></div>${L.length ? '' : html`<p class="t-mut">لا بلاغات.</p>`}`;
+}
+
+// ---------- team cards (slider) ----------
+const FL_CARD_DOCS = ['صورة الإقامة', 'كارت الأمن الصناعي', 'شهادة TUV', 'رخصة القيادة', 'كارت التأمين الطبي'];
+function viewCards() {
+  const q = (UI.cardQ || '').trim(); const E = (DB.employees || []).filter((e) => !q || (e.name + ' ' + e.iqama + ' ' + (e.job || '')).includes(q));
+  const grp = { 'المهندسون والمراقبون': [], 'السائقون والمشغلون': [], 'العمال والفنيون': [], 'غير مربوطين بفرقة': [] };
+  E.forEach((e) => { const l = empLink(e); if (l && (l.role === 'مهندس' || l.role === 'مراقب')) grp['المهندسون والمراقبون'].push(e); else if (isDriverEmp(e) || /مشغل|operator/i.test(e.job || '')) grp['السائقون والمشغلون'].push(e); else if (l) grp['العمال والفنيون'].push(e); else grp['غير مربوطين بفرقة'].push(e); });
+  return html`<div class="ph"><div><h1 style="font-size:28px">بطاقات الفريق</h1><p>بطاقة لكل عامل ومراقب وسائق: صورة الإقامة، كارت الأمن الصناعي، شهادة TUV للمشغلين والسائقين، الرخصة، والتأمين — بتواريخ الانتهاء. تُحفظ الصور في Google Drive عند الربط.</p></div>
+    <input class="in" type="search" placeholder="بحث بالاسم أو الإقامة أو المهنة" aria-label="بحث في البطاقات" data-input="card-q" value="${q}" style="max-width:320px"></div>
+  ${Object.keys(grp).filter((k) => grp[k].length).map((k) => html`<section class="cardsec"><h2 style="font-size:17px">${k} <span class="t-mut">(${grp[k].length})</span></h2><div class="slider" tabindex="0" aria-label="${k}">${grp[k].slice(0, 60).map(flPersonCard)}</div></section>`)}
+  ${E.length ? '' : html`<p class="t-mut">لا موظفين. استورد سجل الموظفين من الإعدادات.</p>`}`;
+}
+function flPersonCard(e) {
+  const l = empLink(e); const iq = (e.docs || {})['صورة الإقامة']; const ini = String(e.name || '؟').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('');
+  return html`<article class="pcard"><div class="pc-top">${iq && iq.fileId && /image\//.test(iq.type || 'image/') ? html`<img alt="" data-thumb="${iq.fileId}" class="pc-img">` : ''}<span class="pc-ini" aria-hidden="true">${ini}</span>
+    <div><b>${e.name}</b><span>${e.job || '—'}</span></div></div>
+    <div class="pc-meta"><span>الإقامة</span><b class="ltr">${e.iqama || '—'}</b><span>الفرقة</span><b>${l ? l.crew.id + ' · ' + l.role : '—'}</b></div>
+    <ul class="pc-docs">${FL_CARD_DOCS.map((t) => { const s = empDocState(e, t); return html`<li class="${s.lvl}"><span>${t}</span><span>${s.lvl === 'na' ? 'غير مطلوب' : s.lvl === 'miss' ? 'ناقص' : s.d && s.d.exp ? s.d.exp : 'مرفق'}</span></li>`; })}</ul>
+    ${can('data') ? html`<button class="btn sm" type="button" data-act="emp-edit" data-id="${e.id}">رفع / تحديث المرفقات</button>` : ''}</article>`;
+}
+async function flThumbs() {
+  for (const img of document.querySelectorAll('img[data-thumb]')) {
+    if (img.dataset.done) continue; img.dataset.done = '1';
+    try { const b = await fileGet(img.dataset.thumb); if (!b || !/^image\//.test(b.type)) { img.remove(); continue; } const fr = new FileReader(); fr.onload = () => { if (/^data:image\/(png|jpeg|webp);base64,/.test(fr.result)) { img.src = fr.result; img.classList.add('ok'); } }; fr.readAsDataURL(b); } catch (e) { img.remove(); }
+  }
+}
+
+// ---------- render hooks ----------
+function flBeforeRender() { if (CMAP) { CMAP.remove(); CMAP = null; } }
+function flAfterRender() {
+  if (CUR && FL_TICKED !== today() && DB.roster) { FL_TICKED = today(); if (flTick()) setTimeout(render, 0); }
+  if (UI.view === 'cluster') flMountCluster();
+  if (UI.view === 'cards') flThumbs();
+}
+
+// ---------- forms ----------
+function flJobFields(j) {
+  j = j || {};
+  return [{ k: 'kind', label: 'نوع العمل', type: 'select', list: 'flKinds', val: j.kind || 'حفر مفتوح لتركيب ميني بيلر' }, { k: 'office', label: 'المكتب', type: 'select', list: 'offices', val: j.office || DB.lists.offices[0] },
+    { k: 'baseNo', label: 'رقم الأساس', ltr: true, val: j.baseNo || '', ph: 'R6661' }, { k: 'txNo', label: 'رقم المعاملة / السكيم', ltr: true, val: j.txNo || '' },
+    { k: 'permit', label: 'رقم الرخصة', ltr: true, val: j.permit || '' }, { k: 'permitType', label: 'نوع الرخصة', type: 'select', opts: [['اعتيادي', 'ترخيص اعتيادي'], ['طارئ', 'ترخيص طارئ (10 أيام)']], val: j.permitType || 'اعتيادي' },
+    { k: 'permitExp', label: 'تاريخ انتهاء الرخصة', type: 'date', val: j.permitExp || '' }, { k: 'date', label: 'تاريخ التنفيذ', type: 'date', val: j.date || addDays(1) },
+    { k: 'district', label: 'الحي', val: j.district || '' }, { k: 'station', label: 'المحطة', val: j.station || '' }, { k: 'plan', label: 'المخطط', val: j.plan || '' }, { k: 'plot', label: 'القطعة', val: j.plot || '' },
+    { k: 'lat', label: 'خط العرض', type: 'number', val: j.lat || '', ltr: true }, { k: 'lng', label: 'خط الطول', type: 'number', val: j.lng || '', ltr: true },
+    { k: 'lengthM', label: 'طول الحفر (م)', type: 'number', val: j.lengthM || '' }, { k: 'barrier', label: 'نوع الصبات', type: 'select', opts: [['صبات خرسانية', 'صبات خرسانية'], ['صبات بلاستيكية', 'صبات بلاستيكية']], val: (j.safety && j.safety.barrier) || 'صبات خرسانية' },
+    { k: 'crewId', label: 'الفرقة المنفذة', type: 'select', opts: [['', '— بدون —']].concat(DB.crews.map((c) => [c.id, c.id + ' · ' + (TYPES[c.type] ? TYPES[c.type][0] : '') + ' · ' + c.sup.name])), val: j.crewId || '' },
+    { k: 'note', label: 'ملاحظات', type: 'textarea', val: j.note || '' }];
+}
+function flApply(j, v) {
+  ['kind', 'office', 'baseNo', 'txNo', 'permit', 'permitType', 'permitExp', 'date', 'district', 'station', 'plan', 'plot', 'crewId', 'note'].forEach((k) => { j[k] = String(v[k] || '').trim().slice(0, 200); });
+  j.lat = parseFloat(v.lat) || 0; j.lng = parseFloat(v.lng) || 0; j.lengthM = Math.max(0, Math.round(+v.lengthM || 0));
+  j.safety = j.safety || {}; j.safety.barrier = v.barrier || 'صبات خرسانية';
+  j.title = j.kind + ' — ' + j.district + (j.baseNo ? ' (' + j.baseNo + ')' : ''); j.site = j.district;
+}
+function flValidate(v) {
+  if (!v.kind || !v.district) return 'نوع العمل والحي مطلوبان.';
+  if (v.lat && !(+v.lat > 16 && +v.lat < 33)) return 'خط العرض خارج المملكة.';
+  if (v.lng && !(+v.lng > 34 && +v.lng < 56)) return 'خط الطول خارج المملكة.';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v.date || '')) return 'تاريخ التنفيذ مطلوب.';
+  return '';
+}
+async function flAttach(j, kind, file) {
+  if (!file || !file.size) return 'اختر ملفاً.'; if (file.size > 10 * 1024 * 1024) return 'الملف أكبر من 10 ميجابايت.'; if (!ALLOWED_FILES[file.type] || /officedocument/.test(file.type)) return 'المسموح: صورة أو PDF.';
+  const doc = { id: uid('d'), type: kind, title: kind + ' — ' + flFolderName(j), crewId: j.crewId, taskId: j.id, workType: '', person: CUR.name, exp: kind === 'تصريح' ? j.permitExp || '' : '', url: '', fileId: uid('f'), fileName: safeName(file.name), size: file.size, form: null, tm: nowIso(), by: CUR.name };
+  try { await filePut(doc.fileId, file, j.id); } catch (e) { return 'تعذّر حفظ الملف.'; }
+  DB.docs.unshift(doc); return doc;
+}
+
+const FL_ACT = {
+  'fl-add': () => { if (!need('edit')) return; openForm('معاملة ميدانية جديدة', flJobFields(), (v) => { const e = flValidate(v); if (e) return e; const j = newTask({ flow: true, stage: 'plan', dept: 'التنفيذ', workType: 'excav', sec: { no: '', date: '', by: '' }, data: {}, alerts: {}, log: [], gate: null, safety: {} }); flApply(j, v); DB.jobs.push(j); flLog(j, 'plan', 'إنشاء المعاملة');
+    const nb = flNeighbors(j, cfg().flow.r2).length; if (j.date === addDays(1) || j.date === today()) flCoordinate(j, 'd1'); audit(CUR.name, 'إنشاء معاملة ميدانية', flFolderName(j)); UI.view = 'flow'; UI.flSel = j.id; toast(nb ? 'أُنشئت المعاملة — يوجد ' + nb + ' معاملات في نفس النطاق.' : 'أُنشئت المعاملة.'); }, { ok: 'إنشاء' }); },
+  'fl-edit': (d) => { const j = DB.jobs.find((x) => x.id === d.id); if (!j || !need('edit')) return; openForm('تعديل المعاملة', flJobFields(j), (v) => { const e = flValidate(v); if (e) return e; flApply(j, v); flLog(j, j.stage, 'تعديل البيانات'); audit(CUR.name, 'تعديل معاملة ميدانية', flFolderName(j)); }); },
+  'fl-open': (d) => { UI.flSel = d.id; if (UI.view !== 'cluster') UI.view = 'flow'; render(); const el = $('.fldetail'); if (el && UI.view === 'flow') el.scrollIntoView({ block: 'start', behavior: 'smooth' }); },
+  'fl-goto': (d) => { UI.view = 'flow'; UI.flSel = d.id; render(); },
+  'fl-close-detail': () => { UI.flSel = null; render(); },
+  'fl-off': (d) => { UI.flOff = d.k; render(); }, 'fl-rad': (d) => { UI.flRad = +d.k; render(); }, 'fl-day': (d) => { UI.flDay = d.k; render(); },
+  'in-role': (d) => { UI.inRole = d.k; render(); }, 'in-st': (d) => { UI.inSt = d.k; render(); }, 'rep-k': (d) => { UI.repK = d.k; render(); },
+  'fl-coord': (d) => { const j = DB.jobs.find((x) => x.id === d.id); if (!j || !need('edit')) return; const n = flCoordinate(j, 'manual'); save(); toast('أُرسل تنبيه التنسيق لقسم الرخص' + (n ? ' والمهندسين (' + n + ' معاملات قريبة)' : '') + '.'); render(); },
+  'fl-adv': (d) => {
+    const j = DB.jobs.find((x) => x.id === d.id); if (!j || !need('edit')) return; const nx = flNext(j); if (!nx) return;
+    if (j.stage === 'gate' && !flGateOk(j)) return toast('لا يمكن بدء التنفيذ: أرفق صورة الرخصة أو التعهد، أو سجّل تجاوز المهندس.', 'err');
+    if (flIdx(j) < flPath(j).indexOf('gate') + 1 && nx !== 'gate' && !flGateOk(j)) return toast('أرفق الرخصة أولاً.', 'err');
+    if (j.stage === 'safety' && !(j.safety.delivered && j.safety.hse)) return toast('أكّد توريد الصبات والإنارة واعتماد فحص HSE قبل الحفر.', 'err');
+    if (['dig', 'elec', 'asphalt'].includes(j.stage)) return openForm('إنهاء «' + FL_STAGES[j.stage][0] + '»', [{ k: 'note', label: 'ملاحظة التنفيذ', type: 'textarea' }, { k: 'photo', label: 'صورة التنفيذ (اختياري)', type: 'file', capture: true, wide: true }], async (v) => { if (v.photo && v.photo.size) { const r = await flAttach(j, 'صور التنفيذ', v.photo); if (typeof r === 'string') return r; } flSetStage(j, nx, v.note); audit(CUR.name, 'تقدم معاملة', flFolderName(j) + ' → ' + FL_STAGES[nx][0]); toast('انتقلت إلى «' + FL_STAGES[nx][0] + '» وأُرسل التنبيه للمسؤول.'); }, { ok: 'إنهاء والانتقال' });
+    flSetStage(j, nx); audit(CUR.name, 'تقدم معاملة', flFolderName(j) + ' → ' + FL_STAGES[nx][0]); save(); toast('انتقلت إلى «' + FL_STAGES[nx][0] + '».'); render();
+  },
+  'fl-gate': (d) => {
+    const j = DB.jobs.find((x) => x.id === d.id); if (!j || !need('edit')) return;
+    if (d.k === 'override') {
+      if (!['admin', 'pm', 'eng'].includes(CUR.role)) return toast('التجاوز للمهندس أو مدير المشروع فقط.', 'err');
+      return openForm('تجاوز بوابة الرخصة', [{ k: 'reason', label: 'مبرر التجاوز', type: 'textarea' }, { k: 'due', label: 'موعد إرفاق الرخصة', type: 'date', val: addDays(1) }], (v) => { if (String(v.reason || '').trim().length < 5) return 'اكتب مبرراً واضحاً.'; if (!(v.due >= today() && daysTo(v.due) <= 3)) return 'موعد الإرفاق خلال 3 أيام كحد أقصى.';
+        j.gate = { mode: 'override', by: CUR.name, tm: nowIso(), reason: v.reason.trim().slice(0, 300), due: v.due, fileId: '' }; flLog(j, j.stage, 'تجاوز المهندس — الإرفاق قبل ' + v.due); flNotify('gate', ['permits_sup', 'permits_eng'], 'تجاوز بوابة الرخصة بواسطة ' + CUR.name, flJobText(j) + '\nالمبرر: ' + j.gate.reason + '\nالإرفاق قبل ' + v.due, [j]); audit(CUR.name, 'تجاوز بوابة الرخصة', flFolderName(j)); }, { ok: 'تسجيل التجاوز', note: 'يُسجَّل التجاوز باسمك ويُبلَّغ مشرف التصاريح. يجب إرفاق الرخصة قبل الموعد.' });
+    }
+    const kind = d.k === 'undertaking' ? 'تعهد' : 'تصريح';
+    openForm(d.k === 'undertaking' ? 'إرفاق التعهد' : 'إرفاق صورة الرخصة', [{ k: 'file', label: d.k === 'undertaking' ? 'ملف التعهد (صورة أو PDF)' : 'صورة الرخصة (صورة أو PDF)', type: 'file', wide: true }], async (v) => {
+      const doc = await flAttach(j, kind, v.file); if (typeof doc === 'string') return doc;
+      if (j.gate && j.gate.mode === 'override') { j.gate.fileId = doc.fileId; j.gate.lateAt = nowIso(); } else j.gate = { mode: d.k === 'undertaking' ? 'undertaking' : 'permit', fileId: doc.fileId, by: CUR.name, tm: nowIso() };
+      flLog(j, j.stage, 'إرفاق ' + kind); audit(CUR.name, 'إرفاق ' + kind, flFolderName(j)); toast('أُرفق ' + kind + (gwOn() ? ' وحُفظ في مجلد المعاملة على Drive.' : '.'));
+    }, { ok: 'إرفاق' });
+  },
+  'fl-safety': (d) => {
+    const j = DB.jobs.find((x) => x.id === d.id); if (!j || !need('edit')) return;
+    if (d.k === 'req') { j.safety.reqAt = ''; flSafetyRequest(j); toast('أُرسل طلب التوريد لفريق السلامة وطلب فحص HSE.'); }
+    if (d.k === 'delivered') { j.safety.delivered = nowIso(); flLog(j, j.stage, 'تأكيد توريد ' + (j.safety.barrier || 'الصبات') + ' والإنارة'); toast('سُجّل توريد السلامة والإنارة.'); }
+    if (d.k === 'hse') { const crew = crewById(j.crewId); const q = crew ? flCrewQual(crew) : []; j.safety.hse = nowIso(); j.safety.hseNotes = q.slice(0, 10); flLog(j, j.stage, 'اعتماد فحص HSE' + (q.length ? ' مع ' + q.length + ' ملاحظات' : '')); toast(q.length ? 'اعتُمد الفحص مع ' + q.length + ' ملاحظات على البطاقات.' : 'اعتُمد فحص HSE.'); }
+    save(); render();
+  },
+  'fl-ret': (d) => { const j = DB.jobs.find((x) => x.id === d.id); if (!j || !need('edit')) return; FL_ACT['fl-rep']({ id: '', job: j.id, k: d.k }); },
+  'fl-folder': async (d) => { const j = DB.jobs.find((x) => x.id === d.id); if (!j) return; try { await gwToken(false).catch(() => gwToken(true)); await gwJobFolder(j); toast('أُنشئ مجلد «' + flFolderName(j) + '» في Drive.'); } catch (e) { toast(e.message, 'err'); } render(); },
+  'fl-cl-coord': (d) => { if (!need('edit')) return; const c = flClusterList().C[+d.i]; if (!c) return; const head = c.jobs[0]; const list = c.jobs.map((j) => '• ' + (j.baseNo || j.id) + ' — ' + j.kind + ' — ' + j.district + ' · ' + j.date + ' · ' + flPermitLine(j)).join('\n');
+    flNotify('coord', ['civil', 'elec', 'permits_eng', 'permits_sup'], 'تنسيق موحّد لكلاستر ' + c.district + ' (' + c.jobs.length + ' معاملات)', 'نطاق ' + c.rad.toFixed(1) + ' كم · ' + c.meters + ' م حفر\n' + list + '\nنسّقوا مرة واحدة: توريد سلامة وإنارة، المعدات، المراقبين، والسفلتة بالتوالي.', c.jobs, { fwdRole: 'sup_civil+sup_elec', nav: flNav(head) });
+    c.jobs.forEach((j) => flLog(j, j.stage, 'تنسيق كلاستر ' + c.district)); audit(CUR.name, 'تنسيق كلاستر', c.district + ' · ' + c.jobs.length); save(); toast('أُرسل التنسيق الموحّد للمهندسين وقسم الرخص.'); render(); },
+  'fl-ai': () => flAi(),
+  'fl-tick': () => { FL_TICKED = ''; const n = flTick(); FL_TICKED = today(); toast(n ? 'أُنشئ ' + n + ' تنبيهات جديدة.' : 'لا تنبيهات جديدة — كل شيء محدّث.'); render(); },
+  'fl-fwd': (d) => {
+    const it = DB.inbox.find((x) => x.id === d.id); if (!it || !need('edit')) return; const jobs = it.jobIds.map((id) => DB.jobs.find((j) => j.id === id)).filter(Boolean);
+    const roles = String(it.fwdRole || 'sup_civil').split('+'); const sups = []; roles.forEach((r) => flWho(r, jobs.map((j) => j.office)).forEach((p) => sups.push({ id: p.id, role: r, name: p.name, phone: p.phone })));
+    jobs.forEach((j) => { const c = crewById(j.crewId); if (c && !sups.some((s) => s.name === c.sup.name)) sups.push({ id: 'crew-' + c.id, role: 'sup', name: c.sup.name, phone: c.sup.phone }); });
+    const f = flNotify('fwd', roles, 'تحويل من ' + CUR.name + ': ' + it.title, it.body, jobs, { nav: it.nav, parent: it.id }); f.to = sups;
+    it.st = 'fwd'; it.fwd = sups.map((s) => s.name); audit(CUR.name, 'تحويل تنبيه للمراقبين', it.title); save(); toast('حُوِّل التنبيه إلى ' + sups.length + ' مراقبين.'); render();
+  },
+  'fl-done': (d) => { const it = DB.inbox.find((x) => x.id === d.id); if (!it) return; it.st = 'done'; it.doneBy = CUR.name; save(); render(); },
+  'fl-ro': (d) => { if (!need('settings')) return; const p = DB.roster.find((x) => x.id === d.id) || { role: 'civil', name: '', offices: [], phone: '' };
+    openForm(d.id ? 'تعديل مسؤول' : 'إضافة مسؤول', [{ k: 'role', label: 'الدور', type: 'select', opts: Object.keys(FL_ROLES).map((r) => [r, FL_ROLES[r]]), val: p.role }, { k: 'name', label: 'الاسم', val: p.name }, { k: 'phone', label: 'الجوال (واتساب)', ltr: true, val: p.phone, ph: '9665xxxxxxxx' }, { k: 'offices', label: 'المكاتب (فارغ = كل المكاتب)', type: 'checks', opts: DB.lists.offices.map((o) => [o, o]), val: p.offices }].concat(d.id ? [{ k: 'del', label: 'حذف هذا المسؤول', type: 'check' }] : []),
+      (v) => { if (v.del) { DB.roster = DB.roster.filter((x) => x.id !== p.id); return; } const ph = String(v.phone || '').replace(/\D/g, ''); if (String(v.name || '').trim().length < 2) return 'الاسم مطلوب.'; if (ph && !/^9665\d{8}$/.test(normPhone(ph))) return 'رقم جوال سعودي غير صالح.';
+        const offs = [].concat(v.offices || []).filter((o) => DB.lists.offices.includes(o));
+        Object.assign(p, { role: v.role, name: v.name.trim().slice(0, 80), phone: ph ? normPhone(ph) : '', offices: offs }); if (!d.id) { p.id = uid('ro'); DB.roster.push(p); } audit(CUR.name, 'تعديل جدول المسؤوليات', p.name); }); },
+  'fl-rep': (d) => {
+    if (!need('edit')) return; const J = flJobs();
+    openForm('تسجيل بلاغ / معاد', [{ k: 'kind', label: 'النوع', type: 'select', opts: Object.keys(FL_REPORT_KINDS).map((k) => [k, FL_REPORT_KINDS[k][0]]), val: d.k || 'pdc' }, { k: 'jobId', label: 'المعاملة', type: 'select', opts: [['', '— غير مربوط —']].concat(J.map((j) => [j.id, flFolderName(j) + ' · ' + j.district])), val: d.job || '' },
+      { k: 'baseNo', label: 'رقم الأساس (إن لم تُربط)', ltr: true }, { k: 'permit', label: 'رقم الرخصة', ltr: true }, { k: 'district', label: 'الحي' }, { k: 'recv', label: 'تاريخ الاستلام', type: 'date', val: today() }, { k: 'note', label: 'الملاحظة / سبب الإعادة', type: 'textarea' }], (v) => {
+      const K = FL_REPORT_KINDS[v.kind]; if (!K) return 'اختر النوع.'; const j = J.find((x) => x.id === v.jobId); if (!j && !v.baseNo && !v.permit) return 'اربط المعاملة أو أدخل رقم الأساس/الرخصة.';
+      const r = { id: uid('rp'), kind: v.kind, kindName: K[0], jobId: j ? j.id : '', baseNo: j ? j.baseNo : v.baseNo.trim(), permit: j ? j.permit : v.permit.trim(), district: j ? j.district : v.district.trim(), note: String(v.note || '').trim().slice(0, 500), recv: v.recv || today(), due: addDays(K[1], v.recv || today()), st: 'open', to: '', tm: nowIso(), by: CUR.name };
+      DB.reports.unshift(r);
+      if (j) { if (v.kind === 'lab') flSetStage(j, 'asphalt', 'راسب المختبر — إعادة دك وسفلتة'); if (v.kind === 'pdc') { flSetStage(j, 'pdc', 'إعادة من الاستشاري — مهلة 60 يوماً جديدة'); } if (v.kind === 'ripc') flSetStage(j, 'pdc', 'إعادة من المركز — تعود للاستشاري أولاً'); }
+      flNotify('report', ['permits_sup', 'civil'], K[0] + (r.baseNo ? ' — ' + r.baseNo : ''), (j ? flJobText(j) + '\n' : '') + r.note + '\nالمهلة حتى ' + r.due, j ? [j] : []); audit(CUR.name, 'تسجيل ' + K[0], r.baseNo || r.permit); UI.view = 'reports';
+    }, { ok: 'تسجيل' });
+  },
+  'fl-rep-to': (d) => { const r = DB.reports.find((x) => x.id === d.id); if (!r || !need('edit')) return; const j = DB.jobs.find((x) => x.id === r.jobId); r.st = 'routed'; r.to = d.k;
+    flNotify('report', [d.k], r.kindName + ' — مطلوب المعالجة', (j ? flJobText(j) + '\n' : 'الأساس ' + (r.baseNo || '—') + ' · الرخصة ' + (r.permit || '—') + '\n') + r.note + '\nالمهلة حتى ' + r.due, j ? [j] : [], { nav: j ? flNav(j) : '' }); save(); toast('وُجّه البلاغ إلى ' + FL_ROLES[d.k] + '.'); render(); },
+  'fl-rep-done': (d) => { const r = DB.reports.find((x) => x.id === d.id); if (!r || !need('edit')) return; r.st = 'resolved'; r.doneAt = nowIso(); r.doneBy = CUR.name; audit(CUR.name, 'معالجة بلاغ', r.kindName); save(); render(); }
+};
+
+// ---------- demo data (fictional numbers; real district names; coordinates approximate) ----------
+function seedFlow(d) {
+  const T = (n) => addDays(n); const mk = (o) => { const j = Object.assign({ id: uid('t'), title: '', permit: '', permitExp: '', site: o.district, crewId: '', dept: 'التنفيذ', date: today(), st: 'new', hold: null, reqs: [], close: null, doneAt: null, created: nowIso(), workType: 'excav', sec: { no: '', date: '', by: '' }, data: {}, flow: true, stage: 'plan', alerts: {}, log: [], gate: null, safety: { barrier: 'صبات خرسانية' }, permitType: 'اعتيادي' }, o);
+    j.title = j.kind + ' — ' + j.district + ' (' + j.baseNo + ')'; j.log.push({ tm: nowIso(), stage: j.stage, by: 'بيانات تجريبية', note: '' }); return j; };
+  const G = (fid) => ({ mode: 'permit', fileId: fid, by: 'بيانات تجريبية', tm: nowIso() });
+  const rows = [
+    // مكتب الشمال — النرجس: كلاستر الغد (حفر مفتوح لميني بيلر + تمديد + أسفلت ضمن 2 كم)
+    { office: 'مكتب الشمال', district: 'النرجس', kind: 'حفر مفتوح لتركيب ميني بيلر', baseNo: 'R7101', txNo: '261300101', permit: '2410001', permitExp: T(6), date: T(1), lat: 24.8612, lng: 46.6618, lengthM: 15, plan: '3218', crewId: 'X-03' },
+    { office: 'مكتب الشمال', district: 'النرجس', kind: 'تمديد كابلات', baseNo: 'R7102', txNo: '261300102', permit: '2410002', permitExp: T(2), date: T(1), lat: 24.8661, lng: 46.6702, lengthM: 120, plan: '3218', crewId: 'E-07' },
+    { office: 'مكتب الشمال', district: 'النرجس', kind: 'أسفلت وإعادة سفلتة', baseNo: 'R7103', txNo: '261300103', permit: '2410003', permitExp: T(9), date: T(2), lat: 24.8574, lng: 46.6555, lengthM: 80, stage: 'gate', gate: G('demo-permit') },
+    { office: 'مكتب الشمال', district: 'الملقا', kind: 'تمديد كابلات', baseNo: 'R7104', txNo: '261300104', permit: '2410004', permitType: 'طارئ', permitExp: T(1), date: T(1), lat: 24.8118, lng: 46.6142, lengthM: 50, station: 'محطة الملقا 3' },
+    { office: 'مكتب الشمال', district: 'القيروان', kind: 'حفر مفتوح', baseNo: 'R7105', txNo: '261300105', permit: '', permitExp: '', date: T(3), lat: 24.8334, lng: 46.5902, lengthM: 25 },
+    { office: 'مكتب الشمال', district: 'الندى', kind: 'تركيب عدادات', baseNo: 'R7106', txNo: '261300106', permit: '2410006', permitExp: T(12), date: T(0), lat: 24.8085, lng: 46.6828, stage: 'elec', gate: G('demo-permit') },
+    { office: 'مكتب الشمال', district: 'النرجس', kind: 'حفر مفتوح لتركيب ميني بيلر', baseNo: 'R7107', txNo: '261300107', permit: '2410007', permitExp: T(5), date: T(-1), lat: 24.8702, lng: 46.6655, lengthM: 20, stage: 'safety', gate: G('demo-permit'), crewId: 'X-03', safety: { barrier: 'صبات بلاستيكية', reqAt: nowIso() } },
+    // مكتب خريص — الخليج / الجنادرية / النهضة
+    { office: 'مكتب خريص', district: 'الخليج', kind: 'تمديد كابلات', baseNo: 'R7201', txNo: '261300201', permit: '2410101', permitExp: T(4), date: T(1), lat: 24.7762, lng: 46.8021, lengthM: 210, crewId: 'X-05' },
+    { office: 'مكتب خريص', district: 'الخليج', kind: 'حفر مفتوح لتركيب ميني بيلر', baseNo: 'R7202', txNo: '261300202', permit: '2410102', permitExp: T(7), date: T(2), lat: 24.7801, lng: 46.8102, lengthM: 15 },
+    { office: 'مكتب خريص', district: 'النهضة', kind: 'حفر مفتوح', baseNo: 'R7203', txNo: '261300203', permit: '2410103', permitExp: T(3), date: T(1), lat: 24.7629, lng: 46.8172, lengthM: 30 },
+    { office: 'مكتب خريص', district: 'الجنادرية', kind: 'تمديد كابلات', baseNo: 'R7204', txNo: '261300204', permit: '2410104', permitExp: T(-1), date: T(-3), lat: 24.8003, lng: 46.8801, lengthM: 170, stage: 'dig', gate: G('demo-permit'), safety: { barrier: 'صبات خرسانية', reqAt: nowIso(), delivered: nowIso(), hse: nowIso() } },
+    { office: 'مكتب خريص', district: 'الجنادرية', kind: 'حفر مفتوح لتركيب ميني بيلر', baseNo: 'R7205', txNo: '261300205', permit: '2410105', permitExp: T(8), date: T(-5), lat: 24.7962, lng: 46.8752, lengthM: 15, stage: 'asphalt', gate: G('demo-permit') },
+    { office: 'مكتب خريص', district: 'اليرموك', kind: 'أسفلت وإعادة سفلتة', baseNo: 'R7206', txNo: '261300206', permit: '2410106', permitExp: T(10), date: T(-12), lat: 24.8141, lng: 46.7893, lengthM: 100, stage: 'lab', gate: G('demo-permit') },
+    { office: 'مكتب خريص', district: 'الريان', kind: 'تمديد كابلات', baseNo: 'R7207', txNo: '261300207', permit: '2410107', permitExp: T(15), date: T(-30), lat: 24.7091, lng: 46.7752, lengthM: 370, stage: 'pdc', gate: G('demo-permit'), pdc: { start: T(-52), due: T(8) } },
+    // مكتب الشرق — الملز / جرير / العزيزية
+    { office: 'مكتب الشرق', district: 'الملز', kind: 'تمديد كابلات', baseNo: 'R7301', txNo: '261300301', permit: '2410201', permitExp: T(5), date: T(1), lat: 24.6631, lng: 46.7332, lengthM: 220, crewId: 'X-05' },
+    { office: 'مكتب الشرق', district: 'جرير', kind: 'حفر مفتوح لتركيب ميني بيلر', baseNo: 'R7302', txNo: '261300302', permit: '2410202', permitExp: T(6), date: T(2), lat: 24.6612, lng: 46.7481, lengthM: 15 },
+    { office: 'مكتب الشرق', district: 'الملز', kind: 'أسفلت وإعادة سفلتة', baseNo: 'R7303', txNo: '261300303', permit: '2410203', permitExp: T(2), date: T(3), lat: 24.6688, lng: 46.7395, lengthM: 180 },
+    { office: 'مكتب الشرق', district: 'العزيزية', kind: 'تمديد كابلات', baseNo: 'R7304', txNo: '261300304', permit: '2410204', permitExp: T(11), date: T(4), lat: 24.5772, lng: 46.7641, lengthM: 300, station: 'محطة العزيزية' },
+    { office: 'مكتب الشرق', district: 'العزيزية', kind: 'تركيب عدادات', baseNo: 'R7305', txNo: '261300305', permit: '2410205', permitExp: T(9), date: T(4), lat: 24.5801, lng: 46.7702, station: 'محطة العزيزية' },
+    { office: 'مكتب الشرق', district: 'غبيرة', kind: 'حفر مفتوح', baseNo: 'R7306', txNo: '261300306', permit: '2410206', permitExp: T(20), date: T(-40), lat: 24.6132, lng: 46.7322, lengthM: 150, stage: 'ripc', gate: G('demo-permit') }
+  ].map(mk);
+  rows.forEach((j) => { j.st = j.stage === 'plan' || j.stage === 'gate' ? 'new' : 'prog'; d.jobs.push(j); });
+  (d.employees || []).forEach((e, i) => { if (i % 4 === 3) return; e.docs = e.docs || {}; const sx = (exp) => ({ exp, fileId: '', fileName: '', size: 0, tm: nowIso(), by: 'بيانات تجريبية' });
+    e.docs['صورة الإقامة'] = sx(T(180 + i)); e.docs['كارت الأمن الصناعي'] = sx(i % 5 === 0 ? T(-4) : i % 7 === 0 ? T(12) : T(150)); e.docs['كارت التأمين الطبي'] = sx(T(90 + i));
+    if (/سائق|مشغل/.test(e.job || '')) { e.docs['رخصة القيادة'] = sx(T(300)); if (i % 2) e.docs['شهادة TUV'] = sx(i % 3 ? T(70) : T(-10)); } });
+  d.reports = [
+    { id: uid('rp'), kind: 'ripc', kindName: FL_REPORT_KINDS.ripc[0], jobId: '', baseNo: 'R6812', permit: '2387011', district: 'النرجس', note: 'نقص صور ما بعد الانتهاء وتقرير المختبر', recv: T(-20), due: T(40), st: 'open', to: '', tm: nowIso(), by: 'بيانات تجريبية' },
+    { id: uid('rp'), kind: 'b940', kindName: FL_REPORT_KINDS.b940[0], jobId: '', baseNo: 'R6744', permit: '2396681', district: 'الخليج', note: 'هبوط أسفلت أمام المسار', recv: T(-1), due: T(2), st: 'open', to: '', tm: nowIso(), by: 'بيانات تجريبية' },
+    { id: uid('rp'), kind: 'lab', kindName: FL_REPORT_KINDS.lab[0], jobId: '', baseNo: 'R6690', permit: '2392589', district: 'الملز', note: 'راسب دمك — نقطتان', recv: T(-2), due: T(5), st: 'routed', to: 'asphalt', tm: nowIso(), by: 'بيانات تجريبية' }
+  ];
+  return d;
+}
+
+const freshDB = () => seedFlow(seedV3(migrate3(seed())));
 const PRELOAD_EMP = null; /* private builds only: employees injected by scripts/build.py --preload */
 const withPreload = (d) => { if (Array.isArray(PRELOAD_EMP) && PRELOAD_EMP.length) { d.employees = PRELOAD_EMP.map((e) => Object.assign({}, e)); PRELOAD_EMP.forEach((e) => { if (e.branch && /^فرع/.test(e.branch) && !d.branches.includes(e.branch)) d.branches.push(e.branch); }); } return d; };
 let DB = migrate3(loadDB() || withPreload(freshDB()));
@@ -693,7 +1292,9 @@ const pref = (k, d) => { try { return localStorage.getItem(k) || d; } catch (e) 
 const setPref = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* private mode */ } };
 let THEME = pref('maydan_theme', (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light');
 let LANG = pref('maydan_lang', 'ar');
-function applyPrefs() { const h = document.documentElement; h.dataset.theme = THEME; h.lang = LANG; h.dir = LANG === 'en' ? 'ltr' : 'rtl'; }
+const PALETTES = [['ember', 'برتقالي الميدان'], ['navy', 'كحلي وذهبي'], ['green', 'أخضر سعودي'], ['sec', 'أزرق الكهرباء']];
+let PALETTE_K = pref('maydan_palette', 'ember');
+function applyPrefs() { const h = document.documentElement; h.dataset.theme = THEME; h.dataset.palette = PALETTE_K; h.lang = LANG; h.dir = LANG === 'en' ? 'ltr' : 'rtl'; }
 const UI = { view: 'dash', sel: 'X-03', layers: { sup: true, cars: true, workers: true, dynas: true, eq: true, drivers: true }, move: null, eqFilter: 'all', eqQ: '', mapView: null, live: null, liveCrew: null, ai: { q: '', a: '', busy: false, via: '' }, reqFrom: 'E-07', reqSvc: 'gcb', lastReq: null, dragId: null };
 const AUTH = { step: DB.users.length ? 'creds' : 'setup', err: '', note: '', uid: null, channel: 'sms', otpHash: '', otpSalt: '', otpExp: 0, tries: 0, resendAt: 0, demo: '', iqama: '' };
 const AI_KEYS = {}; // provider id -> key, memory only, never persisted
@@ -1009,11 +1610,23 @@ async function cloudSetup(f) {
     CLOUD.needsSetup = false; Object.assign(AUTH, { step: 'creds', err: '', note: 'تم إنشاء حساب مشرف المنصة على الخادم. سجّل الدخول الآن.' }); render(); } catch (e) { authErr(e.message); }
 }
 function loadScript(src, id) { return new Promise((res, rej) => { if (document.getElementById(id)) return res(); const s = document.createElement('script'); s.src = src; s.id = id; s.async = true; s.onload = res; s.onerror = () => { s.remove(); rej(new Error('load')); }; document.head.appendChild(s); }); }
+// Google sign-in: on the server it is verified by the server (then OTP); in the standalone build (GitHub Pages)
+// it uses the OAuth client ID saved in Settings → Storage, and Google's tokeninfo endpoint checks the token.
+function googleLoginId() { if (CLOUD) return CLOUD.googleClientId || ''; if (DEMO || SERVER_PAGE) return ''; const g = DB.settings && DB.settings.google; return g && /^[0-9]+-[a-z0-9]+\.apps\.googleusercontent\.com$/.test(g.clientId || '') && g.googleLogin !== false ? g.clientId : ''; }
+async function localGoogle(credential) {
+  const cid = googleLoginId(); let t = null;
+  try { const r = await fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(String(credential || ''))); if (r.ok) t = await r.json(); } catch (e) { /* network */ }
+  if (!t || t.aud !== cid || !/^(https:\/\/)?accounts\.google\.com$/.test(t.iss || '') || String(t.email_verified) !== 'true' || !(+t.exp * 1000 > Date.now())) return authErr('تعذّر التحقق من حساب Google.');
+  const email = String(t.email || '').toLowerCase(); const u = DB.users.find((x) => x.active && !x.activation && String(x.email || '').toLowerCase() === email);
+  if (!u) { audit(email, 'دخول Google لحساب غير مسجّل'); return authErr('لا يوجد حساب فعّال مرتبط بهذا البريد. اطلب من مشرف المنصة إضافة بريدك.'); }
+  const lk = DB.locks && DB.locks[u.iqama]; if (lk && lk.until > Date.now()) return authErr('الحساب مقفل مؤقتاً. حاول لاحقاً.');
+  audit(u.name, 'نجاح', 'دخول بحساب Google (' + email + ')'); startSession(u); Object.assign(AUTH, { step: 'creds', err: '', note: '' }); UI.view = 'dash'; render(); toast('مرحباً ' + u.name);
+}
 async function mountGoogleBtn() {
-  const el = $('#gbtn'); if (!el || !CLOUD || !CLOUD.googleClientId) return;
+  const el = $('#gbtn'); const cid = googleLoginId(); if (!el || !cid) return;
   try { await loadScript('https://accounts.google.com/gsi/client', 'gsi'); } catch (e) { el.textContent = 'تعذّر تحميل زر Google. استخدم رقم الإقامة وكلمة المرور.'; return; }
   if (!window.google || !google.accounts || !$('#gbtn')) return;
-  google.accounts.id.initialize({ client_id: CLOUD.googleClientId, callback: (r) => cloudGoogle(r.credential), ux_mode: 'popup', use_fedcm_for_prompt: true, context: 'signin' });
+  google.accounts.id.initialize({ client_id: cid, callback: (r) => (CLOUD ? cloudGoogle(r.credential) : localGoogle(r.credential)), ux_mode: 'popup', use_fedcm_for_prompt: true, context: 'signin' });
   google.accounts.id.renderButton($('#gbtn'), { theme: THEME === 'dark' ? 'filled_black' : 'outline', size: 'large', text: 'signin_with', shape: 'pill', locale: LANG === 'en' ? 'en' : 'ar', width: 320 });
 }
 async function cloudGoogle(credential) {
@@ -1072,6 +1685,8 @@ async function askAI(q, mode) {
 const I18N_EN = {"إجراء": "Action", "الفرقة": "Crew", "تعديل": "Edit", "الحالة": "Status", "الاسم": "Name", "الجوال": "Mobile", "الفرع": "Branch", "واتساب": "WhatsApp", "تليجرام": "Telegram", "بدون سائق": "No driver", "الصلاحية": "Role", "رقم الإقامة": "Iqama No.", "متوقفة": "Stopped", "رقم الإقامة / الهوية": "Iqama / National ID", "التصريح": "Permit", "المراقب": "Supervisor", "غيار الزيت": "Oil change", "تجربة التشغيل": "Run test", "الرقم / اللوحة": "No. / Plate", "تفاصيل": "Details", "الكل": "All", "نوع العمل": "Work type", "المهنة": "Profession", "إلغاء": "Cancel", "رجوع": "Back", "ملاحظة": "Note", "المعدة": "Equipment", "نقل": "Move", "الإقامة": "Iqama", "القسم": "Department", "حذف": "Delete", "الحضور": "Attendees", "مستوى الخطورة العام": "Overall risk level", "تصدير Excel": "Export Excel", "المشروع": "Project", "مدير المشروع": "Project manager", "الدور": "Role", "تصدير": "Export", "رقم التصريح": "Permit No.", "ناقص": "Missing", "البند": "Item", "البريد": "Email", "تعمل": "Working", "الموقع / الحي": "Site / District", "ملاحظات": "Notes", "البيانات": "Data", "رمز التحقق": "Verification code", "تجربة المنصة بدون حساب": "Try the platform without an account", "فتح الوضع التجريبي": "Open demo mode", "البريد الإلكتروني": "Email", "كلمة المرور": "Password", "ميدان": "Maydan", "الموقع": "Site", "اللوحة / رقم المعدة": "Plate / Unit No.", "السائق": "Driver", "بحث": "Search", "لا نتائج مطابقة.": "No matching results.", "جارٍ التحليل…": "Analysing…", "إخفاء": "Hide", "الإعدادات": "Settings", "القواعد": "Rules", "حفظ الإعدادات": "Save settings", "استيراد بيانات الفرق": "Import crew data", "المهندس:": "Engineer:", "في الموعد": "On time", "تواصل": "Contact", "المهندس": "Engineer", "+ مستند": "+ Document", "مرتبط بـ": "Linked to", "المسؤول": "Responsible", "كل الأنواع": "All types", "المهمة": "Task", "تاريخ الاجتماع": "Meeting date", "المواضيع والمخاطر التي نوقشت": "Topics and hazards discussed", "المخاطر": "Hazards", "إجراءات التحكم": "Control measures", "طباعة / حفظ PDF": "Print / Save PDF", "إغلاق": "Close", "+ مشروع": "+ Project", "الفرق": "Crews", "غير مصنّف": "Unclassified", "المعاملة": "Transaction", "المستندات": "Documents", "التاريخ": "Date", "تاريخ التنفيذ": "Execution date", "الدور في الفرقة": "Role in crew", "التوقيع": "Signature", "الرقم الوظيفي": "Employee No.", "خطة الصيانة الدورية": "Periodic maintenance plan", "كل (كم)": "Every (km)", "كل (يوم)": "Every (days)", "المعاملات": "Transactions", "العداد": "Odometer", "جاهزة": "Ready", "الاسم الكامل": "Full name", "تأكيد كلمة المرور": "Confirm password", "نطاق البحث عن الفرقة القريبة (كم)": "Nearby-crew search radius (km)", "تنبيه غيار الزيت قبل (كم)": "Oil-change alert before (km)", "متوسط السير اليومي (كم)": "Average daily distance (km)", "انتهاء التصريح": "Permit expiry", "انتهاء الاستمارة / الفحص الفني": "Registration / inspection expiry", "تمت تجربة التشغيل": "Run test done", "اسم الفرقة": "Crew name", "النوع": "Type", "المشروع (إلزامي)": "Project (required)", "أو اسم المهندس يدوياً": "Or engineer name manually", "جوال المهندس": "Engineer mobile", "أو اسم المراقب يدوياً": "Or supervisor name manually", "من سجل الموظفين": "From employee register", "أو الاسم يدوياً": "Or name manually", "ربط بسجل الموظفين": "Link to employee register", "الإجراءات والمستندات المطلوبة": "Required procedures and documents", "اسم المشروع": "Project name", "رمز / رقم العقد": "Code / Contract No.", "سبب التوقف": "Stop reason", "تحتاج متابعة": "Needs follow-up", "تحتاج صيانة": "Needs service", "في الورشة": "In workshop", "+ إضافة خيار جديد…": "+ Add new option…", "الدخول": "Sign in", "إعداد مشرف المنصة": "Platform admin setup", "إنشاء الحساب": "Create account", "اختر وسيلة الاستلام ثم أدخل الرمز المكوّن من 6 أرقام.": "Choose how to receive it, then enter the 6-digit code.", "رسالة SMS": "SMS", "الرمز التجريبي:": "Test code:", "الرمز": "Code", "إعادة الإرسال": "Resend", "تحقق ودخول": "Verify and sign in", "تفعيل الحساب": "Activate account", "تفعيل": "Activate", "طلب اعتماد حساب": "Request an account", "إرسال الطلب": "Send request", "تسجيل الدخول": "Sign in", "أدخل رقم الإقامة أو الهوية الوطنية وكلمة المرور.": "Enter your Iqama or National ID and password.", "10 أرقام — تبدأ بـ 2 للإقامة أو 1 للهوية الوطنية": "10 digits — starts with 2 (Iqama) or 1 (National ID)", "متابعة": "Continue", "لا تملك حساباً؟": "No account?", "اطلب اعتماد حساب": "Request an account", "كل فرقة، كل معدة، كل موقع — في ميدان واحد.": "Every crew, every machine, every site — in one field.", "تسجيل الخروج": "Sign out", "وضع تجريبي — بيانات نموذجية لا تُحفظ. جرّب أي شيء بحرية.": "Demo mode — sample data, nothing is saved. Try anything.", "إنهاء التجربة": "End demo", "غرفة العمليات": "Operations room", "الفرقة الطالبة": "Requesting crew", "الخدمة المطلوبة": "Requested service", "إرسال الطلب والبحث عن أقرب فرقة": "Send request and find nearest crew", "+ خدمة جديدة": "+ New service", "نطاق التنسيق": "Coordination radius", "آخر موقع": "Last location", "فتح في خرائط Google": "Open in Google Maps", "ملف الفرقة": "Crew file", "إيقاف البث المباشر": "Stop live sharing", "بث موقعي المباشر لهذه الفرقة": "Share my live location for this crew", "التنبيهات والتنسيق": "Alerts and coordination", "تجاهل": "Dismiss", "المسار": "Route", "الفرق ومعداتها": "Crews & equipment", "+ فرقة جديدة": "+ New crew", "الطبقات:": "Layers:", "نقل لفرع آخر": "Move to another branch", "استئناف الفرقة": "Resume crew", "إيقاف الفرقة": "Stop crew", "واتساب الفرقة": "Crew WhatsApp", "تليجرام الفرقة": "Crew Telegram", "المهندس المسؤول": "Responsible engineer", "المهام المفتوحة": "Open tasks", "عرض المهام": "View tasks", "مستندات الفرقة": "Crew documents", "عرض الوثائق": "View documents", "تعديل المراقب وسيارته": "Edit supervisor and car", "سيارة المراقب": "Supervisor car", "+ إضافة عامل": "+ Add worker", "لا يوجد عمال في هذه الفرقة.": "No workers in this crew.", "+ إضافة معدة": "+ Add equipment", "لا توجد معدات — الفرقة لا تستطيع العمل.": "No equipment — the crew cannot work.", "نقل العامل": "Move worker", "سائق الديانة": "Dyna driver", "واتساب السائق": "Driver WhatsApp", "رقم الديانة": "Dyna No.", "نقل الديانة": "Move dyna", "بلا ديانة مُسندة — العامل بلا نقل.": "No dyna assigned — worker has no transport.", "إسناد ديانة بسائقها": "Assign dyna with driver", "تأكيد النقل وإشعار المراقبَين": "Confirm move and notify supervisors", "سجل المعدات": "Equipment register", "السائق / المستخدم": "Driver / User", "الوكيل الذكي": "AI assistant", "المزودون": "Providers", "المزودون — بالترتيب (الأول أساسي والباقي احتياطي)": "Providers — in order (first is primary, the rest are fallbacks)", "العنوان": "Endpoint", "النموذج": "Model", "المفتاح": "Key", "جلب النماذج": "Fetch models", "اسأل عن الميدان": "Ask about the field", "سؤالك": "Your question", "إرسال": "Send", "المستخدمون والطلبات": "Users & requests", "اعتماد الحسابات وإصدار رموز التفعيل وتعديل الصلاحيات.": "Approve accounts, issue activation codes and manage roles.", "+ إضافة مستخدم": "+ Add user", "إرسال عبر واتساب": "Send via WhatsApp", "إرسال عبر تليجرام": "Send via Telegram", "اعتماد": "Approve", "رفض": "Reject", "لا طلبات معلّقة.": "No pending requests.", "أنت": "You", "رمز تفعيل جديد": "New activation code", "الأمان وسجل الدخول": "Security & sign-in log", "ما تفرضه المنصة الآن، وسجل كل عمليات الدخول والتعديل.": "What the platform enforces, and a log of every sign-in and change.", "سجل الدخول والتدقيق": "Sign-in and audit log", "الوقت": "Time", "المستخدم": "User", "الجهاز": "Device", "العملية": "Event", "الحماية المفعّلة": "Active protections", "فك القفل": "Unlock", "لا يوجد.": "None.", "قبل التشغيل الفعلي": "Before going live", "المراقب:": "Supervisor:", "فتح المهمة": "Open task", "فتح الفرقة": "Open crew", "الوثائق": "Documents", "ملف الموظف": "Employee file", "لوحة الأداء": "Performance dashboard", "تفعيل إشعارات المتصفح": "Enable browser notifications", "تخصيص المؤشرات": "Customise gauges", "مراجعة ذكية بالذكاء الاصطناعي": "AI smart review", "المراجعة الذكية": "Smart review", "حالة وإنتاجية الفرق — آخر 30 يوماً": "Crew status & productivity — last 30 days", "المهندس / المراقب": "Engineer / Supervisor", "الإنتاجية (مهام منجزة)": "Productivity (tasks done)", "مهام مفتوحة": "Open tasks", "اكتمال المستندات": "Documents complete", "بلا مهندس": "No engineer", "تُحسب لحظياً من المهام والتصاريح والمستندات والمعدات": "Computed live from tasks, permits, documents and equipment", "لا توجد نواقص. كل الأوراق والترتيبات مكتملة.": "Nothing missing. All papers and arrangements are complete.", "أسباب التوقف": "Stop reasons", "لا توجد فرق متوقفة.": "No stopped crews.", "الطلبات المفتوحة حسب القسم": "Open requests by department", "لا طلبات مفتوحة.": "No open requests.", "جدول السلامة والإنارة": "Safety & lighting schedule", "لا مواعيد مفتوحة.": "No open appointments.", "المهام والطلبات": "Tasks & requests", "+ مهمة جديدة": "+ New task", "لا مهام في هذا التصنيف.": "No tasks in this category.", "بدء التنفيذ": "Start execution", "إيقاف (تصريح / استشاري…)": "Stop (permit / consultant…)", "استئناف": "Resume", "تحديث حالة الموقع قبل المغادرة": "Update site status before leaving", "إرسال للمراقب": "Send to supervisor", "الطلبات للأقسام": "Department requests", "+ طلب لقسم": "+ Department request", "الطلب": "Request", "الموعد": "Due", "مستندات المهمة": "Task documents", "اجتماع ما قبل العمل": "Pre-work meeting", "تقييم المخاطر": "Risk assessment", "لا مستندات مرفوعة بعد.": "No documents uploaded yet.", "المستند": "Document", "عرض / طباعة": "View / Print", "تنزيل": "Download", "فتح الرابط": "Open link", "مهمة مفتوحة": "Open task", "التنفيذ": "Execution", "المستندات المطلوبة": "Required documents", "لا مهام مفتوحة.": "No open tasks.", "لا مستندات مطابقة.": "No matching documents.", "القوائم المنسدلة": "Drop-down lists", "+ إضافة": "+ Add", "الحصر والهيكل": "Inventory & structure", "كل الفروع": "All branches", "كل المشاريع": "All projects", "المعدات حسب النوع": "Equipment by type", "إصلاح": "Fix", "كل الفرق والمعدات مربوطة بالكامل.": "All crews and equipment are fully linked.", "لا بيانات.": "No data.", "الرمز / العقد": "Code / Contract", "بلا فرع": "No branch", "تعيين مهندس": "Assign engineer", "تعيين مراقب": "Assign supervisor", "بلا إقامة": "No Iqama", "الوثائق والمستندات": "Documents & records", "إظهار المنجزة": "Show completed", "+ معاملة": "+ Transaction", "رفع ملف معاملات (Excel / CSV)": "Upload transactions (Excel / CSV)", "التعميد": "SEC approval", "لا يوجد": "None", "بيانات المعاملة والتعميد": "Transaction data & approval", "فتح في المهام": "Open in tasks", "المستندات المطلوبة لهذا النوع من العمل": "Documents required for this work type", "تعبئة المحضر": "Fill minutes", "تعبئة": "Fill", "إرفاق": "Attach", "مسح بالكاميرا": "Scan with camera", "لا مستندات بعد.": "No documents yet.", "تصنيف غير المصنّف بالذكاء الاصطناعي": "Classify the rest with AI", "إنشاء المعاملات": "Create transactions", "الوصف": "Description", "غير مُسندة": "Unassigned", "+ نوع عمل": "+ Work type", "رفع للمكتبة": "Upload to library", "كارت الأمن الصناعي": "Industrial security card", "غير مسجل": "Not recorded", "الختم والتوقيع": "Stamp & signature", "تحديث من الفرقة": "Refresh from crew", "سجل الموظفين": "Employee register", "استيراد Excel / CSV": "Import Excel / CSV", "تصدير بصيغة Odoo (xlsx)": "Export in Odoo format (xlsx)", "+ موظف": "+ Employee", "المرفقات": "Attachments", "الملف والمرفقات": "File & attachments", "إنشاء حساب": "Create account", "له حساب": "Has account", "لا موظفين بعد. استورد ملف hr.employee من Odoo.": "No employees yet. Import hr.employee from Odoo.", "تحليل أداء الفرق والموظفين": "Crew & employee performance", "تحليل بالذكاء الاصطناعي": "AI analysis", "مخطط": "Planned", "منجز": "Done", "متوقف": "Stopped", "السلامة": "Safety", "الدرجة": "Score", "لا مهام": "No tasks", "الموظفون الأكثر إنجازاً في الفترة": "Top employees in the period", "الموظف": "Employee", "مهام منجزة": "Tasks done", "لا مهام منجزة في هذه الفترة.": "No completed tasks in this period.", "الهوية": "Identity", "حفظ الهوية": "Save identity", "الشعارات · تظهر في الهيدر والنماذج المطبوعة": "Logos · shown in the header and printed forms", "+ رفع شعار": "+ Upload logo", "استعادة الافتراضية": "Restore defaults", "صورة الهيدر": "Header image", "رفع / تغيير الصورة": "Upload / change image", "الصورة الافتراضية": "Default image", "بدون صورة": "No image", "لا توجد صورة؛ يظهر الهيدر بلون الهوية.": "No image; the header uses the brand colour.", "المؤشرات المعروضة في لوحة الأداء": "Gauges shown on the dashboard", "حفظ": "Save", "+ بند صيانة": "+ Maintenance item", "الاستيراد والتصدير": "Import & export", "الموظفون (Odoo hr.employee)": "Employees (Odoo hr.employee)", "استيراد xlsx / csv": "Import xlsx / csv", "استيراد": "Import", "سجل المعدات والحصر": "Equipment register & inventory", "سجل الصيانة": "Maintenance log", "نسخة احتياطية كاملة": "Full backup", "تصدير JSON": "Export JSON", "إعادة البيانات التجريبية": "Reset demo data", "الربط مع Odoo": "Odoo integration", "مربوط بـ Odoo": "Connected to Odoo", "غير مربوط": "Not connected", "سحب الموظفين من Odoo الآن": "Pull employees from Odoo now", "وضع التشغيل": "Run mode", "سحابي": "Cloud", "محلي": "Local", "سجل المعدات والصيانة الدورية": "Equipment & periodic maintenance", "الزيت": "Oil", "الصيانة الدورية": "Periodic maintenance", "التجربة": "Test", "منتظمة": "Up to date", "تسجيل صيانة": "Log service", "الفلاتر (زيت / هواء / ديزل)": "Filters (oil / air / diesel)", "الفرامل (البريكات)": "Brakes", "الكفرات": "Tyres", "البطارية": "Battery", "الصيانة الدورية الشاملة": "Full periodic service", "التشحيم": "Greasing", "الاستمارة / الفحص الفني": "Registration / inspection", "تعمل بتنبيه": "Working with alerts", "رمز التفعيل": "Activation code", "كلمة المرور الجديدة": "New password", "الصلاحية المطلوبة": "Requested role", "بلا مهام": "No tasks", "وصف المهمة": "Task description", "اسم الشركة": "Company name", "اسم المنصة": "Platform name", "الجهة المالكة / العميل": "Owner / Client", "مسمى التعميد في النماذج": "Approval label in forms", "عنوان نموذج فريق العمل": "Team form title", "عنوان محضر اجتماع ما قبل العمل": "Pre-work meeting title", "نص تذييل النماذج": "Form footer text", "شكل المؤشرات": "Gauge style", "نوع المعدة": "Equipment type", "العداد (كم)": "Odometer (km)", "المتبقي لغيار الزيت (كم، بالسالب إن تأخر)": "Km left to oil change (negative if overdue)", "السائق من سجل الموظفين (إلزامي)": "Driver from employee register (required)", "أو اسم السائق يدوياً": "Or driver name manually", "جوال السائق": "Driver mobile", "إقامة السائق": "Driver Iqama", "رمز الفرقة": "Crew code", "المهندس المسؤول (إلزامي) من سجل الموظفين": "Responsible engineer (required) from register", "المراقب (إلزامي) من سجل الموظفين": "Supervisor (required) from register", "جوال المراقب": "Supervisor mobile", "سيارة المراقب (الموديل)": "Supervisor car (model)", "لوحة سيارة المراقب (إلزامي)": "Supervisor car plate (required)", "المهندس من سجل الموظفين": "Engineer from register", "خط العرض": "Latitude", "خط الطول": "Longitude", "حذف هذه الفرقة نهائياً مع عمالها ومعداتها": "Delete this crew with its workers and equipment", "المراقب من سجل الموظفين": "Supervisor from register", "موديل السيارة": "Car model", "حالة السيارة": "Car status", "انتهاء الاستمارة": "Registration expiry", "حذف هذا العامل من الفرقة": "Remove this worker from the crew", "فك الديانة عن العامل وحذفها": "Unassign and delete this dyna", "حذف هذه المعدة من الفرقة": "Remove this equipment from the crew", "تاريخ التعميد": "Approval date", "المعتمِد": "Approved by", "اسم نوع العمل": "Work type name", "كلمات التصنيف": "Classification keywords", "حذف نوع العمل": "Delete work type", "حذف المشروع": "Delete project", "قراءة العداد الآن (كم)": "Current odometer (km)", "البنود التي نُفذت": "Items done", "الحالة بعد الصيانة": "Status after service", "تمت تجربة التشغيل بعد الصيانة": "Run test done after service", "قراءة العداد (كم)": "Odometer reading (km)", "حذف الموظف من السجل": "Delete employee from register", "حذف هذه المهمة": "Delete this task", "إيقاف الفرقة كاملة أيضاً": "Stop the whole crew too", "تم الانتهاء من جميع الأعمال في هذا الموقع": "All work at this site is complete", "المتبقي في الموقع (إن لم يكتمل)": "Remaining at site (if not complete)", "نوع الطلب": "Request type", "مطلوب بتاريخ": "Needed by", "اسم الخدمة": "Service name", "نوع الفرقة المطلوبة": "Required crew type", "نوع المستند": "Document type", "عنوان / رقم المستند": "Document title / No.", "المهندس / المراقب المسؤول": "Responsible engineer / supervisor", "تاريخ الانتهاء (إن وُجد)": "Expiry date (if any)", "رابط (Google Drive أو غيره)": "Link (Google Drive or other)", "إجراءات التحكم والوقاية": "Control and prevention measures", "الخيار الجديد": "New option", "رقم الإقامة / الهوية (اسم الدخول)": "Iqama / ID (sign-in name)", "الجوال (لرمز التحقق)": "Mobile (for verification code)", "المدير": "Manager", "المراقبون": "Supervisors", "سيارات المراقبين": "Supervisor cars", "العمال": "Workers", "الديانات وسائقوها": "Dynas & drivers", "المعدات": "Equipment", "سائقو المعدات": "Equipment drivers", "المفتوحة": "Open", "جديدة": "New", "قيد التنفيذ": "In progress", "منجزة": "Done", "مكتبة الإجراءات حسب نوع العمل": "Procedure library by work type", "حسب المهندس والمراقب": "By engineer & supervisor", "كل المستندات": "All documents", "يومي": "Daily", "أسبوعي": "Weekly", "شهري": "Monthly", "عام": "General", "الهوية والشعارات": "Identity & logos", "مؤشرات اللوحة": "Dashboard gauges", "القوائم": "Lists", "البيانات والربط": "Data & integrations", "دوائر": "Rings", "أرقام ونسب": "Numbers & percentages", "صيانة دورية مستحقة": "Periodic maintenance due", "تغيير الزيت": "Oil change", "الفرق العاملة": "Crews working", "جاهزية المعدات": "Equipment readiness", "الالتزام بالصيانة": "Maintenance compliance", "الإنجاز في الموعد": "On-time completion", "الالتزام بالسلامة": "Safety compliance", "إنجاز الأسبوع": "Week completion", "اكتمال الربط الإلزامي": "Mandatory links complete", "مهام اليوم": "Today's tasks", "منجز آخر 7 أيام": "Done in last 7 days", "فرق متوقفة": "Stopped crews", "طلبات مفتوحة للأقسام": "Open department requests", "تنبيهات عاجلة": "Urgent alerts", "عاجل": "Urgent", "تنبيه": "Alert", "المشاريع": "Projects", "المهندسون والمراقبون": "Engineers & supervisors", "المهندسون": "Engineers", "العمال والفنيون": "Workers & technicians", "السائقون": "Drivers", "المعدات والسيارات": "Equipment & vehicles", "روابط ناقصة": "Missing links", "المستخدمون": "Users", "الطلبات": "Requests", "صورة الإقامة": "Iqama copy", "رخصة القيادة": "Driving licence", "كارت التأمين الطبي": "Medical insurance card", "الأمن الصناعي": "Industrial security", "الرخصة": "Licence", "التأمين": "Insurance", "مستندات الموظفين": "Employee documents", "حفظ ملف الموظف": "Save employee file", "إدارة الفرق والمعدات والخدمات اللوجستية": "Crews, equipment & logistics management", "حفريات": "Excavation", "كهرباء": "Electrical", "سلامة": "Safety", "إمداد": "Supply", "تركيبات كهربائية": "Electrical installation", "تركيب عدادات": "Meter installation", "فحص عدادات": "Meter testing", "فتح وتشغيل محطات": "Substation commissioning", "تصريح": "Permit", "نموذج فريق العمل": "Team form", "إجراءات العمل الآمن": "Safe work procedure", "محضر اجتماع ما قبل بدء العمل": "Pre-work meeting minutes", "مشرف المنصة": "Platform admin", "مدير مشروع": "Project manager", "مهندس تنفيذ": "Site engineer", "مراقب": "Supervisor", "مشاهد": "Viewer", "جلسة نشطة": "Active session", "المواقع الحية للفرق والتنسيق التلقائي بين الفرق القريبة": "Live crew locations and automatic coordination between nearby crews", "المراقب وسيارته ← العمال وكل عامل مع سائق ديانته ← معدات الفرقة بسائقيها. فرقة بلا معدة عاملة لا تعمل.": "Supervisor and car → workers, each with his dyna driver → crew equipment with drivers. A crew without working equipment cannot work.", "تحليل بيانات الأعمال والتحقق المكاني عبر مزودين مجانيين بترتيب احتياطي. إن لم يتوفر مزود، يعمل تحليل محلي داخل المنصة.": "Business and location analysis through free providers with fallback. Without a provider, a local analysis runs inside the platform.", "إنتاجية الفرق وحالتها وأسباب التوقف، والطلبات بين الأقسام، والتنبيهات الذكية لنقص الأوراق والترتيبات": "Crew productivity, status and stop reasons, department requests, and smart alerts for missing papers and arrangements", "كل مهمة بتصريحها وفرقتها وطلباتها للأقسام: تأمين السلامة والإنارة قبل التنفيذ بيوم، وإزالتها بعد التنفيذ، وتحديث حالة الموقع قبل المغادرة.": "Each task with its permit, crew and department requests: safety and lighting one day before work, removal after, and a site status update before leaving.", "الربط الإلزامي: المعدة أو السيارة بسائقها ← المراقب ← المهندس ← المشروع ← الفرع. لمدير الشركة ومدير التنفيذ ومدير المشاريع.": "Mandatory chain: unit or car with driver → supervisor → engineer → project → branch. For the CEO, execution manager and project managers.", "كل معاملة بمستنداتها: التصريح، تعميد الشركة السعودية للكهرباء، نموذج فريق العمل، اجتماع ما قبل العمل، وتقييم المخاطر وإجراءات العمل حسب نوع العمل.": "Every transaction with its documents: permit, SEC approval, team form, pre-work meeting, and the risk assessment and procedures of its work type.", "مستورد من Odoo (hr.employee) أو من Excel / CSV. منه تُسحب الأسماء وأرقام الإقامات والمهن إلى الفرق ونماذج فريق العمل، ومنه تُنشأ حسابات الدخول.": "Imported from Odoo (hr.employee) or Excel / CSV. Names, Iqama numbers and professions flow from here into crews and team forms, and sign-in accounts are created from it.", "الهوية والشعارات، المؤشرات، الصيانة الدورية، القوائم، والبيانات والربط مع Odoo وGoogle Cloud.": "Identity and logos, gauges, periodic maintenance, lists, data and integration with Odoo and Google Cloud.", "كل معدة وديانة وسيارة مراقب بسائقها وعدادها: الزيت، الفلاتر، الفرامل، الكفرات، البطارية، التشحيم، الصيانة الشاملة، والاستمارة.": "Every unit, dyna and supervisor car with its driver and odometer: oil, filters, brakes, tyres, battery, greasing, full service and registration.", "فرقة تعمل": "crews working", "معدة جاهزة بسائقها": "units ready with driver", "بلا صيانة متأخرة": "without overdue service", "مستند مكتمل": "documents complete", "في الموعد (30 يوماً)": "on time (30 days)", "موقع مؤمَّن قبل التنفيذ": "sites secured before work", "مهمة منجزة هذا الأسبوع": "tasks done this week", "ربط مكتمل": "links complete", "غير منجزة بعد": "not done yet", "مهمة مغلقة": "closed tasks", "أقسام": "departments", "تنبيه إجمالاً": "alerts in total", "بانتظار الاستشاري": "Waiting for consultant", "بانتظار التصريح": "Waiting for permit", "مع تنبيهات صيانة": "with maintenance alerts", "بانتظار بدء المهام": "waiting to start tasks", "اليوم": "Today", "غداً": "Tomorrow", "أمس": "Yesterday", "تمت التجربة": "Tested", "لم تُجرَّب": "Not tested", "بعد": "in", "متأخر": "overdue", "فرق": "crews"};
 Object.assign(I18N_EN, {"أو": "or", "بعد التحقق من حساب Google يُطلب رمز التحقق أيضاً.": "After Google verifies your account, a verification code is still required.", "خريطة Google": "Google map", "قمر صناعي Google": "Google satellite", "تم التحقق من حساب Google.": "Google account verified.", "تعذّر تحميل زر Google. استخدم رقم الإقامة وكلمة المرور.": "Could not load the Google button. Use your Iqama and password.", "تعذّر تحميل خرائط Google — تُعرض OpenStreetMap. تحقق من مفتاح الخرائط.": "Could not load Google Maps — showing OpenStreetMap. Check the maps key.", "مفتاح خرائط Google (Map Tiles API) — للنسخة المحلية": "Google Maps key (Map Tiles API) — local build", "فعّل Map Tiles API في Google Cloud وقيّد المفتاح بعنوان موقعك. اتركه فارغاً لاستخدام OpenStreetMap.": "Enable the Map Tiles API in Google Cloud and restrict the key to your site. Leave empty to use OpenStreetMap.", "مفتاح خرائط Google غير صالح.": "Invalid Google Maps key."});
 Object.assign(I18N_EN, {"التخزين والربط": "Storage & integrations", "مكان حفظ البيانات والملفات": "Where data and files are stored", "على هذا الجهاز": "On this device", "للتجربة أو الاستخدام الفردي. البيانات في المتصفح، والصور في ذاكرته. استخدم النسخ الاحتياطي دورياً.": "For trials or single users. Data stays in this browser. Back up regularly.", "Google Sheets و Google Drive": "Google Sheets & Google Drive", "للمؤسسات الصغيرة والاستخدام الشخصي: الجداول في Google Sheets، والصور والمرفقات في مجلد Drive بروابطها — في حساب Google الخاص بك.": "For small organisations and personal use: tables in Google Sheets, photos and attachments in a Drive folder with their links — in your own Google account.", "قاعدة بيانات الشركة (Firebase / Firestore) وربط ERP": "Company database (Firebase / Firestore) & ERP", "للشركات: خادم Cloud Run مع Firestore وCloud Storage، صلاحيات وتدقيق مركزي، وربط Odoo أو نظام الشركة.": "For companies: Cloud Run server with Firestore and Cloud Storage, central roles and audit, Odoo or company-system integration.", "الربط مع Google Sheets و Drive": "Google Sheets & Drive connection", "معرّف عميل OAuth (Web client ID)": "OAuth Web client ID", "ربط حساب Google وإنشاء الملفات": "Connect Google and create the files", "إعادة الربط مع Google": "Reconnect Google", "مزامنة الآن": "Sync now", "استرجاع من Google Sheets": "Restore from Google Sheets", "فصل": "Disconnect", "فتح ملف البيانات (Sheets)": "Open data file (Sheets)", "فتح مجلد ميدان (Drive)": "Open Maydan folder (Drive)", "مجلد الصور والمرفقات": "Photos & attachments folder", "متزامن مع Google Sheets": "Synced with Google Sheets", "جارٍ المزامنة مع Google…": "Syncing with Google…", "تعذّرت المزامنة": "Sync failed", "تمت المزامنة مع Google Sheets.": "Synced with Google Sheets.", "قاعدة بيانات الشركة": "Company database", "قاعدة البيانات": "Database", "الصور والمرفقات": "Photos & attachments", "نظام الشركة / ERP (Webhook)": "Company system / ERP (webhook)", "دخول Google": "Google sign-in", "خرائط Google": "Google Maps", "مفعّل": "Enabled", "غير مفعّل": "Not enabled", "مفعّلة": "Enabled", "غير مفعّلة": "Not enabled", "مربوط": "Connected", "تم الربط: البيانات في Google Sheets والصور في Google Drive.": "Connected: data in Google Sheets, photos in Google Drive.", "تم الفصل. ملفاتك تبقى في Google Drive.": "Disconnected. Your files stay in Google Drive.", "تم استرجاع البيانات من Google Sheets.": "Data restored from Google Sheets.", "معرّف عميل OAuth غير صالح.": "Invalid OAuth client ID."});
+Object.assign(I18N_EN, {"دورة المعاملات الميدانية": "Field transactions", "دورة المعاملات": "Transactions flow", "خريطة الكلاستر": "Cluster map", "مركز التنسيق": "Coordination", "البلاغات والمعادات": "Reports & returns", "بطاقات الفريق": "Team cards", "القيادة": "Command", "المعاملات الميدانية": "Field transactions", "الفرق والأصول": "Crews & assets", "الإدارة": "Administration", "+ معاملة ميدانية": "+ Field transaction", "معاملات نشطة": "Active transactions", "أعمال الغد": "Tomorrow's work", "بانتظار الرخصة": "Awaiting permit", "رخص ≤ 3 أيام": "Permits ≤ 3 days", "تنبيهات جديدة": "New alerts", "بلاغات مفتوحة": "Open reports", "كل المكاتب": "All offices", "مجدولة": "Scheduled", "بوابة الرخصة": "Permit gate", "تأمين السلامة": "Site safety", "الحفر والتنفيذ المدني": "Civil excavation", "الأعمال الكهربائية": "Electrical works", "الردم والأسفلت": "Backfill & asphalt", "مختبر URS": "URS lab", "الاستشاري PDC": "Consultant PDC", "مركز المشاريع RIPC": "Projects center RIPC", "مغلقة نهائياً": "Closed", "صورة الرخصة مرفقة": "Permit image attached", "تعهد مرفق": "Undertaking attached", "بانتظار إرفاق الرخصة": "Permit not attached", "إرفاق صورة الرخصة": "Attach permit image", "إرفاق التعهد": "Attach undertaking", "تجاوز المهندس (إرفاق لاحقاً)": "Engineer override (attach later)", "إرسال تنبيه التنسيق الآن": "Send coordination alert now", "تأكيد التوريد في الموقع": "Confirm delivery on site", "اعتماد فحص HSE": "Approve HSE inspection", "إعادة إرسال طلب التوريد": "Resend supply request", "ملاحة فريق السلامة": "Safety team navigation", "المعاملات القريبة": "Nearby transactions", "سجل المعاملة": "Transaction log", "مجلد Drive": "Drive folder", "إنشاء مجلد المعاملة": "Create transaction folder", "خريطة الكلاستر والنطاق الجغرافي": "Cluster map & geographic scope", "الغد": "Tomorrow", "هذا الأسبوع": "This week", "كلاسترات": "Clusters", "كلاسترات متعددة": "Multi-job clusters", "زيارات يمكن توفيرها": "Trips saved", "وفر تقديري": "Estimated saving", "معاملات في الفترة": "Transactions in period", "إرسال تنسيق موحّد للمهندسين": "Send unified coordination", "التحليل الذكي للتنسيق": "AI coordination analysis", "حلّل خطة الأسبوع": "Analyse this week's plan", "كلاستر": "Cluster", "مركز التنسيق والتنبيهات": "Coordination & alerts", "تشغيل الفحص المجدول الآن": "Run scheduled check now", "المفتوحة": "Open", "المحوّلة للمراقبين": "Forwarded to supervisors", "المعالجة": "Handled", "تحويل للمراقبين": "Forward to supervisors", "فتح المعاملة": "Open transaction", "تمت المعالجة": "Handled", "الملاحة": "Navigation", "جدول المسؤوليات والتوجيه": "Responsibilities & routing", "+ مسؤول": "+ Person", "المكاتب": "Offices", "مهندس قسم الرخص": "Permits engineer", "مشرف التصاريح والإغلاقات": "Permits & closures supervisor", "مهندس التنفيذ المدني": "Civil engineer", "مهندس الكهرباء": "Electrical engineer", "مهندس الأسفلت": "Asphalt engineer", "السلامة والإنارة": "Safety & lighting", "السلامة والصحة المهنية (HSE)": "Health & safety (HSE)", "مراقب مدني": "Civil supervisor", "مراقب كهرباء": "Electrical supervisor", "+ بلاغ / معاد": "+ Report / return", "معاد من المختبر URS": "Returned by URS lab", "معاد من الاستشاري PDC": "Returned by PDC", "معاد من مركز المشاريع RIPC": "Returned by RIPC", "بلاغ البلدية 940": "Municipality 940 report", "مخالفة مركز المشاريع": "RIPC violation", "المهلة": "Deadline", "توجيه": "Route", "رفع / تحديث المرفقات": "Upload / update attachments", "شهادة TUV": "TUV certificate", "غير مطلوب": "Not required", "المهندسون والمراقبون": "Engineers & supervisors", "السائقون والمشغلون": "Drivers & operators", "غير مربوطين بفرقة": "Not linked to a crew", "تغيير سمة الألوان": "Change colour theme", "الفرقة المنفذة": "Executing crew", "نوع الصبات": "Barrier type", "رقم الأساس": "Base no.", "رقم المعاملة / السكيم": "Transaction / scheme no.", "المحطة": "Station", "المخطط": "Plan", "القطعة": "Plot", "طول الحفر (م)": "Excavation length (m)", "نوع الرخصة": "Permit type", "تاريخ انتهاء الرخصة": "Permit expiry"});
+Object.assign(I18N_EN, {"يُقبل فقط بريد Google مسجّل لمستخدم فعّال في المنصة.": "Only a Google e-mail registered to an active user is accepted.", "السماح بتسجيل الدخول بحساب Google بنفس المعرّف (للمستخدمين المسجّلة بريداتهم)": "Allow Google sign-in with this client ID (users with a registered e-mail)"});
 const I18N_KEYS = Object.keys(I18N_EN).filter((k) => k.length > 2).sort((a, b) => b.length - a.length);
 function tr(t) {
   if (LANG !== 'en' || !t) return t; const s = t.trim(); if (!s || !/[\u0600-\u06FF]/.test(s)) return t;
@@ -1128,7 +1743,7 @@ function viewAuth() {
       <div class="fld"><label for="iq">رقم الإقامة / الهوية</label><input class="in ltr" id="iq" name="iqama" inputmode="numeric" autocomplete="username" maxlength="10" placeholder="2xxxxxxxxx" required value="${a.iqama}"><span class="hint">10 أرقام — تبدأ بـ 2 للإقامة أو 1 للهوية الوطنية</span></div>
       <div class="fld"><label for="pw">كلمة المرور</label><input class="in" id="pw" name="pass" type="password" autocomplete="current-password" required></div>
       <button class="btn pri" type="submit" style="min-height:50px;font-size:16px">متابعة</button>
-      ${CLOUD && CLOUD.googleClientId ? html`<div class="gsep"><span>أو</span></div><div id="gbtn" class="gbtn" aria-label="الدخول بحساب Google"></div><span class="hint" style="text-align:center">بعد التحقق من حساب Google يُطلب رمز التحقق أيضاً.</span>` : ''}
+      ${googleLoginId() ? html`<div class="gsep"><span>أو</span></div><div id="gbtn" class="gbtn" aria-label="الدخول بحساب Google"></div><span class="hint" style="text-align:center">${CLOUD ? 'بعد التحقق من حساب Google يُطلب رمز التحقق أيضاً.' : 'يُقبل فقط بريد Google مسجّل لمستخدم فعّال في المنصة.'}</span>` : ''}
       <p style="font-size:14px;text-align:center" class="t-mut">لا تملك حساباً؟ <button type="button" class="btn ghost sm" data-act="auth-to" data-step="request" style="color:var(--acc)">اطلب اعتماد حساب</button></p></form><div class="alert note" style="display:flex;flex-direction:column;gap:10px"><span><b>تجربة المنصة بدون حساب</b> — يفتح ميدان بحساب مشرف تجريبي وبيانات نموذجية. لا يُحفظ شيء، ولا تُمس بياناتك.</span><button class="btn dark" type="button" data-act="demo">فتح الوضع التجريبي</button></div>`;
   return html`<div class="auth">
     <section class="hero"${imgOk(cfg().brand.cover) ? new Safe(' style="background-image:linear-gradient(180deg,rgba(11,22,38,.82),rgba(11,22,38,.94)),url(&quot;' + cfg().brand.cover + '&quot;)"') : ''}><div class="row between" style="gap:8px"><div class="brand">${svgLogo(44)}<div><b style="font-size:30px">ميدان</b><div style="font-size:13px;color:#CBD5E1">MAYDAN · Field Operations</div></div></div><div class="row" style="gap:6px"><button class="hh-btn" type="button" data-act="lang">${LANG === 'en' ? 'عربي' : 'EN'}</button><button class="hh-btn" type="button" data-act="theme" aria-label="الوضع المظلم">${THEME === 'dark' ? '☀' : '☾'}</button></div></div>
@@ -1141,10 +1756,13 @@ function shell(inner) {
   const openN = DB.notifs.filter((n) => n.st === 'open').length;
   const pendingR = DB.reqs.filter((r) => r.st === 'pending').length;
   const A = smartAlerts(); const badN = A.filter((x) => x.lvl === 'bad').length;
-  const items = [['dash', 'لوحة الأداء', badN], ['ops', 'غرفة العمليات', openN], ['tasks', 'المهام والطلبات', DB.jobs.filter((j) => j.st !== 'done' && A.some((x) => x.task === j.id)).length], ['crews', 'الفرق ومعداتها', DB.crews.filter((c) => crewState(c).lvl === 'bad').length], ['inv', 'الحصر والهيكل', hierarchyIssues().length], ['equip', 'سجل المعدات', allEquipment().filter((x) => needsCare(x.u)).length], ['docs', 'الوثائق والمستندات', 0], ['ai', 'الوكيل الذكي', 0]]
-    .concat(can('users') ? [['users', 'المستخدمون والطلبات', pendingR]] : []).concat(can('audit') ? [['security', 'الأمان وسجل الدخول', 0]] : []).concat(can('settings') ? [['settings', 'الإعدادات', 0]] : []);
+  const inN = (DB.inbox || []).filter((i) => i.st === 'new').length, repN = (DB.reports || []).filter((r) => r.st !== 'resolved' && daysTo(r.due) <= 3).length, flN = (DB.jobs || []).filter((j) => j.flow && j.stage !== 'closed' && !flGateOk(j) && daysTo(j.date) <= 1).length;
+  const groups = [['القيادة', [['dash', 'لوحة الأداء', badN], ['ops', 'غرفة العمليات', openN], ['cluster', 'خريطة الكلاستر', 0]]],
+    ['المعاملات الميدانية', [['flow', 'دورة المعاملات', flN], ['inbox', 'مركز التنسيق', inN], ['reports', 'البلاغات والمعادات', repN], ['tasks', 'المهام والطلبات', DB.jobs.filter((j) => j.st !== 'done' && A.some((x) => x.task === j.id)).length], ['docs', 'الوثائق والمستندات', 0]]],
+    ['الفرق والأصول', [['crews', 'الفرق ومعداتها', DB.crews.filter((c) => crewState(c).lvl === 'bad').length], ['cards', 'بطاقات الفريق', 0], ['equip', 'سجل المعدات', allEquipment().filter((x) => needsCare(x.u)).length], ['inv', 'الحصر والهيكل', hierarchyIssues().length]]],
+    ['الإدارة', [['ai', 'الوكيل الذكي', 0]].concat(can('users') ? [['users', 'المستخدمون والطلبات', pendingR]] : []).concat(can('audit') ? [['security', 'الأمان وسجل الدخول', 0]] : []).concat(can('settings') ? [['settings', 'الإعدادات', 0]] : [])]];
   return html`<div class="shell"><nav class="nav" aria-label="القائمة الرئيسية"><div class="brand">${svgLogo(32)}<b>ميدان</b></div>
-    <ul>${items.map((i) => html`<li><button type="button" data-act="nav" data-v="${i[0]}" ${UI.view === i[0] ? new Safe('aria-current="page"') : ''}>${i[1]}${i[2] ? html`<span class="badge-n">${i[2]}</span>` : ''}</button></li>`)}</ul>
+    ${groups.map((g) => html`<p class="navg">${g[0]}</p><ul>${g[1].map((i) => html`<li><button type="button" data-act="nav" data-v="${i[0]}" ${UI.view === i[0] ? new Safe('aria-current="page"') : ''}>${i[1]}${i[2] ? html`<span class="badge-n">${i[2]}</span>` : ''}</button></li>`)}</ul>`)}
     <div class="me">${CUR.name}<br>${ROLES[CUR.role]} · جلسة نشطة<br><button class="btn sm" type="button" data-act="logout" style="margin-top:8px;background:transparent;color:#fff;border-color:#334155">تسجيل الخروج</button></div></nav>
     <main class="main" id="main">${brandBar()}${DEMO ? html`<div class="alert wr row between" role="status" style="font-weight:600"><span>وضع تجريبي — بيانات نموذجية لا تُحفظ. جرّب أي شيء بحرية.</span><button class="btn sm dark" type="button" data-act="logout">إنهاء التجربة</button></div>` : ''}${inner}</main></div>`;
 }
@@ -1423,7 +2041,7 @@ const FILES_MEM = {};
 const ALLOWED_FILES = { 'application/pdf': 1, 'image/jpeg': 1, 'image/png': 1, 'image/webp': 1, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 1, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 1 };
 function idb() { return new Promise((res, rej) => { const r = indexedDB.open('maydan_files', 1); r.onupgradeneeded = () => r.result.createObjectStore('f'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); }
 async function idbPut(id, blob) { const db = await idb(); await new Promise((res, rej) => { const tx = db.transaction('f', 'readwrite'); tx.objectStore('f').put(blob, id); tx.oncomplete = res; tx.onerror = () => rej(tx.error); }); }
-async function filePut(id, blob) { if (DEMO) { FILES_MEM[id] = blob; return; } if (gwOn()) { await idbPut(id, blob); try { await gwUpload(id, blob); } catch (e) { toast('حُفظ الملف على الجهاز، وتعذّر رفعه إلى Google Drive: ' + e.message, 'err'); } return; } if (CLOUD) { const r = await fetch('/api/files', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': blob.type || 'application/octet-stream', 'X-Requested-With': 'maydan', 'X-File-Id': id, 'X-File-Name': encodeURIComponent(blob.name || 'file') }, body: blob }); if (!r.ok) throw new Error('upload ' + r.status); return; } const db = await idb(); await new Promise((res, rej) => { const tx = db.transaction('f', 'readwrite'); tx.objectStore('f').put(blob, id); tx.oncomplete = res; tx.onerror = () => rej(tx.error); }); }
+async function filePut(id, blob, jobId) { if (DEMO) { FILES_MEM[id] = blob; return; } if (gwOn()) { await idbPut(id, blob); try { await gwUpload(id, blob, jobId); } catch (e) { toast('حُفظ الملف على الجهاز، وتعذّر رفعه إلى Google Drive: ' + e.message, 'err'); } return; } if (CLOUD) { const r = await fetch('/api/files', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': blob.type || 'application/octet-stream', 'X-Requested-With': 'maydan', 'X-File-Id': id, 'X-File-Name': encodeURIComponent(blob.name || 'file') }, body: blob }); if (!r.ok) throw new Error('upload ' + r.status); return; } const db = await idb(); await new Promise((res, rej) => { const tx = db.transaction('f', 'readwrite'); tx.objectStore('f').put(blob, id); tx.oncomplete = res; tx.onerror = () => rej(tx.error); }); }
 async function idbGet(id) { const db = await idb(); return new Promise((res, rej) => { const q = db.transaction('f').objectStore('f').get(id); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }); }
 async function fileGet(id) { if (DEMO) return FILES_MEM[id]; if (!CLOUD && gcfg().files[id]) { let b = null; try { b = await idbGet(id); } catch (e) { /* none */ } if (b) return b; try { const r = await gfetch(GAPI + '/drive/v3/files/' + encodeURIComponent(gcfg().files[id].driveId) + '?alt=media'); return await r.blob(); } catch (e) { if (e.auth) toast(e.message, 'err'); return null; } } if (CLOUD) { const r = await fetch('/api/files/' + encodeURIComponent(id), { credentials: 'same-origin' }); if (r.ok) return r.blob(); } const db = await idb(); return new Promise((res, rej) => { const q = db.transaction('f').objectStore('f').get(id); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }); }
 async function fileDel(id) { if (DEMO) { delete FILES_MEM[id]; return; } if (!CLOUD && gcfg().files[id]) { const d = gcfg().files[id].driveId; delete gcfg().files[id]; gfetch(GAPI + '/drive/v3/files/' + encodeURIComponent(d), { method: 'DELETE' }).catch(() => {}); } if (CLOUD) { fetch('/api/files/' + encodeURIComponent(id), { method: 'DELETE', credentials: 'same-origin', headers: { 'X-Requested-With': 'maydan' } }).catch(() => {}); return; } try { const db = await idb(); db.transaction('f', 'readwrite').objectStore('f').delete(id); } catch (e) { /* ignore */ } }
@@ -1591,7 +2209,7 @@ function brandBar() {
   return html`<header class="hero-h${cov ? '' : ' nocover'}"${cov ? new Safe(' style="background-image:url(&quot;' + cov + '&quot;)"') : ''}><div class="hh-in">
     <div class="hh-main"><div class="hh-logos">${brandLogos(38)}</div><div class="hh-title"><b>${B.company || ''}</b><span>${B.app || 'ميدان'} · إدارة الفرق والمعدات والخدمات اللوجستية</span></div></div>
     <div class="hh-side"><span class="hh-date">${ds}</span>${CUR ? html`<span class="hh-user">${CUR.name} · ${ROLES[CUR.role]}</span>` : ''}
-      <div class="row" style="gap:6px">${gwBadge()}<button class="hh-btn" type="button" data-act="lang" aria-label="${LANG === 'en' ? 'العربية' : 'English'}">${LANG === 'en' ? 'عربي' : 'EN'}</button><button class="hh-btn" type="button" data-act="theme" aria-label="${THEME === 'dark' ? 'الوضع الفاتح' : 'الوضع المظلم'}">${THEME === 'dark' ? new Safe('<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>') : new Safe('<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>')}</button></div></div></div></header>`;
+      <div class="row" style="gap:6px">${gwBadge()}<button class="hh-btn" type="button" data-act="palette" aria-label="تغيير سمة الألوان" title="تغيير سمة الألوان"><i class="swatch" aria-hidden="true"></i></button><button class="hh-btn" type="button" data-act="lang" aria-label="${LANG === 'en' ? 'العربية' : 'English'}">${LANG === 'en' ? 'عربي' : 'EN'}</button><button class="hh-btn" type="button" data-act="theme" aria-label="${THEME === 'dark' ? 'الوضع الفاتح' : 'الوضع المظلم'}">${THEME === 'dark' ? new Safe('<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>') : new Safe('<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>')}</button></div></div></div></header>`;
 }
 
 // ---------- gauges ----------
@@ -1825,7 +2443,11 @@ function sheetTables() {
   const docs = [['الرقم', 'النوع', 'العنوان', 'الفرقة', 'المهمة', 'المسؤول', 'الانتهاء', 'الملف', 'رابط الملف في Drive', 'رابط خارجي', 'التاريخ', 'بواسطة']].concat(DB.docs.map((d) => [d.id, d.type, d.title, d.crewId, d.taskId, d.person || '', d.exp || '', d.fileName || '', link(d.fileId), d.url || '', d.tm, d.by]));
   const empDocs = [['الموظف', 'الإقامة', 'المستند', 'الانتهاء', 'الملف', 'رابط الملف في Drive']].concat([].concat(...DB.employees.map((e) => Object.entries(e.docs || {}).map(([t, x]) => [e.name, e.iqama, t, x.exp || '', x.fileName || '', link(x.fileId)]))));
   const st = Object.assign({}, DB, { users: [], audit: [], locks: {} }); const json = JSON.stringify(st); const chunks = [['_state v' + DB.version + ' · ' + nowIso()]]; for (let i = 0; i < json.length; i += 45000) chunks.push([json.slice(i, i + 45000)]);
-  return [['الفرق', crews], ['العمال', workers], ['المعدات', eqRows()], ['الحصر', invRows()], ['الموظفون', empRows()], ['مستندات الموظفين', empDocs], ['المهام', tasks], ['المستندات', docs], ['_state', chunks]];
+  const jf = g.jobFolders || {};
+  const fl = [['المكتب', 'رقم الأساس', 'رقم المعاملة', 'رقم الرخصة', 'نوع الرخصة', 'انتهاء الرخصة', 'المتبقي (يوم)', 'نوع العمل', 'الحي', 'المحطة', 'المخطط', 'القطعة', 'التاريخ', 'المرحلة', 'بوابة الرخصة', 'طول الحفر (م)', 'خط العرض', 'خط الطول', 'الفرقة', 'مجلد Drive']].concat(flJobs().map((j) => [j.office, j.baseNo, j.txNo, j.permit, j.permitType, j.permitExp, flPermitDays(j) === null ? '' : flPermitDays(j), j.kind, j.district, j.station, j.plan, j.plot, j.date, FL_STAGES[j.stage][0], flGateLabel(j)[0], j.lengthM, j.lat, j.lng, j.crewId, jf[j.id] ? 'https://drive.google.com/drive/folders/' + jf[j.id].id : '']));
+  const reps = [['النوع', 'رقم الأساس', 'الرخصة', 'الحي', 'الاستلام', 'المهلة', 'الحالة', 'موجّه إلى', 'الملاحظة']].concat(DB.reports.map((r) => [r.kindName, r.baseNo, r.permit, r.district, r.recv, r.due, r.st, r.to ? FL_ROLES[r.to] : '', r.note]));
+  const inb = [['الوقت', 'النوع', 'العنوان', 'المستلمون', 'الحالة', 'حُوّل إلى']].concat(DB.inbox.slice(0, 500).map((i) => [i.tm, i.kind, i.title, i.to.map((p) => p.name).join('، '), i.st, i.fwd.join('، ')]));
+  return [['المعاملات الميدانية', fl], ['البلاغات والمعادات', reps], ['التنبيهات', inb], ['الفرق', crews], ['العمال', workers], ['المعدات', eqRows()], ['الحصر', invRows()], ['الموظفون', empRows()], ['مستندات الموظفين', empDocs], ['المهام', tasks], ['المستندات', docs], ['_state', chunks]];
 }
 async function gwSync(quiet) {
   if (GW.busy) { GW.again = true; return; } GW.busy = true; GW.status = 'sync'; renderGwBadge();
@@ -1851,8 +2473,17 @@ async function gwRestore() {
   const keep = { users: DB.users, audit: DB.audit, locks: DB.locks, settings: Object.assign({}, st.settings || {}, { google: gcfg() }) };
   DB = migrate3(migrate(Object.assign(st, keep))); persistLocal(); audit(CUR.name, 'استرجاع البيانات من Google Sheets'); toast('تم استرجاع البيانات من Google Sheets.'); render();
 }
-async function gwUpload(id, blob) {
-  const g = gcfg(); const meta = { name: safeName(blob.name || id), parents: [g.filesFolderId], appProperties: { maydanId: id } };
+async function gwJobFolder(j) {
+  const g = gcfg(); g.jobFolders = g.jobFolders || {}; const name = flFolderName(j); const cur = g.jobFolders[j.id];
+  if (cur && cur.name === name && (await gwExists(cur.id))) return cur.id;
+  await gwEnsure(); if (!g.txFolderId || !(await gwExists(g.txFolderId))) { g.txFolderId = (await gwCreate('المعاملات', 'application/vnd.google-apps.folder', g.folderId)).id; }
+  if (cur && cur.id && (await gwExists(cur.id))) { await gjson(GAPI + '/drive/v3/files/' + encodeURIComponent(cur.id) + '?fields=id', 'PATCH', { name }); cur.name = name; persistLocal(); return cur.id; }
+  const id = (await gwCreate(name, 'application/vnd.google-apps.folder', g.txFolderId)).id; g.jobFolders[j.id] = { id, name }; persistLocal(); return id;
+}
+async function gwUpload(id, blob, jobId) {
+  const g = gcfg(); const job = jobId && DB.jobs.find((x) => x.id === jobId && x.flow);
+  const parent = job ? await gwJobFolder(job) : g.filesFolderId;
+  const meta = { name: safeName(blob.name || id), parents: [parent], appProperties: { maydanId: id } };
   const bd = 'maydan' + uid('b').slice(2); const enc = new TextEncoder(); const data = new Uint8Array(await blob.arrayBuffer());
   const head = enc.encode('--' + bd + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify(meta) + '\r\n--' + bd + '\r\nContent-Type: ' + (blob.type || 'application/octet-stream') + '\r\n\r\n'); const tail = enc.encode('\r\n--' + bd + '--');
   const body = new Uint8Array(head.length + data.length + tail.length); body.set(head, 0); body.set(data, head.length); body.set(tail, head.length + data.length);
@@ -1878,6 +2509,7 @@ function storagePanel() {
     <div class="row"><button class="btn pri" type="submit">${on ? 'إعادة الربط مع Google' : 'ربط حساب Google وإنشاء الملفات'}</button>${on ? html`<button class="btn" type="button" data-act="gw-sync">مزامنة الآن</button><button class="btn" type="button" data-act="gw-restore">استرجاع من Google Sheets</button><button class="btn" type="button" data-act="gw-off" style="color:var(--red)">فصل</button>` : ''}</div></form>
     ${on ? html`<div class="grid g3" style="margin-top:12px"><a class="btn" href="${'https://docs.google.com/spreadsheets/d/' + g.sheetId}" target="_blank" rel="noopener noreferrer">فتح ملف البيانات (Sheets)</a><a class="btn" href="${'https://drive.google.com/drive/folders/' + g.folderId}" target="_blank" rel="noopener noreferrer">فتح مجلد ميدان (Drive)</a><a class="btn" href="${'https://drive.google.com/drive/folders/' + g.filesFolderId}" target="_blank" rel="noopener noreferrer">مجلد الصور والمرفقات</a></div>
       <p class="t-mut" style="font-size:13px;margin-top:8px">آخر مزامنة: ${g.lastSync ? fmtT(g.lastSync) : '—'} · الملفات المرفوعة إلى Drive: ${Object.keys(g.files).length}${GW.err ? ' · ' + GW.err : ''}</p>` : ''}
+    <label class="row" style="margin-top:10px;font-size:14px"><input type="checkbox" data-change="gw-login" ${g.googleLogin !== false ? new Safe('checked') : ''} style="width:20px;height:20px;accent-color:var(--acc)"> السماح بتسجيل الدخول بحساب Google بنفس المعرّف (للمستخدمين المسجّلة بريداتهم)</label>
     <p class="alert note" style="margin-top:12px">الصلاحية المطلوبة: «ملفات Drive التي ينشئها ميدان فقط» (drive.file) — لا يرى ميدان باقي ملفاتك. أوراق الملف: الفرق، العمال، المعدات، الحصر، الموظفون، مستندات الموظفين، المهام، المستندات (مع روابط الصور في Drive)، و«_state» للاسترجاع. كلمات المرور وسجل الدخول لا تُرفع. لا تشارك الملف علناً لأنه يحوي أرقام الإقامات.</p></div>` : ''}
   ${mode === 'server' ? html`<div class="card"><h2 style="font-size:17px">قاعدة بيانات الشركة</h2>${CLOUD ? html`<div class="tblw"><table><tbody>
       <tr><th scope="row">قاعدة البيانات</th><td>${H.store === 'firestore' ? 'Firebase / Cloud Firestore' : 'ملف على الخادم (تطوير)'}</td></tr>
@@ -1970,11 +2602,15 @@ function render() {
   const app = $('#app');
   if (!CUR) { if (MAP) { MAP.remove(); MAP = null; } app.innerHTML = viewAuth().s; translateUI(app); mountGoogleBtn(); const f = app.querySelector('input'); if (f) f.focus(); return; }
   if (!can('users') && UI.view === 'users') UI.view = 'ops';
-  const v = { dash: viewDash, tasks: viewTasks, docs: viewDocs3, inv: viewInv, ops: viewOps, crews: viewCrews, equip: viewEquip3, ai: viewAI, users: viewUsers3, security: viewSecurity, settings: viewSettings3 }[UI.view] || viewDash;
+  const v = { flow: viewFlow, cluster: viewCluster, inbox: viewInbox, reports: viewReports, cards: viewCards, dash: viewDash, tasks: viewTasks, docs: viewDocs3, inv: viewInv, ops: viewOps, crews: viewCrews, equip: viewEquip3, ai: viewAI, users: viewUsers3, security: viewSecurity, settings: viewSettings3 }[UI.view] || viewDash;
   if (MAP) { MAP.remove(); MAP = null; }
+  flBeforeRender();
+  const entering = UI.lastView !== UI.view; UI.lastView = UI.view;
   app.innerHTML = shell(v()).s;
+  if (entering) { const m = $('#main'); if (m) m.classList.add('enter'); }
   if (UI.view === 'ops') mountMap();
   translateUI(app);
+  flAfterRender();
   document.querySelectorAll('a.wa:not(.txt),a.tg:not(.txt),a.lnk.w,a.lnk.t').forEach((x) => { const t = (x.getAttribute('aria-label') || x.textContent).trim(); x.title = t; if (!x.getAttribute('aria-label')) x.setAttribute('aria-label', t); });
   pushBrowserAlerts();
 }
@@ -2057,6 +2693,7 @@ const ACT = {
   'move-cancel': () => { UI.move = null; render(); },
   'eq-filter': (d) => { UI.eqFilter = d.k; render(); },
   theme: () => { THEME = THEME === 'dark' ? 'light' : 'dark'; setPref('maydan_theme', THEME); render(); },
+  palette: () => { const i = PALETTES.findIndex((p) => p[0] === PALETTE_K); PALETTE_K = PALETTES[(i + 1) % PALETTES.length][0]; setPref('maydan_palette', PALETTE_K); toast('السمة: ' + PALETTES.find((p) => p[0] === PALETTE_K)[1]); render(); },
   lang: () => { LANG = LANG === 'en' ? 'ar' : 'en'; setPref('maydan_lang', LANG); render(); },
   'cover-reset': () => { if (!need('settings')) return; cfg().brand.cover = DEFAULT_COVER; save(); render(); },
   'cover-del': () => { if (!need('settings')) return; cfg().brand.cover = ''; save(); render(); },
@@ -2143,7 +2780,7 @@ const ACT = {
     if (v.del) { DB.jobs = DB.jobs.filter((x) => x.id !== t.id); DB.docs.forEach((x) => { if (x.taskId === t.id) x.taskId = ''; }); UI.task = null; audit(CUR.name, 'حذف مهمة', t.title); return; }
     const e = taskValidate(v); if (e) return e; const o = taskFromForm(v); const moved = o.date !== t.date; const crewChanged = o.crewId !== t.crewId; Object.assign(t, o); if (!t.workType) t.workType = classifyWork(t.title); if (crewChanged) ensureTeamForm(t, true);
     const sin = t.reqs.find((r) => r.type === SAFE_IN && r.auto); if (moved && sin && sin.st === 'open') sin.due = addDays(-1, t.date); audit(CUR.name, 'تعديل مهمة', t.title); }); },
-  'task-start': (d) => { const t = taskById(d.id); if (!t || !need('request')) return; const sin = t.reqs.find((r) => r.type === SAFE_IN);
+  'task-start': (d) => { const t = taskById(d.id); if (!t || !need('request')) return; if (t.flow && !flGateOk(t)) return toast('لا يبدأ التنفيذ دون إرفاق صورة الرخصة أو التعهد (أو تجاوز المهندس). افتح المعاملة من «دورة المعاملات».', 'err'); const sin = t.reqs.find((r) => r.type === SAFE_IN);
     if (sin && sin.st !== 'done') toast('تنبيه: لم يُؤكَّد تأمين السلامة والإنارة لهذا الموقع بعد.', 'err');
     t.st = 'prog'; audit(CUR.name, 'بدء مهمة', t.title); save(); render(); },
   'task-hold': (d) => { const t = taskById(d.id); if (!t || !need('request')) return; openForm('إيقاف المهمة', [{ k: 'reason', label: 'سبب التوقف', type: 'select', val: DB.lists.holdReasons[0], list: 'holdReasons' }, { k: 'note', label: 'تفاصيل', type: 'textarea' }, { k: 'crew', label: 'إيقاف الفرقة كاملة أيضاً', type: 'check', val: false }],
@@ -2171,7 +2808,7 @@ const ACT = {
       { k: 'file', label: d.scan ? 'التقط صورة المستند' : 'أو ارفع ملفاً', type: 'file', capture: !!d.scan, hint: 'PDF أو صورة أو Word/Excel — حتى 10 ميجابايت' }],
       async (v) => { if (v.url && !/^https:\/\//.test(v.url.trim())) return 'الرابط يجب أن يبدأ بـ https://'; if (v.exp && !validDate(v.exp)) return 'تاريخ غير صالح.';
         const doc = { id: uid('d'), type: v.type, title: v.title.trim().slice(0, 120) || v.type, crewId: wtLib ? '' : v.crewId, taskId: wtLib ? '' : v.taskId, workType: wtLib, person: v.person, exp: v.exp, url: v.url.trim().slice(0, 500), fileId: '', fileName: '', size: 0, form: null, tm: nowIso(), by: CUR.name };
-        if (v.file) { if (v.file.size > 10 * 1024 * 1024) return 'الملف أكبر من 10 ميجابايت.'; if (!ALLOWED_FILES[v.file.type]) return 'نوع الملف غير مسموح. المسموح: PDF، صور، Word، Excel.'; doc.fileId = uid('f'); doc.fileName = safeName(v.file.name); doc.size = v.file.size; try { await filePut(doc.fileId, v.file); } catch (e) { return 'تعذّر حفظ الملف على هذا الجهاز.'; } }
+        if (v.file) { if (v.file.size > 10 * 1024 * 1024) return 'الملف أكبر من 10 ميجابايت.'; if (!ALLOWED_FILES[v.file.type]) return 'نوع الملف غير مسموح. المسموح: PDF، صور، Word، Excel.'; doc.fileId = uid('f'); doc.fileName = safeName(v.file.name); doc.size = v.file.size; try { await filePut(doc.fileId, v.file, doc.taskId); } catch (e) { return 'تعذّر حفظ الملف على هذا الجهاز.'; } }
         DB.docs.unshift(doc); audit(CUR.name, 'إضافة مستند', doc.type + (doc.crewId ? ' · ' + doc.crewId : '')); }); },
   'doc-del': (d) => { if (!need('edit')) return; const doc = DB.docs.find((x) => x.id === d.id); if (!doc) return; openForm('حذف المستند', [{ k: 'ok', label: 'أؤكد حذف «' + doc.type + '»', type: 'check', val: false }], (v) => { if (!v.ok) return 'ضع علامة التأكيد.'; DB.docs = DB.docs.filter((x) => x.id !== doc.id); if (doc.fileId) fileDel(doc.fileId); audit(CUR.name, 'حذف مستند', doc.type); }, { ok: 'حذف' }); },
   'doc-file': async (d) => { const doc = DB.docs.find((x) => x.id === d.id); if (!doc || !doc.fileId) return; try { const b = await fileGet(doc.fileId); if (!b) return toast('الملف غير موجود على هذا الجهاز.', 'err'); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = safeName(doc.fileName); a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 3000); } catch (e) { toast('تعذّر قراءة الملف.', 'err'); } },
@@ -2253,6 +2890,7 @@ document.addEventListener('change', (e) => {
   if (k === 'tx-import' && el.files && el.files[0]) { if (!need('edit')) return; const file = el.files[0]; el.value = ''; readSheetFile(file).then((rows) => { const r = rowsToTasks(rows); if (!r.length) throw new Error('لا صفوف'); UI.txPreview = { rows: r, name: file.name }; UI.view = 'docs'; UI.docsTab = 'tx'; render(); }).catch((err) => toast('تعذّر قراءة الملف: ' + err.message, 'err')); return; }
   if (k === 'logo-upload' && el.files && el.files[0]) { if (!need('settings')) return; const file = el.files[0]; el.value = ''; if (!/^image\/(png|jpeg|webp)$/.test(file.type) || file.size > 2 * 1024 * 1024) return toast('PNG أو JPG أو WEBP حتى 2 ميجابايت.', 'err'); if ((cfg().brand.logos || []).length >= 6) return toast('الحد الأقصى 6 شعارات.', 'err');
     const fr = new FileReader(); fr.onload = () => { const url = String(fr.result); if (!/^data:image\/(png|jpeg|webp);base64,/.test(url)) return toast('صورة غير صالحة.', 'err'); const img = new Image(); img.onload = () => { const h = 96, w = Math.min(600, Math.round(img.width * (h / img.height))); const cv = document.createElement('canvas'); cv.width = w; cv.height = h; cv.getContext('2d').drawImage(img, 0, 0, w, h); const src = cv.toDataURL('image/png'); if (!imgOk(src)) return toast('تعذّر معالجة الصورة.', 'err'); cfg().brand.logos.push({ id: uid('lg'), name: file.name.replace(/\.[a-z]+$/i, '').slice(0, 40), src }); audit(CUR.name, 'إضافة شعار', file.name); save(); render(); }; img.onerror = () => toast('صورة غير صالحة.', 'err'); img.src = url; }; fr.readAsDataURL(file); return; }
+  if (k === 'gw-login') { if (!need('settings')) return; gcfg().googleLogin = !!el.checked; persistLocal(); audit(CUR.name, el.checked ? 'تفعيل الدخول بحساب Google' : 'إيقاف الدخول بحساب Google'); toast(el.checked ? 'فُعّل الدخول بحساب Google.' : 'أُوقف الدخول بحساب Google.'); return; }
   if (k === 'stg-mode') { if (!need('settings')) return; if (el.value === 'server' || CLOUD) return; gcfg().mode = el.value; persistLocal(); if (el.value === 'local') { GW.status = ''; } render(); return; }
   if (k === 'cover-upload' && el.files && el.files[0]) { if (!need('settings')) return; const file = el.files[0]; el.value = ''; if (!/^image\/(png|jpeg|webp)$/.test(file.type) || file.size > 4 * 1024 * 1024) return toast('PNG أو JPG أو WEBP حتى 4 ميجابايت.', 'err');
     const fr = new FileReader(); fr.onload = () => { const url = String(fr.result); if (!/^data:image\/(png|jpeg|webp);base64,/.test(url)) return toast('صورة غير صالحة.', 'err'); const img = new Image(); img.onload = () => { const w = Math.min(1600, img.width), h = Math.round(img.height * (w / img.width)); const cv = document.createElement('canvas'); cv.width = w; cv.height = Math.min(h, 700); cv.getContext('2d').drawImage(img, 0, 0, w, h); let src = cv.toDataURL('image/webp', 0.72); if (!/^data:image\/webp/.test(src)) src = cv.toDataURL('image/jpeg', 0.75); if (!imgOk(src)) return toast('تعذّر معالجة الصورة.', 'err'); cfg().brand.cover = src; audit(CUR.name, 'تغيير صورة الهيدر', file.name); save(); render(); }; img.onerror = () => toast('صورة غير صالحة.', 'err'); img.src = url; }; fr.readAsDataURL(file); return; }
@@ -2273,7 +2911,8 @@ document.addEventListener('change', (e) => {
     fr.readAsText(el.files[0].size > 5e6 ? new Blob() : el.files[0]);
   }
 });
-const INPUTS = { 'eq-q': 'eqQ', 'tx-q': 'txQ', 'emp-q': 'empQ' };
+Object.assign(ACT, FL_ACT);
+const INPUTS = { 'card-q': 'cardQ', 'eq-q': 'eqQ', 'tx-q': 'txQ', 'emp-q': 'empQ' };
 document.addEventListener('input', (e) => { const el = e.target.closest('[data-input]'); if (!el || !INPUTS[el.dataset.input]) return; UI[INPUTS[el.dataset.input]] = el.value; const pos = el.selectionStart; const sel = '[data-input="' + el.dataset.input + '"]'; render(); const n = $(sel); if (n) { n.focus(); n.setSelectionRange(pos, pos); } });
 // drag & drop ordering for jobs
 document.addEventListener('dragstart', (e) => { const li = e.target.closest && e.target.closest('[data-job]'); if (!li) return; UI.dragId = li.dataset.job; li.classList.add('drag'); e.dataTransfer.effectAllowed = 'move'; });

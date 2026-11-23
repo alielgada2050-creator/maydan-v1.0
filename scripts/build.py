@@ -3,6 +3,10 @@ import hashlib, base64, sys, os
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 src = open(os.path.join(ROOT, 'src/index.src.html'), encoding='utf-8').read()
 js = open(os.path.join(ROOT, 'src/app.js'), encoding='utf-8').read()
+# feature modules (src/modules/*.js, in name order) are inlined at the /*MODULES*/ marker, inside the app scope
+mods = sorted(f for f in os.listdir(os.path.join(ROOT, 'src/modules')) if f.endswith('.js'))
+assert js.count('/*MODULES*/') == 1, 'module marker missing'
+js = js.replace('/*MODULES*/', '\n'.join('// ---- module: ' + f + ' ----\n' + open(os.path.join(ROOT, 'src/modules', f), encoding='utf-8').read() for f in mods))
 assert '</script' not in js.lower(), 'app.js must not contain a closing script tag'
 pre = [a for a in sys.argv[1:] if a.startswith('--preload=')]
 args = [a for a in sys.argv[1:] if not a.startswith('--')]

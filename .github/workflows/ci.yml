@@ -17,7 +17,7 @@ jobs:
         run: |
           python3 scripts/build.py /tmp/index.html
           diff -q /tmp/index.html public/index.html
-      - run: node --check src/app.js && node --check server/index.js
+      - run: node --check src/app.js && node --check server/index.js && for f in src/modules/*.js; do node --check "$f"; done
       - run: npm test
       - name: Secret scan
         uses: gitleaks/gitleaks-action@v2
