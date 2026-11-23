@@ -4,7 +4,7 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert');
 const os = require('os'); const fs = require('fs'); const path = require('path');
 const DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'maydan-test-'));
-Object.assign(process.env, { STORE: 'file', DATA_DIR: DIR, OTP_PROVIDER: 'console', SETUP_TOKEN: 'test-setup-token-123456', NODE_ENV: 'test', PORT: '0', GOOGLE_CLIENT_ID: 'cid-test.apps.googleusercontent.com', GOOGLE_VERIFY_STUB: '1', GOOGLE_MAPS_KEY: 'AIzaTestKey_1234567890abcdef', ERP_WEBHOOK_SECRET: 'erp-secret' });
+Object.assign(process.env, { STORE: 'file', DATA_DIR: DIR, OTP_PROVIDER: 'console', SETUP_TOKEN: 'test-setup-token-123456', NODE_ENV: 'test', PORT: '0', GOOGLE_CLIENT_ID: 'cid-test.apps.googleusercontent.com', GOOGLE_VERIFY_STUB: '1', GOOGLE_MAPS_KEY: 'test-maps-key', ERP_WEBHOOK_SECRET: 'erp-secret' });
 const http = require('http'); const crypto = require('crypto'); const ERP = []; const erpSrv = http.createServer((q, s) => { let b = ''; q.on('data', (c) => { b += c; }); q.on('end', () => { ERP.push({ h: q.headers, b }); s.end('ok'); }); });
 const { server } = require('../index.js');
 let base;
@@ -30,7 +30,7 @@ async function signIn(c, iqama, pass) {
 
 test('health reports setup needed and no AI/Odoo configured', async () => {
   const c = client(); const h = await c.call('GET', '/api/health');
-  assert.deepStrictEqual(h.j, { app: 'maydan', needsSetup: true, ai: [], odoo: false, otp: { sms: true, email: true }, store: 'file', files: 'local', erp: true, googleClientId: 'cid-test.apps.googleusercontent.com', mapsKey: 'AIzaTestKey_1234567890abcdef' });
+  assert.deepStrictEqual(h.j, { app: 'maydan', needsSetup: true, ai: [], odoo: false, otp: { sms: true, email: true }, store: 'file', files: 'local', erp: true, googleClientId: 'cid-test.apps.googleusercontent.com', mapsKey: 'test-maps-key' });
 });
 test('setup requires the SETUP_TOKEN and a strong password', async () => {
   const c = client();

@@ -1,0 +1,3 @@
+# False positives: made-up placeholder values used only by server tests (not real keys). Replaced by "test-maps-key" in later commits.
+40266265aaaa0680d77fd93458cb8d3bd7fd2af3:server/test/server.test.js:generic-api-key:7
+40266265aaaa0680d77fd93458cb8d3bd7fd2af3:server/test/server.test.js:generic-api-key:33
