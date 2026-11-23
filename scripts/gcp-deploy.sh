@@ -22,7 +22,9 @@ gcloud services enable run.googleapis.com firestore.googleapis.com secretmanager
   cloudbuild.googleapis.com storage.googleapis.com apikeys.googleapis.com tile.googleapis.com
 
 say "قاعدة البيانات Firestore"
-gcloud firestore databases describe --database='(default)' >/dev/null 2>&1 || gcloud firestore databases create --location="$REGION" --type=firestore-native
+if ! gcloud firestore databases describe --database='(default)' >/dev/null 2>&1; then
+  for LOC in "$REGION" me-central1 eur3; do gcloud firestore databases create --location="$LOC" --type=firestore-native && break; echo "الموقع $LOC غير متاح لـ Firestore، تجربة التالي…"; done
+fi
 
 say "حساب تشغيل الخدمة بأقل صلاحيات"
 gcloud iam service-accounts describe "$RUN_SA" >/dev/null 2>&1 || gcloud iam service-accounts create maydan-run --display-name="Maydan runtime"
@@ -47,6 +49,11 @@ ENVV="NODE_ENV=production,STORE=firestore,FILES_BUCKET=$BUCKET,OTP_PROVIDER=$OTP
 [ -n "${SMTP_USER:-}" ] && ENVV="$ENVV,SMTP_HOST=${SMTP_HOST:-smtp.gmail.com},SMTP_PORT=${SMTP_PORT:-465},SMTP_USER=$SMTP_USER,SMTP_FROM=${SMTP_FROM:-$SMTP_USER}"
 [ -n "${GOOGLE_CLIENT_ID:-}" ] && ENVV="$ENVV,GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID"
 [ -n "${GOOGLE_ALLOWED_DOMAIN:-}" ] && ENVV="$ENVV,GOOGLE_ALLOWED_DOMAIN=$GOOGLE_ALLOWED_DOMAIN"
+
+say "صلاحيات البناء (Cloud Build)"
+PN=$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')
+for SA in "$PN-compute@developer.gserviceaccount.com" "$PN@cloudbuild.gserviceaccount.com"; do
+  gcloud projects add-iam-policy-binding "$PROJECT_ID" --member="serviceAccount:$SA" --role=roles/run.builder --condition=None >/dev/null 2>&1 || true; done
 
 say "بناء ونشر ميدان على Cloud Run ($REGION) — يستغرق بضع دقائق"
 gcloud run deploy "$SERVICE" --source . --region "$REGION" --service-account "$RUN_SA" \
