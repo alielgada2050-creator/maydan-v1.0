@@ -1,0 +1,12 @@
+.git
+.github
+node_modules
+data
+private
+apps-script
+.env
+*.xlsx
+*.csv
+hr.employee*
+maydan-*-private.html
+server/test

@@ -69,7 +69,29 @@ const findByIqama = async (iq) => (await store.list('users', (u) => u.iqama === 
 // ---------- routes ----------
 const R = {};
 const route = (m, p, fn) => { R[m + ' ' + p] = fn; };
-route('GET', '/api/health', async () => ({ app: 'maydan', needsSetup: (await store.count('users')) === 0, ai: X.aiProviders().map((p) => p.name), odoo: X.odooOn() }));
+route('GET', '/api/health', async () => ({ app: 'maydan', needsSetup: (await store.count('users')) === 0, ai: X.aiProviders().map((p) => p.name), odoo: X.odooOn(), otp: X.otpChannels(), store: process.env.STORE === 'firestore' ? 'firestore' : 'file', files: process.env.FILES_BUCKET ? 'gcs' : 'local', erp: !!process.env.ERP_WEBHOOK_URL, googleClientId: process.env.GOOGLE_CLIENT_ID || '', mapsKey: process.env.GOOGLE_MAPS_KEY || '' }));
+
+// ---------- Sign in with Google (Google Identity Services ID token) → same OTP step as the password login ----------
+let GCLIENT = null;
+async function verifyGoogle(cred) {
+  if (process.env.GOOGLE_VERIFY_STUB === '1' && process.env.NODE_ENV === 'test') { const [email, aud] = String(cred).split('|'); return { email, email_verified: true, aud }; }
+  if (!GCLIENT) { const { OAuth2Client } = require('google-auth-library'); GCLIENT = new OAuth2Client(); }
+  const t = await GCLIENT.verifyIdToken({ idToken: String(cred), audience: process.env.GOOGLE_CLIENT_ID }); return t.getPayload();
+}
+route('POST', '/api/auth/google', async (req, res, b, ip) => {
+  limit('google:' + ip, 30, 15 * 60e3);
+  const cid = process.env.GOOGLE_CLIENT_ID; if (!cid) E(404, 'الدخول بحساب Google غير مفعّل على الخادم.');
+  let p; try { p = await verifyGoogle(b.credential); } catch (e) { E(401, 'تعذّر التحقق من حساب Google.'); }
+  if (!p || p.aud !== cid || !p.email_verified || !p.email) E(401, 'تعذّر التحقق من حساب Google.');
+  const email = String(p.email).toLowerCase(); const dom = String(process.env.GOOGLE_ALLOWED_DOMAIN || '').toLowerCase();
+  if (dom && !email.endsWith('@' + dom)) { await audit(email, 'دخول Google مرفوض (نطاق غير مسموح)', '', ip); E(403, 'هذا الحساب خارج نطاق الشركة المسموح.'); }
+  const u = (await store.list('users', (x) => String(x.email || '').toLowerCase() === email))[0];
+  if (!u || !u.active) { await audit(email, 'دخول Google لحساب غير مسجّل', '', ip); E(403, 'لا يوجد حساب فعّال مرتبط بهذا البريد. اطلب من مشرف المنصة إضافة بريدك.'); }
+  const lk = await store.get('locks', u.iqama); if (lk && lk.until > now()) E(423, 'الحساب مقفل مؤقتاً. حاول لاحقاً.');
+  const pre = rid(24); await store.set('pre', h256(pre), { uid: u.id, exp: now() + 10 * 60e3, tries: 3, otp: null, resendAt: 0, via: 'google' });
+  setCookie(res, 'mdn_pre', signed(pre), 600); await audit(u.name, 'تحقق Google ناجح — بانتظار رمز التحقق', email, ip);
+  return { step: 'otp', masks: { sms: maskPhone(u.phone), email: maskMail(u.email) } };
+});
 
 route('POST', '/api/auth/setup', async (req, res, b, ip) => {
   limit('setup:' + ip, 5, 15 * 60e3);
@@ -160,6 +182,7 @@ route('PUT', '/api/state', async (req, res, b, ip) => {
   const me = await requireUser(req, 'write'); if (!b || typeof b.state !== 'object' || !Array.isArray(b.state.crews)) E(400, 'بيانات غير صالحة.');
   const st = Object.assign({}, b.state, { users: [], locks: {}, audit: [] }); const json = JSON.stringify(st); if (json.length > 4.5 * 1024 * 1024) E(413, 'حجم البيانات كبير. أرسل الملفات عبر التخزين وليس داخل البيانات.');
   const out = await store.tx('state', 'main', (cur) => { const v = cur ? cur.version : 0; if (+b.version !== v) E(409, 'تم تعديل البيانات من مستخدم آخر.'); return { version: v + 1, json, by: me.id, tm: iso() }; });
+  X.pushErp({ event: 'state.updated', version: out.version, by: me.name, tm: iso(), state: st });
   return { version: out.version };
 });
 route('GET', '/api/audit', async (req) => { await requireUser(req, 'audit'); return { audit: (await store.list('audit')).sort((a, b) => b.tm.localeCompare(a.tm)).slice(0, 500) }; });
@@ -197,12 +220,13 @@ const PUBLIC = path.join(__dirname, '..', 'public');
 let PAGE = null;
 function page() {
   if (!PAGE || !PROD) { let h = fs.readFileSync(path.join(PUBLIC, 'index.html'), 'utf8'); h = h.replace('<meta name="maydan-server" content="0">', '<meta name="maydan-server" content="1">');
-    const csp = (/http-equiv="Content-Security-Policy" content="([^"]+)"/.exec(h) || [])[1] || "default-src 'none'"; PAGE = { h, csp: csp.replace(/connect-src [^;]+/, "connect-src 'self'") + "; frame-ancestors 'none'" }; }
+    const csp = (/http-equiv="Content-Security-Policy" content="([^"]+)"/.exec(h) || [])[1] || "default-src 'none'"; const G = 'https://accounts.google.com/gsi/'; h = h.replace(/<meta http-equiv="Content-Security-Policy" content="[^"]+">\s*/, ''); // the header carries the (wider) policy
+    PAGE = { h, csp: csp.replace(/connect-src [^;]+/, "connect-src 'self' " + G + ' https://tile.googleapis.com') + "; frame-ancestors 'none'" }; }
   return PAGE;
 }
 function secHeaders(res) {
-  res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('Referrer-Policy', 'no-referrer'); res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('Permissions-Policy', 'geolocation=(self), camera=(self), microphone=(), payment=()'); res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin'); res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Permissions-Policy', 'geolocation=(self), camera=(self), microphone=(), payment=()'); res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
   if (PROD) res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
 }
 

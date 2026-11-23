@@ -22,7 +22,14 @@
 - **اللغة والمظهر:** العربية والإنجليزية (اتجاه RTL/LTR تلقائي) ووضع داكن، ويُحفظ اختيار كل جهاز.
 - **مرفقات الموظفين:** صورة الإقامة، كارت الأمن الصناعي، رخصة القيادة (للسائقين)، كارت التأمين — بتواريخ انتهاء وتنبيهات، ويظهر كارت الأمن في نموذج فريق العمل.
 - **المشاريع والمراقبون:** إضافة وتعديل المشاريع والمهندسين والمراقبين وبياناتهم من شاشة الحصر أو من نموذج الفرقة مباشرة؛ أيقونات واتساب/تيليجرام بحجم الأيقونة مع الاسم داخل بيانات المهمة.
+- **Google:** الدخول بحساب Google (ثم رمز التحقق)، خرائط Google وقمر صناعي (Map Tiles API)، ورمز التحقق بالبريد عبر Gmail.
+- **مكان حفظ البيانات (من الإعدادات ← التخزين والربط):** على الجهاز · **Google Sheets + Drive** للمؤسسات الصغيرة والاستخدام الشخصي (الجداول في Sheets، الصور والمرفقات في Drive بروابطها، صلاحية drive.file فقط) · **قاعدة بيانات الشركة** Firebase/Firestore مع Webhook موقّع لنظام الشركة/ERP وربط Odoo.
 - **المرفقات على الخادم:** في وضع السحابة تُرفع الملفات إلى Cloud Storage (`FILES_BUCKET`) وتظهر لكل الأجهزة؛ محلياً تُحفظ في مجلد `data/files`.
+
+## النشر على Google Cloud بأمر واحد
+[![Open in Cloud Shell](https://gstatic.com/cloudssh/images/open-btn.svg)](https://shell.cloud.google.com/cloudshell/editor?cloudshell_git_repo=https://github.com/alielgada2050-creator/maydan-v1.0&cloudshell_git_branch=main&cloudshell_tutorial=docs/CLOUDSHELL.md&show=terminal)
+
+اضغط الزر، سجّل الدخول بحساب Google، ثم: `bash scripts/gcp-deploy.sh` — يُنشئ Firestore ومساحة المرفقات والأسرار ومفتاح الخرائط، وينشر على Cloud Run، ويطبع الرابط ورمز الإعداد.
 
 ## البدء السريع (محلياً)
 ```bash
@@ -52,6 +59,3 @@ docs/           النشر، Odoo، واجهة API
 ```
 
 > **تنبيه:** لا ترفع ملفات الموظفين (`hr.employee*.xlsx`) ولا أي نسخة خاصة من المنصة إلى GitHub. هي مستثناة في `.gitignore`.
-
-## النسخة السابقة (Google Apps Script)
-نسخة v1.0.0 المبنية على Google Apps Script محفوظة كما هي في مجلد [`apps-script/`](apps-script/). النسخة الحالية (v4) تعمل على Cloud Run مع Firestore وCloud Storage — راجع [`docs/DEPLOY.md`](docs/DEPLOY.md).

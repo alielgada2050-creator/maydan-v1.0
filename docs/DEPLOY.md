@@ -2,6 +2,16 @@
 
 المعمارية: خدمة Cloud Run واحدة تقدّم الصفحة والـ API، وFirestore (Native mode) للتخزين، وSecret Manager للأسرار، وGitHub Actions للنشر دون مفاتيح JSON.
 
+## الطريقة الأسرع: Cloud Shell بأمر واحد
+افتح [Cloud Shell على هذا المستودع](https://shell.cloud.google.com/cloudshell/editor?cloudshell_git_repo=https://github.com/alielgada2050-creator/maydan-v1.0&cloudshell_git_branch=main&cloudshell_tutorial=docs/CLOUDSHELL.md&show=terminal) ثم:
+```bash
+gcloud config set project YOUR_PROJECT_ID
+export GOOGLE_CLIENT_ID="...apps.googleusercontent.com"      # اختياري: الدخول بحساب Google
+export SMTP_USER="you@gmail.com" SMTP_PASS="app-password"     # اختياري: رمز التحقق بالبريد عبر Gmail
+bash scripts/gcp-deploy.sh
+```
+الخطوات أدناه هي نفس ما يفعله السكربت، للنشر اليدوي أو عبر GitHub Actions.
+
 ## 1) إعداد المشروع (مرة واحدة)
 ```bash
 PROJECT_ID=asas-maydan          # غيّره

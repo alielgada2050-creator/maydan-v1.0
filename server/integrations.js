@@ -6,9 +6,15 @@ const timeoutFetch = async (url, opts, ms) => { const c = new AbortController();
 
 // ---------- OTP delivery ----------
 // OTP_PROVIDER = console (development only) | webhook | twilio | unifonic
+let SMTP = null;
+function otpChannels() { const p = env('OTP_PROVIDER', 'console'); const prod = env('NODE_ENV') === 'production'; const dev = p === 'console' && !prod; return { sms: dev || ['twilio', 'unifonic', 'webhook'].includes(p), email: dev || p === 'webhook' || !!env('SMTP_HOST') }; }
 async function sendOtp(channel, to, code) {
   const p = env('OTP_PROVIDER', 'console');
   const text = 'رمز الدخول إلى ميدان: ' + code + ' — صالح 5 دقائق. لا تشاركه مع أحد.';
+  if (channel === 'email' && env('SMTP_HOST')) { // e.g. Gmail / Google Workspace: smtp.gmail.com:465 with an app password
+    if (!SMTP) SMTP = require('nodemailer').createTransport({ host: env('SMTP_HOST'), port: +env('SMTP_PORT', '465'), secure: env('SMTP_PORT', '465') === '465', auth: { user: env('SMTP_USER'), pass: env('SMTP_PASS') }, connectionTimeout: 10000 });
+    await SMTP.sendMail({ from: env('SMTP_FROM') || env('SMTP_USER'), to, subject: 'رمز الدخول إلى ميدان', text, html: '<div dir="rtl" style="font-family:Tahoma,Arial;font-size:16px">رمز الدخول إلى ميدان:<br><b style="font-size:28px;letter-spacing:4px">' + code + '</b><br>صالح 5 دقائق. لا تشاركه مع أحد.</div>' }); return {};
+  }
   if (p === 'console') { if (env('NODE_ENV') === 'production') throw new Error('OTP_PROVIDER=console is not allowed in production'); return { dev: true }; }
   if (p === 'webhook') {
     const url = env('OTP_WEBHOOK_URL'); const secret = env('OTP_WEBHOOK_SECRET'); if (!url || !/^https:\/\//.test(url) || !secret) throw new Error('OTP webhook not configured');
@@ -71,4 +77,16 @@ async function odooEmployees() {
   return recs.map((e) => ['odoo:' + e.id, e.name || '', e.identification_id || '', m2o(e.job_id) || e.job_title || '', m2o(e.department_id), m2o(e.parent_id), e.work_email || '', e.mobile_phone || '', e.work_phone || '']);
 }
 
-module.exports = { sendOtp, aiChat, aiProviders, odooOn, odooEmployees };
+module.exports = { sendOtp, aiChat, aiProviders, odooOn, odooEmployees, otpChannels };
+
+// ---------- company system / ERP webhook: every data update is POSTed, signed with HMAC-SHA256 (header X-Maydan-Signature: sha256=<hex>) ----------
+const ERP_Q = { busy: false, next: null };
+module.exports.pushErp = function pushErp(payload) {
+  const url = process.env.ERP_WEBHOOK_URL; if (!url || !/^(https:\/\/|http:\/\/(localhost|127\.0\.0\.1)[:/])/.test(url)) return;
+  ERP_Q.next = payload; if (ERP_Q.busy) return; // coalesce bursts: only the latest state is sent
+  ERP_Q.busy = true;
+  (async () => { while (ERP_Q.next) { const p = ERP_Q.next; ERP_Q.next = null; const body = JSON.stringify(p);
+    const sig = require('crypto').createHmac('sha256', process.env.ERP_WEBHOOK_SECRET || '').update(body).digest('hex');
+    try { const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Maydan-Event': p.event, 'X-Maydan-Signature': 'sha256=' + sig }, body, signal: AbortSignal.timeout(10000) }); if (!r.ok) console.error('erp webhook', r.status); } catch (e) { console.error('erp webhook failed', e.message); } }
+    ERP_Q.busy = false; })();
+};

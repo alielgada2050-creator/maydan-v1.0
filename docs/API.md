@@ -32,3 +32,9 @@
 | POST | `/api/files` | جسم الطلب = الملف الخام. ترويسات: `Content-Type` (PDF/JPEG/PNG/WebP/DOCX/XLSX)، `X-File-Id` اختياري (8–64 حرفاً `[A-Za-z0-9_-]`)، `X-File-Name` مُرمّز URL، `X-Requested-With: maydan`. يتطلب صلاحية `write`. ← `{ id }` |
 | GET | `/api/files/:id` | تنزيل لمستخدم مسجّل فقط، `Content-Disposition: attachment`، `CSP: sandbox` |
 | DELETE | `/api/files/:id` | لصاحب الملف أو admin/pm |
+
+## Google ونظام الشركة
+| الطريقة | المسار | الوصف |
+|---|---|---|
+| POST | `/api/auth/google` | `{credential}` (ID token من Google Identity Services) ← تحقق من التوقيع و`aud`=`GOOGLE_CLIENT_ID` و`email_verified` ← مستخدم فعّال بنفس البريد ← `{step:'otp'}` |
+| — | `ERP_WEBHOOK_URL` | POST لكل تحديث بيانات: `{event:'state.updated', version, by, tm, state}` مع `X-Maydan-Signature: sha256=HMAC(ERP_WEBHOOK_SECRET, body)` |

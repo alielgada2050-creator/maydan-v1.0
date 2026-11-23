@@ -4,11 +4,12 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert');
 const os = require('os'); const fs = require('fs'); const path = require('path');
 const DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'maydan-test-'));
-Object.assign(process.env, { STORE: 'file', DATA_DIR: DIR, OTP_PROVIDER: 'console', SETUP_TOKEN: 'test-setup-token-123456', NODE_ENV: 'test', PORT: '0' });
+Object.assign(process.env, { STORE: 'file', DATA_DIR: DIR, OTP_PROVIDER: 'console', SETUP_TOKEN: 'test-setup-token-123456', NODE_ENV: 'test', PORT: '0', GOOGLE_CLIENT_ID: 'cid-test.apps.googleusercontent.com', GOOGLE_VERIFY_STUB: '1', GOOGLE_MAPS_KEY: 'AIzaTestKey_1234567890abcdef', ERP_WEBHOOK_SECRET: 'erp-secret' });
+const http = require('http'); const crypto = require('crypto'); const ERP = []; const erpSrv = http.createServer((q, s) => { let b = ''; q.on('data', (c) => { b += c; }); q.on('end', () => { ERP.push({ h: q.headers, b }); s.end('ok'); }); });
 const { server } = require('../index.js');
 let base;
-before(() => new Promise((r) => server.listen(0, () => { base = 'http://127.0.0.1:' + server.address().port; r(); })));
-after(() => { server.close(); fs.rmSync(DIR, { recursive: true, force: true }); });
+before(() => new Promise((r) => erpSrv.listen(0, () => { process.env.ERP_WEBHOOK_URL = 'http://127.0.0.1:' + erpSrv.address().port + '/maydan'; server.listen(0, () => { base = 'http://127.0.0.1:' + server.address().port; r(); }); })));
+after(() => { server.close(); erpSrv.close(); fs.rmSync(DIR, { recursive: true, force: true }); });
 
 function client() {
   const jar = {};
@@ -29,7 +30,7 @@ async function signIn(c, iqama, pass) {
 
 test('health reports setup needed and no AI/Odoo configured', async () => {
   const c = client(); const h = await c.call('GET', '/api/health');
-  assert.deepStrictEqual(h.j, { app: 'maydan', needsSetup: true, ai: [], odoo: false });
+  assert.deepStrictEqual(h.j, { app: 'maydan', needsSetup: true, ai: [], odoo: false, otp: { sms: true, email: true }, store: 'file', files: 'local', erp: true, googleClientId: 'cid-test.apps.googleusercontent.com', mapsKey: 'AIzaTestKey_1234567890abcdef' });
 });
 test('setup requires the SETUP_TOKEN and a strong password', async () => {
   const c = client();
@@ -119,4 +120,25 @@ test('attachments: upload checks type and content, download is sandboxed, delete
   assert.ok(Buffer.from(await g.arrayBuffer()).equals(pdf));
   const d = await a.call('DELETE', '/api/files/f-aaaa1111'); assert.strictEqual(d.status, 200);
   assert.strictEqual((await fetch(base + '/api/files/f-aaaa1111', { headers: { Cookie: ck() } })).status, 404);
+});
+
+test('Sign in with Google: verified email of an active user → OTP step; wrong audience or unknown email refused; page CSP allows Google', async () => {
+  const c = client(); const CID = 'cid-test.apps.googleusercontent.com';
+  const h = await c.call('GET', '/api/health'); assert.strictEqual(h.j.googleClientId, CID); assert.ok(h.j.mapsKey);
+  assert.strictEqual((await c.call('POST', '/api/auth/google', { credential: 'a@b.co|other-client' })).status, 401);
+  assert.strictEqual((await c.call('POST', '/api/auth/google', { credential: 'stranger@x.com|' + CID })).status, 403);
+  const g = await c.call('POST', '/api/auth/google', { credential: 'A@B.co|' + CID }); assert.strictEqual(g.status, 200); assert.strictEqual(g.j.step, 'otp');
+  const s = await c.call('POST', '/api/auth/otp/send', { channel: 'sms' }); const v = await c.call('POST', '/api/auth/otp/verify', { code: s.j.devCode }); assert.strictEqual(v.status, 200); assert.strictEqual(v.j.user.iqama, '2123456789');
+  const p = await c.call('GET', '/'); const csp = p.r.headers.get('content-security-policy');
+  assert.match(csp, /script-src [^;]*https:\/\/accounts\.google\.com\/gsi\/client/); assert.match(csp, /frame-src https:\/\/accounts\.google\.com\/gsi\//); assert.match(csp, /connect-src 'self' [^;]*https:\/\/tile\.googleapis\.com/); assert.match(csp, /frame-ancestors 'none'/);
+});
+
+test('company system (ERP) webhook receives each data update, HMAC-signed, without users', async () => {
+  const a = client(); await signIn(a, '2123456789', 'Maydan2026Safe');
+  const cur = await a.call('GET', '/api/state'); ERP.length = 0;
+  const put = await a.call('PUT', '/api/state', { version: cur.j.version, state: { crews: [{ id: 'X-01' }], users: [{ hash: 'secret' }] } }); assert.strictEqual(put.status, 200);
+  for (let i = 0; i < 40 && !ERP.length; i++) await new Promise((r) => setTimeout(r, 50));
+  assert.strictEqual(ERP.length, 1); const { h, b } = ERP[0];
+  assert.strictEqual(h['x-maydan-signature'], 'sha256=' + crypto.createHmac('sha256', 'erp-secret').update(b).digest('hex'));
+  const p = JSON.parse(b); assert.strictEqual(p.event, 'state.updated'); assert.strictEqual(p.state.crews[0].id, 'X-01'); assert.deepStrictEqual(p.state.users, []);
 });

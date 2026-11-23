@@ -12,6 +12,7 @@ env:
   REPO: maydan
 jobs:
   deploy:
+    if: ${{ vars.GCP_PROJECT_ID != '' }}   # skipped until Google Cloud is configured (see docs/DEPLOY.md)
     runs-on: ubuntu-latest
     environment: production
     steps:
@@ -49,11 +50,18 @@ jobs:
             DEEPSEEK_MODEL=${{ vars.DEEPSEEK_MODEL }}
             GEMINI_MODEL=${{ vars.GEMINI_MODEL }}
             ODOO_URL=${{ vars.ODOO_URL }}
+            GOOGLE_CLIENT_ID=${{ vars.GOOGLE_CLIENT_ID }}
+            GOOGLE_MAPS_KEY=${{ vars.GOOGLE_MAPS_KEY }}
+            GOOGLE_ALLOWED_DOMAIN=${{ vars.GOOGLE_ALLOWED_DOMAIN }}
+            ERP_WEBHOOK_URL=${{ vars.ERP_WEBHOOK_URL }}
+            SMTP_HOST=${{ vars.SMTP_HOST }}
+            SMTP_USER=${{ vars.SMTP_USER }}
             ODOO_DB=${{ vars.ODOO_DB }}
             ODOO_USER=${{ vars.ODOO_USER }}
           secrets: |
             SESSION_SECRET=maydan-session-secret:latest
             SETUP_TOKEN=maydan-setup-token:latest
+            ERP_WEBHOOK_SECRET=maydan-erp-secret:latest
             OTP_WEBHOOK_SECRET=maydan-otp-webhook-secret:latest
             OPENAI_API_KEY=maydan-openai-key:latest
             GROQ_API_KEY=maydan-groq-key:latest
