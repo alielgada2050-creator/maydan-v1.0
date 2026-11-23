@@ -1,56 +1,68 @@
-name: Deploy — نشر إلى Google Apps Script
-
-# يعمل فقط بعد ضبط المتغير GAS_DEPLOY_ENABLED=true والأسرار (راجع docs/GOOGLE_SETUP.md)
+name: Deploy to Cloud Run
 on:
+  push: { branches: [main] }
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths: ['src/**']
-
 permissions:
   contents: read
-
-concurrency:
-  group: gas-deploy
-  cancel-in-progress: false
-
+  id-token: write   # keyless auth to Google Cloud (Workload Identity Federation) — no JSON keys in GitHub
+env:
+  PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  REGION: ${{ vars.GCP_REGION }}          # e.g. me-central2 (Dammam)
+  SERVICE: maydan
+  REPO: maydan
 jobs:
   deploy:
-    if: ${{ vars.GAS_DEPLOY_ENABLED == 'true' }}
+    if: ${{ vars.GCP_PROJECT_ID != '' }}   # skipped until Google Cloud is configured (see docs/DEPLOY.md)
     runs-on: ubuntu-latest
+    environment: production
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: google-github-actions/auth@v2
         with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
-      - run: npm run build && npm test
-
-      - name: Write clasp credentials (from secrets)
-        env:
-          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
-          SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Build & push image
         run: |
-          test -n "$CLASPRC_JSON" || { echo "::error::Missing secret CLASPRC_JSON"; exit 1; }
-          test -n "$SCRIPT_ID" || { echo "::error::Missing secret SCRIPT_ID"; exit 1; }
-          umask 077
-          printf '%s' "$CLASPRC_JSON" > ~/.clasprc.json
-          printf '{"scriptId":"%s","rootDir":"src"}' "$SCRIPT_ID" > .clasp.json
-
-      - name: Push code to Apps Script
-        run: npx -y @google/clasp@2.4.2 push --force
-
-      - name: Update the existing web-app deployment (same /exec URL)
-        env:
-          DEPLOYMENT_ID: ${{ secrets.DEPLOYMENT_ID }}
-        run: |
-          if [ -n "$DEPLOYMENT_ID" ]; then
-            npx -y @google/clasp@2.4.2 deploy --deploymentId "$DEPLOYMENT_ID" --description "GitHub ${GITHUB_SHA::7}"
-          else
-            echo "::warning::DEPLOYMENT_ID not set — code pushed; publish a new version from the Apps Script editor."
-          fi
-
-      - name: Remove credentials
-        if: always()
-        run: rm -f ~/.clasprc.json .clasp.json
+          IMAGE="$REGION-docker.pkg.dev/$PROJECT_ID/$REPO/$SERVICE:$GITHUB_SHA"
+          gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet
+          docker build -t "$IMAGE" .
+          docker push "$IMAGE"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+      - uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.SERVICE }}
+          region: ${{ env.REGION }}
+          image: ${{ env.IMAGE }}
+          flags: >-
+            --service-account=${{ vars.GCP_RUNTIME_SA }}
+            --min-instances=0 --max-instances=4 --concurrency=80 --cpu=1 --memory=512Mi
+            --ingress=all --allow-unauthenticated
+          env_vars: |
+            NODE_ENV=production
+            STORE=firestore
+            FILES_BUCKET=${{ vars.FILES_BUCKET }}
+            OTP_PROVIDER=${{ vars.OTP_PROVIDER }}
+            AI_ORDER=${{ vars.AI_ORDER }}
+            OPENAI_MODEL=${{ vars.OPENAI_MODEL }}
+            GROQ_MODEL=${{ vars.GROQ_MODEL }}
+            OPENROUTER_MODEL=${{ vars.OPENROUTER_MODEL }}
+            DEEPSEEK_MODEL=${{ vars.DEEPSEEK_MODEL }}
+            GEMINI_MODEL=${{ vars.GEMINI_MODEL }}
+            ODOO_URL=${{ vars.ODOO_URL }}
+            GOOGLE_CLIENT_ID=${{ vars.GOOGLE_CLIENT_ID }}
+            GOOGLE_MAPS_KEY=${{ vars.GOOGLE_MAPS_KEY }}
+            GOOGLE_ALLOWED_DOMAIN=${{ vars.GOOGLE_ALLOWED_DOMAIN }}
+            ERP_WEBHOOK_URL=${{ vars.ERP_WEBHOOK_URL }}
+            SMTP_HOST=${{ vars.SMTP_HOST }}
+            SMTP_USER=${{ vars.SMTP_USER }}
+            ODOO_DB=${{ vars.ODOO_DB }}
+            ODOO_USER=${{ vars.ODOO_USER }}
+          secrets: |
+            SESSION_SECRET=maydan-session-secret:latest
+            SETUP_TOKEN=maydan-setup-token:latest
+            ERP_WEBHOOK_SECRET=maydan-erp-secret:latest
+            OTP_WEBHOOK_SECRET=maydan-otp-webhook-secret:latest
+            OPENAI_API_KEY=maydan-openai-key:latest
+            GROQ_API_KEY=maydan-groq-key:latest
+            ODOO_API_KEY=maydan-odoo-key:latest
