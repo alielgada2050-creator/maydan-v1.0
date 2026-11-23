@@ -1,0 +1,12 @@
+.git
+.github
+node_modules
+data
+private
+docs
+src
+scripts
+server/test
+*.xlsx
+*.csv
+.env*

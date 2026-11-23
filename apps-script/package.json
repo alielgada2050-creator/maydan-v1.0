@@ -1,0 +1,18 @@
+{
+  "name": "maydan",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ميدان — إدارة الفرق والمعدات والخدمات اللوجستية على Google Apps Script",
+  "type": "module",
+  "scripts": {
+    "check": "node scripts/check.mjs",
+    "test": "node scripts/check.mjs && node tests/scenario.cjs && CODE_GS=paste/clean/Code.gs node tests/scenario.cjs && node tests/ui.cjs",
+    "build": "node scripts/build.mjs",
+    "push": "clasp push --force",
+    "deploy": "clasp deploy"
+  },
+  "devDependencies": {
+    "jsdom": "^24.1.0"
+  },
+  "engines": { "node": ">=20" }
+}

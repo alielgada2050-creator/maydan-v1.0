@@ -1,0 +1,1899 @@
+'use strict';
+(() => {
+/* ============================================================
+   ميدان — Maydan field operations platform (single file)
+   Security model: everything rendered through html`` which
+   escapes every interpolated value; no inline event handlers;
+   passwords hashed with PBKDF2; OTP with expiry/attempt limits;
+   lockout; idle session timeout; audit log; AI keys in memory only.
+   ============================================================ */
+
+// ---------- safe rendering ----------
+class Safe { constructor(s) { this.s = s; } }
+const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '`': '&#96;' };
+const esc = (s) => String(s).replace(/[&<>"'`]/g, (c) => ESC[c]);
+const toS = (v) => v instanceof Safe ? v.s : Array.isArray(v) ? v.map(toS).join('') : (v == null || v === false) ? '' : esc(v);
+const html = (st, ...vs) => new Safe(st.reduce((a, s, i) => a + s + (i < vs.length ? toS(vs[i]) : ''), ''));
+const safeUrl = (u) => /^(https:\/\/|tel:|mailto:)/i.test(String(u)) ? String(u) : '#';
+const $ = (s, r = document) => r.querySelector(s);
+const rnd = (n) => crypto.getRandomValues(new Uint8Array(n));
+const uid = (p) => p + '-' + Array.from(rnd(4), (b) => b.toString(16).padStart(2, '0')).join('');
+const b64e = (u) => btoa(String.fromCharCode(...u));
+const b64d = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+const enc = new TextEncoder();
+const nowIso = () => new Date().toISOString();
+const fmtT = (d) => { try { return new Date(d).toLocaleString('ar-SA-u-nu-latn-ca-gregory', { dateStyle: 'short', timeStyle: 'short' }); } catch (e) { return String(d); } };
+const nf = (n) => Math.round(Math.abs(n)).toLocaleString('ar-SA-u-nu-latn');
+const ago = (d) => { const s = Math.max(0, (Date.now() - new Date(d)) / 1000); return s < 60 ? 'قبل ' + Math.round(s) + ' ث' : s < 3600 ? 'قبل ' + Math.round(s / 60) + ' د' : s < 86400 ? 'قبل ' + Math.round(s / 3600) + ' س' : fmtT(d); };
+const ctEq = (a, b) => { if (a.length !== b.length) return false; let r = 0; for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i); return r === 0; };
+async function sha(s) { return b64e(new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(s)))); }
+async function pbkdf2(pass, saltB64) {
+  const k = await crypto.subtle.importKey('raw', enc.encode(pass), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: b64d(saltB64), iterations: 210000 }, k, 256);
+  return b64e(new Uint8Array(bits));
+}
+const normPhone = (p) => { const d = String(p || '').replace(/\D/g, ''); if (/^05\d{8}$/.test(d)) return '966' + d.slice(1); if (/^5\d{8}$/.test(d)) return '966' + d; return d; };
+const validPhone = (p) => /^9665\d{8}$/.test(p);
+const validIqama = (s) => /^[12]\d{9}$/.test(s);
+const maskIqama = (s) => s ? s[0] + '•••••••' + s.slice(-2) : '';
+const maskPhone = (p) => p ? '+' + p.slice(0, 4) + '•• ••• ' + p.slice(-3) : '';
+const maskMail = (m) => { if (!m || !m.includes('@')) return ''; const [a, b] = m.split('@'); return a[0] + '•••••' + a.slice(-1) + '@' + b; };
+const wa = (phone, text) => 'https://wa.me/' + (phone || '') + (text ? '?text=' + encodeURIComponent(text) : '');
+const tg = (phone) => 'https://t.me/+' + phone;
+const tgShare = (text) => 'https://t.me/share/url?url=' + encodeURIComponent('https://maps.google.com') + '&text=' + encodeURIComponent(text);
+const gmap = (c) => 'https://www.google.com/maps?q=' + c.lat + ',' + c.lng;
+const gdir = (a, b) => 'https://www.google.com/maps/dir/?api=1&origin=' + a.lat + ',' + a.lng + '&destination=' + b.lat + ',' + b.lng;
+const km = (a, b) => { const R = 6371, t = Math.PI / 180; const dLa = (b.lat - a.lat) * t, dLo = (b.lng - a.lng) * t; const x = Math.sin(dLa / 2) ** 2 + Math.cos(a.lat * t) * Math.cos(b.lat * t) * Math.sin(dLo / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(x)); };
+
+// ---------- constants ----------
+const ROLES = { admin: 'مشرف المنصة', pm: 'مدير مشروع', eng: 'مهندس تنفيذ', sup: 'مراقب', viewer: 'مشاهد' };
+const PERMS = { admin: ['users', 'edit', 'move', 'request', 'ai', 'audit', 'settings', 'data'], pm: ['edit', 'move', 'request', 'ai', 'audit'], eng: ['edit', 'move', 'request', 'ai'], sup: ['request', 'ai'], viewer: [] };
+// ---------- editable lists (every dropdown can grow) ----------
+const LIST_DEFAULTS = () => ({
+  crewTypes: { excav: ['حفريات', '#1D4ED8'], elec: ['كهرباء', '#C2410C'], safety: ['سلامة', '#15803D'], supply: ['إمداد', '#6D28D9'] },
+  services: { gcb: ['تجهيز حفرية GCB', 'excav'], backfill: ['ردم وإعادة سفلتة', 'excav'], cable: ['سحب وتوصيل كابلات', 'elec'], safety: ['فحص وتأمين سلامة', 'safety'], supply: ['توريد مواد', 'supply'] },
+  eqKinds: ['حفار JCB', 'ترنشر', 'بوبكات', 'بروش مكنسة', 'ديانة', 'قلاب', 'ونش كابلات', 'مولد', 'ضاغط هواء', 'سيارة'],
+  workerRoles: ['عامل حفر', 'عامل ردم', 'فني كابلات', 'فني توصيل', 'مساعد فني', 'مساعد معدات', 'سائق', 'مراقب سلامة', 'منسق مواد'],
+  depts: ['التنفيذ', 'توريد المواد', 'الحفر', 'الفنيين', 'إزالة المخالفات', 'السلامة والإنارة'],
+  reqTypes: ['تأمين السلامة والإنارة قبل التنفيذ', 'إزالة السلامة والإنارة بعد التنفيذ', 'توريد مواد', 'طلب حفر', 'طلب فنيين', 'إزالة مخالفات'],
+  remaining: ['تطفية T1', 'D9', 'H', 'ردم', 'سفلتة', 'تشطيب', 'إزالة مخلفات'],
+  holdReasons: ['بانتظار التصريح', 'بانتظار الاستشاري', 'نقص معدات', 'نقص مواد', 'ملاحظة سلامة', 'ظروف الموقع'],
+  docTypes: ['تصريح', 'نموذج فريق العمل', 'اجتماع ما قبل العمل', 'إجراءات العمل الآمن', 'تقييم المخاطر', 'شهادة / رخصة', 'مخطط', 'أخرى'],
+  hazards: ['الحفر والانهيار', 'الكابلات المدفونة', 'حركة المرور', 'المعدات الثقيلة', 'الرفع', 'الإجهاد الحراري', 'السقوط في الحفرة']
+});
+const REQ_DEPT = { 'تأمين السلامة والإنارة قبل التنفيذ': 'السلامة والإنارة', 'إزالة السلامة والإنارة بعد التنفيذ': 'السلامة والإنارة', 'توريد مواد': 'توريد المواد', 'طلب حفر': 'الحفر', 'طلب فنيين': 'الفنيين', 'إزالة مخالفات': 'إزالة المخالفات' };
+const SAFE_IN = 'تأمين السلامة والإنارة قبل التنفيذ', SAFE_OUT = 'إزالة السلامة والإنارة بعد التنفيذ';
+const REQUIRED_DOCS = ['تصريح', 'تقييم المخاطر', 'إجراءات العمل الآمن', 'نموذج فريق العمل', 'اجتماع ما قبل العمل'];
+const CREW_LEVEL_DOCS = ['نموذج فريق العمل', 'إجراءات العمل الآمن'];
+const PALETTE = ['#0E7490', '#BE185D', '#4D7C0F', '#A16207', '#7C3AED', '#0F766E', '#9F1239', '#1E40AF'];
+const listProxy = (k) => new Proxy({}, { get: (_, p) => DB.lists[k][p], has: (_, p) => p in DB.lists[k], ownKeys: () => Reflect.ownKeys(DB.lists[k]), getOwnPropertyDescriptor: (_, p) => (p in DB.lists[k] ? { enumerable: true, configurable: true, value: DB.lists[k][p] } : undefined) });
+const TYPES = listProxy('crewTypes');
+const SERVICES = listProxy('services');
+const ST = { ok: ['تعمل', 'ok'], due: ['تحتاج صيانة', 'warn'], shop: ['في الورشة', 'bad'] };
+const JOB_ST = { new: ['جديدة', 'mutp'], prog: ['قيد التنفيذ', 'info'], hold: ['متوقفة', 'bad'], done: ['منجزة', 'ok'] };
+const IDLE_MS = 30 * 60 * 1000, OTP_MS = 5 * 60 * 1000, LOCK_MS = 15 * 60 * 1000, MAX_FAILS = 5;
+const KEY = 'maydan_v1';
+
+// ---------- dates ----------
+const dstr = (d) => { const x = new Date(d); return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); };
+const today = () => dstr(new Date());
+const addDays = (n, base) => { const d = base ? new Date(base + 'T12:00:00') : new Date(); d.setDate(d.getDate() + n); return dstr(d); };
+const daysTo = (ds) => Math.round((new Date(ds + 'T12:00:00') - new Date(today() + 'T12:00:00')) / 86400000);
+const fmtD = (ds) => { if (!ds) return '—'; const n = daysTo(ds); return n === 0 ? 'اليوم' : n === 1 ? 'غداً' : n === -1 ? 'أمس' : n > 1 && n < 7 ? 'بعد ' + n + ' أيام' : ds; };
+const validDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(new Date(s + 'T12:00:00'));
+
+function newTask(o) {
+  const t = Object.assign({ id: uid('t'), title: '', permit: '', permitExp: '', site: '', crewId: '', dept: 'التنفيذ', date: today(), st: 'new', hold: null, reqs: [], close: null, doneAt: null, created: nowIso() }, o);
+  if (!t.reqs.some((r) => r.type === SAFE_IN)) t.reqs.push({ id: uid('rq'), type: SAFE_IN, dept: REQ_DEPT[SAFE_IN], due: addDays(-1, t.date), st: 'open', auto: true, tm: nowIso() });
+  return t;
+}
+
+// ---------- seed data (demo crews, no accounts, no passwords) ----------
+function seed() {
+  const d = (name, phone) => ({ name, phone });
+  const dy = (code, drv, phone, st, oil, tested) => ({ id: uid('dy'), kind: 'ديانة', code, driver: d(drv, phone), st, oil, tested });
+  const eq = (kind, code, drv, phone, st, oil, tested) => ({ id: uid('eq'), kind, code, driver: drv ? d(drv, phone) : null, st, oil, tested });
+  const w = (name, role, phone, dyna) => ({ id: uid('w'), name, role, phone, dyna: dyna || null });
+  const t = nowIso();
+  const engA = d('م. عبدالرحمن الدوسري', '966500000601'), engB = d('م/يحي الشريف', '966500000301');
+  const crews = [
+    { id: 'X-03', name: 'فرقة حفريات X-03', type: 'excav', branch: 'فرع شمال الرياض', site: 'حي النرجس', lat: 24.8662, lng: 46.6684, seen: t, eng: engA, hold: null,
+      sup: { name: 'أحمد سالم', phone: '966500000101', car: { kind: 'سيارة', model: 'هايلكس 2023', code: 'أ ب ج 4521', st: 'ok', oil: 1800, tested: true } },
+      workers: [w('محمد رفيق', 'عامل حفر', '966500000121', dy('ر س ع 7713', 'خالد يوسف', '966500000116', 'ok', 1300, true)),
+        w('سليم خان', 'عامل حفر', '966500000122', dy('ر س ع 7720', 'جاويد أختر', '966500000117', 'due', 300, true)),
+        w('جمال عبدالقادر', 'مساعد معدات', '966500000123', dy('ط ك ل 2210', 'أنور شاه', '966500000118', 'ok', -120, false)),
+        w('نور حسين', 'عامل ردم', '966500000124')],
+      eq: [eq('حفار JCB', 'EQ-112', 'عمران علي', '966500000111', 'ok', 900, true), eq('حفار JCB', 'EQ-118', 'رشيد أحمد', '966500000112', 'due', -150, true),
+        eq('ترنشر', 'EQ-205', 'ياسر محمود', '966500000113', 'ok', 2200, true), eq('بوبكات', 'EQ-087', 'فيصل كريم', '966500000114', 'shop', 0, false),
+        eq('بروش مكنسة', 'EQ-310', 'شاهد إقبال', '966500000115', 'ok', 400, true)] },
+    { id: 'X-05', name: 'فرقة حفريات X-05', type: 'excav', branch: 'فرع وسط الرياض', site: 'حي الملز', lat: 24.6640, lng: 46.7350, seen: t, eng: engA,
+      hold: { reason: 'بانتظار الاستشاري', note: 'ملاحظات على مخطط التحويلة', since: new Date(Date.now() - 3 * 864e5).toISOString() },
+      sup: { name: 'سعيد مراد', phone: '966500000201', car: { kind: 'سيارة', model: 'نافارا 2022', code: 'د هـ و 3390', st: 'due', oil: -300, tested: true } },
+      workers: [w('عادل باشا', 'عامل حفر', '966500000221', dy('ط ي ك 5120', 'منصور غني', '966500000212', 'ok', 2500, true)), w('حسن شريف', 'عامل حفر', '966500000222')],
+      eq: [eq('حفار JCB', 'EQ-121', 'منير سعد', '966500000211', 'ok', 1400, true), eq('بوبكات', 'EQ-090', 'عزيز رحمن', '966500000213', 'ok', 700, true)] },
+    { id: 'E-07', name: 'فرقة كهرباء E-07 (GCB)', type: 'elec', branch: 'فرع شمال الرياض', site: 'حي النرجس · R7047', lat: 24.8590, lng: 46.6600, seen: t, eng: engB, hold: null,
+      sup: { name: 'طلال الحربي', phone: '966500000302', car: { kind: 'سيارة', model: 'لاندكروزر 2021', code: 'ل م ن 1188', st: 'ok', oil: 650, tested: true } },
+      workers: [w('طارق جميل', 'فني كابلات', '966500000321'), w('بلال نعيم', 'فني توصيل', '966500000322'), w('عمر فاروق', 'مساعد فني', '966500000323')],
+      eq: [eq('ونش كابلات', 'EQ-140', 'ناصر حمدي', '966500000311', 'ok', 1100, true)] },
+    { id: 'S-02', name: 'فرقة سلامة S-02', type: 'safety', branch: 'فرع وسط الرياض', site: 'حي الربوة', lat: 24.6900, lng: 46.7600, seen: t, eng: engB, hold: null,
+      sup: { name: 'وليد عيسى', phone: '966500000401', car: { kind: 'سيارة', model: 'هايلكس 2024', code: 'س ص ق 6045', st: 'ok', oil: 3000, tested: true } },
+      workers: [w('كمال سيد', 'مراقب سلامة', '966500000421')],
+      eq: [eq('ضاغط هواء', 'EQ-019', 'حامد نور', '966500000411', 'ok', 800, true)] },
+    { id: 'L-01', name: 'فرقة إمداد L-01', type: 'supply', branch: 'فرع شرق الرياض', site: 'حي الخليج', lat: 24.7700, lng: 46.8100, seen: t, eng: engA, hold: null,
+      sup: { name: 'مازن العتيبي', phone: '966500000501', car: { kind: 'سيارة', model: 'إيسوزو 2022', code: 'ع ف ر 9021', st: 'ok', oil: 1200, tested: true } },
+      workers: [w('رامي سعيد', 'منسق مواد', '966500000521')],
+      eq: [eq('قلاب', 'EQ-061', 'زاهد خان', '966500000511', 'ok', 950, true)] }
+  ];
+  const req = (type, due, st) => ({ id: uid('rq'), type, dept: REQ_DEPT[type] || 'التنفيذ', due, st, auto: true, tm: t });
+  const jobs = [
+    newTask({ title: 'حفرية GCB وتمديد كابل — R7047', permit: 'R7047', permitExp: addDays(10), site: 'حي النرجس', crewId: 'E-07', date: today(), st: 'prog', reqs: [req(SAFE_IN, addDays(-1), 'done'), req('طلب حفر', today(), 'done')] }),
+    newTask({ title: 'تمديد كابل جهد متوسط — R6580', permit: 'R6580', permitExp: addDays(2), site: 'حي الملز', crewId: 'X-05', date: today(), st: 'hold', hold: { reason: 'بانتظار الاستشاري', note: 'ملاحظات على مخطط التحويلة', since: t }, reqs: [req(SAFE_IN, addDays(-1), 'done')] }),
+    newTask({ title: 'ردم وإعادة سفلتة — R6120', permit: 'R6120', permitExp: addDays(20), site: 'حي النرجس', crewId: 'X-03', date: addDays(1), st: 'new', reqs: [req('توريد مواد', today(), 'open')] }),
+    newTask({ title: 'توريد مواد ردم وأسفلت — R6120', permit: 'R6120', permitExp: addDays(20), site: 'حي النرجس', crewId: 'L-01', dept: 'توريد المواد', date: addDays(1), st: 'new' }),
+    newTask({ title: 'إزالة مخالفة مخلفات حفر — R5990', permit: 'R5990', permitExp: addDays(5), site: 'حي الربوة', crewId: 'S-02', dept: 'إزالة المخالفات', date: addDays(2), st: 'new' }),
+    newTask({ title: 'إغلاق موقع وتسليم الاستشاري — R5990', permit: 'R5990', permitExp: addDays(5), site: 'حي الربوة', crewId: 'X-03', date: addDays(-1), st: 'prog', reqs: [req(SAFE_IN, addDays(-2), 'done')],
+      close: { tm: t, finished: false, remaining: ['تطفية T1', 'D9'], note: 'بانتظار التطفية من فرقة الكهرباء', by: 'أحمد سالم' } })
+  ];
+  const histNames = { excav: ['حفرية توصيل', 'ردم وسفلتة', 'حفرية عبور طريق', 'تجهيز غرفة تفتيش'], elec: ['سحب كابل منخفض', 'توصيل عداد', 'تركيب صندوق توزيع', 'وصلة كابل متوسط'], safety: ['جولة تفتيش سلامة', 'إغلاق موقع', 'تأمين تحويلة مرورية'], supply: ['توريد أسفلت', 'توريد رمل ردم', 'نقل مخلفات'] };
+  const hist = { 'X-03': 7, 'E-07': 5, 'X-05': 2, 'S-02': 4, 'L-01': 6 };
+  Object.keys(hist).forEach((cid) => { for (let i = 0; i < hist[cid]; i++) { const due = addDays(-3 - i * 3); const late = i % 4 === 3 ? 1 : 0; const cr = crews.find((c) => c.id === cid); const nms = histNames[cr.type]; jobs.push(newTask({ title: nms[i % nms.length] + ' — R' + (5000 + i * 37 + cid.charCodeAt(0)), permit: 'R' + (5000 + i * 37 + cid.charCodeAt(0)), site: crews.find((c) => c.id === cid).site, crewId: cid, date: due, st: 'done', doneAt: new Date(new Date(addDays(late, due) + 'T15:00:00')).toISOString(), reqs: [req(SAFE_IN, addDays(-1, due), 'done'), req(SAFE_OUT, addDays(late, due), 'done')], close: { tm: t, finished: true, remaining: [], note: '', by: '' } })); } });
+  const doc = (type, o) => Object.assign({ id: uid('d'), type, title: type, crewId: '', taskId: '', person: '', exp: '', url: '', fileId: '', fileName: '', size: 0, form: null, tm: t, by: 'النظام' }, o);
+  const docs = [
+    doc('تقييم المخاطر', { taskId: jobs[0].id, crewId: 'E-07', person: engB.name, form: { level: 'متوسط', hazards: ['الحفر والانهيار', 'الكابلات المدفونة', 'حركة المرور'], controls: 'تدعيم جوانب الحفرية، كشف الكابلات قبل الحفر، حواجز وإنارة وتحويلة مرورية.' } }),
+    doc('اجتماع ما قبل العمل', { taskId: jobs[0].id, crewId: 'E-07', person: 'طلال الحربي', form: { date: today(), attendees: ['طلال الحربي', 'طارق جميل', 'بلال نعيم', 'عمر فاروق'], topics: ['الحفر والانهيار', 'الكابلات المدفونة'], note: '' } }),
+    doc('نموذج فريق العمل', { crewId: 'E-07', person: engB.name }), doc('إجراءات العمل الآمن', { crewId: 'E-07', person: engB.name }),
+    doc('نموذج فريق العمل', { crewId: 'X-03', person: engA.name }), doc('إجراءات العمل الآمن', { crewId: 'X-03', person: engA.name, exp: addDays(4) }),
+    doc('نموذج فريق العمل', { crewId: 'X-05', person: engA.name }), doc('شهادة / رخصة', { title: 'رخصة تشغيل حفار — عمران علي', crewId: 'X-03', person: 'أحمد سالم', exp: addDays(-2) })
+  ];
+  return {
+    v: 2, lists: LIST_DEFAULTS(),
+    users: [], reqs: [], audit: [], notifs: [], locks: {}, docs,
+    branches: ['فرع شمال الرياض', 'فرع وسط الرياض', 'فرع شرق الرياض'],
+    settings: { radiusKm: 1.5, oilWarn: 500, kmPerDay: 60, otpGateway: '' },
+    crews, jobs
+  };
+}
+function migrate(d) {
+  if (d.v === 1) {
+    d.v = 2; d.docs = d.docs || [];
+    d.crews.forEach((c) => { if (!('eng' in c)) c.eng = null; if (!('hold' in c)) c.hold = null; });
+    d.jobs = (d.jobs || []).map((j) => { const c = d.crews.find((x) => x.id === j.crewId); return Object.assign({ permit: '', permitExp: '', site: c ? c.site : '', dept: 'التنفيذ', date: dstr(new Date()), hold: null, reqs: [], close: null, doneAt: j.st === 'done' ? new Date().toISOString() : null, created: new Date().toISOString() }, j); });
+  }
+  const def = LIST_DEFAULTS(); d.lists = d.lists || {};
+  Object.keys(def).forEach((k) => { if (!d.lists[k]) d.lists[k] = def[k]; });
+  d.docs = d.docs || [];
+  return d;
+}
+function loadDB() { try { const d = JSON.parse(localStorage.getItem(KEY)); if (d && (d.v === 1 || d.v === 2 || d.v === 3) && Array.isArray(d.crews) && Array.isArray(d.users)) return migrate(d); } catch (e) { /* ignore */ } return null; }
+// ================= v3: employees, projects, hierarchy, maintenance, work types, branding, xlsx/csv =================
+const LOGOS = {"se": "data:image/webp;base64,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", "pdc": "data:image/webp;base64,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", "asas": "data:image/webp;base64,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"};
+const DEFAULT_COVER = 'data:image/webp;base64,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';
+const DEFAULT_BRAND = () => ({ cover: DEFAULT_COVER, app: 'ميدان', company: 'شركة الأساس العريض', client: 'الشركة السعودية للكهرباء',
+  logos: [{ id: 'lg-se', name: 'الشركة السعودية للكهرباء', src: LOGOS.se || '' }, { id: 'lg-asas', name: 'شركة الأساس العريض', src: LOGOS.asas || '' }, { id: 'lg-pdc', name: 'PDC', src: LOGOS.pdc || '' }].filter((l) => l.src),
+  teamTitle: 'نموذج فريق العمل', meetingTitle: 'محضر اجتماع ما قبل بدء العمل', secLabel: 'تعميد الشركة السعودية للكهرباء', footer: 'يُعبأ هذا النموذج آلياً من منصة ميدان، ويُعتمد من المهندس المسؤول ومراقب الموقع.' });
+const MAINT_DEFAULT = () => [
+  { key: 'filters', label: 'الفلاتر (زيت / هواء / ديزل)', km: 10000, days: 180 },
+  { key: 'brakes', label: 'الفرامل (البريكات)', km: 20000, days: 365 },
+  { key: 'tires', label: 'الكفرات', km: 40000, days: 730 },
+  { key: 'battery', label: 'البطارية', km: 0, days: 730 },
+  { key: 'service', label: 'الصيانة الدورية الشاملة', km: 15000, days: 180 },
+  { key: 'grease', label: 'التشحيم', km: 0, days: 30 }
+];
+const OIL_INTERVAL = 5000;
+const GAUGES = { crews: 'الفرق العاملة', ready: 'جاهزية المعدات', maint: 'الالتزام بالصيانة', docs: 'اكتمال المستندات', ontime: 'الإنجاز في الموعد', safety: 'الالتزام بالسلامة', week: 'إنجاز الأسبوع', links: 'اكتمال الربط الإلزامي' };
+const WORK_TYPES_DEFAULT = () => ({
+  excav: ['حفريات', ['تقييم المخاطر', 'إجراءات العمل الآمن'], ['حفر', 'حفرية', 'ردم', 'سفلت', 'excav', 'trench']],
+  elec: ['تركيبات كهربائية', ['تقييم المخاطر', 'إجراءات العمل الآمن'], ['تركيب', 'كابل', 'GCB', 'توصيل', 'وصلة', 'صندوق توزيع', 'cable']],
+  meters: ['تركيب عدادات', ['تقييم المخاطر', 'إجراءات العمل الآمن'], ['تركيب عداد', 'عدادات', 'عداد', 'meter']],
+  meterTest: ['فحص عدادات', ['تقييم المخاطر', 'إجراءات العمل الآمن'], ['فحص عداد', 'اختبار عداد', 'meter test']],
+  station: ['فتح وتشغيل محطات', ['تقييم المخاطر', 'إجراءات العمل الآمن', 'تصريح عمل كهربائي'], ['محطة', 'محطات', 'تشغيل', 'فتح محطة', 'substation', 'station']]
+});
+const WT_HAZARDS = { excav: ['الحفر والانهيار', 'الكابلات المدفونة', 'حركة المرور', 'المعدات الثقيلة', 'السقوط في الحفرة'], elec: ['الصعق الكهربائي', 'العمل قرب خطوط حية', 'الرفع', 'حركة المرور'], meters: ['الصعق الكهربائي', 'العمل داخل المباني', 'الأدوات اليدوية'], meterTest: ['الصعق الكهربائي', 'العمل داخل المباني'], station: ['الصعق الكهربائي', 'القوس الكهربائي', 'العزل والتأريض', 'الأماكن المحصورة'] };
+const WT = listProxy('workTypes');
+const isDriverEmp = (e) => /سائق|driver/i.test(e.job || '') || DB.crews.some((c) => c.eq.some((u) => u.driver && (u.driver.empId === e.id || (e.iqama && u.driver.iqama === e.iqama))) || c.workers.some((w) => w.dyna && w.dyna.driver && (w.dyna.driver.empId === e.id || (e.iqama && w.dyna.driver.iqama === e.iqama))));
+function empDocState(e, type) { const d = (e.docs || {})[type]; if (type === 'رخصة القيادة' && !isDriverEmp(e)) return d && (d.fileId || d.exp) ? { lvl: d.exp && daysTo(d.exp) < 0 ? 'bad' : 'ok', d } : { lvl: 'na', d }; if (!d || (!d.fileId && !d.exp && !d.url)) return { lvl: 'miss', d }; if (d.exp && daysTo(d.exp) < 0) return { lvl: 'bad', d }; if (d.exp && daysTo(d.exp) <= 30) return { lvl: 'warn', d }; return { lvl: 'ok', d }; }
+function empLink(e) { for (const c of DB.crews) { const m = (p) => p && (p.empId === e.id || (e.iqama && p.iqama === e.iqama)); if (m(c.eng)) return { crew: c, role: 'مهندس' }; if (m(c.sup)) return { crew: c, role: 'مراقب' }; for (const w of c.workers) { if (m(w)) return { crew: c, role: w.role || 'عامل' }; if (w.dyna && m(w.dyna.driver)) return { crew: c, role: 'سائق ديانة' }; } for (const u of c.eq) if (m(u.driver)) return { crew: c, role: 'سائق ' + u.kind }; } return null; }
+const empById = (id) => (DB.employees || []).find((e) => e.id === id);
+const empByIqama = (iq) => iq ? (DB.employees || []).find((e) => e.iqama === iq) : null;
+const projById = (id) => (DB.projects || []).find((p) => p.id === id);
+const classifyWork = (text) => { const s = String(text || '').toLowerCase(); let best = ''; let len = 0; Object.keys(DB.lists.workTypes).forEach((k) => (DB.lists.workTypes[k][2] || []).forEach((kw) => { const w = String(kw).toLowerCase(); if (w && s.includes(w) && w.length > len) { best = k; len = w.length; } })); return best; };
+const wtName = (k) => (k && DB.lists.workTypes[k] ? DB.lists.workTypes[k][0] : 'غير مصنّف');
+
+// ---------- v3 migration (runs on every load; idempotent) ----------
+function migrate3(d) {
+  if (!d.settings.brand) d.settings.brand = DEFAULT_BRAND();
+  if (!('cover' in d.settings.brand)) d.settings.brand.cover = DEFAULT_COVER;
+  if (!d.settings.maintPlan) d.settings.maintPlan = MAINT_DEFAULT();
+  if (!d.settings.gauges) d.settings.gauges = ['crews', 'ready', 'maint', 'docs', 'ontime', 'safety', 'week', 'links'];
+  if (!d.settings.gaugeStyle) d.settings.gaugeStyle = 'ring';
+  if (!d.settings.odoo) d.settings.odoo = { url: '', db: '', lastImport: '' };
+  if (!d.lists.workTypes) d.lists.workTypes = WORK_TYPES_DEFAULT();
+  if (!d.lists.empDocs) d.lists.empDocs = ['صورة الإقامة', 'كارت الأمن الصناعي', 'رخصة القيادة', 'كارت التأمين الطبي'];
+  ['الصعق الكهربائي', 'العمل قرب خطوط حية', 'القوس الكهربائي', 'العزل والتأريض', 'الأماكن المحصورة', 'العمل داخل المباني', 'الأدوات اليدوية'].forEach((h) => { if (!d.lists.hazards.includes(h)) d.lists.hazards.push(h); });
+  if (!d.lists.docTypes.includes('تصريح عمل كهربائي')) d.lists.docTypes.push('تصريح عمل كهربائي');
+  d.employees = d.employees || []; d.projects = d.projects || [];
+  if (!d.projects.length) d.projects = [{ id: 'P-1', code: 'SEC-RYD-01', name: 'مشروع شبكات توزيع الرياض', branch: d.branches[0] || 'فرع الرياض', manager: '' }];
+  d.crews.forEach((c) => {
+    if (!c.projectId) c.projectId = d.projects[0].id;
+    if (!c.sup.car.id) c.sup.car.id = uid('car');
+    allUnitsOf(c).forEach((u) => { if (u.odo == null) u.odo = 0; if (!u.maint) u.maint = {}; if (!('regExp' in u)) u.regExp = ''; });
+  });
+  d.jobs.forEach((j) => { if (!('workType' in j)) j.workType = classifyWorkIn(d, j.title + ' ' + (j.dept || '')); if (!j.sec) j.sec = { no: '', date: '', by: '' }; if (!j.data) j.data = {}; });
+  d.v = 3; return d;
+}
+const allUnitsOf = (c) => [c.sup.car].concat(c.eq, c.workers.filter((w) => w.dyna).map((w) => w.dyna));
+function classifyWorkIn(d, text) { const s = String(text || '').toLowerCase(); let best = ''; let len = 0; Object.keys(d.lists.workTypes).forEach((k) => (d.lists.workTypes[k][2] || []).forEach((kw) => { const w = String(kw).toLowerCase(); if (w && s.includes(w) && w.length > len) { best = k; len = w.length; } })); return best; }
+function seedV3(d) {
+  // demo-only: fictional employees, projects and maintenance history (real data comes from the Odoo / Excel import)
+  d.projects = [{ id: 'P-1', code: 'SEC-RYD-N', name: 'مشروع شبكات شمال الرياض', branch: 'فرع شمال الرياض', manager: 'م. عبدالله السيد' }, { id: 'P-2', code: 'SEC-RYD-C', name: 'مشروع شبكات وسط وشرق الرياض', branch: 'فرع وسط الرياض', manager: 'م. عبدالله السيد' }];
+  const pmap = { 'X-03': 'P-1', 'E-07': 'P-1', 'X-05': 'P-2', 'S-02': 'P-2', 'L-01': 'P-2' };
+  let n = 0; const emp = (name, job, branch) => { n += 1; const e = { id: 'E' + n, odooId: '', name, iqama: '2' + String(390000000 + n * 7919).slice(0, 9), job, branch, phone: '', email: '', empNo: 'DEMO/' + String(n).padStart(4, '0'), managerIqama: '' }; d.employees.push(e); return e; };
+  d.crews.forEach((c) => {
+    c.projectId = pmap[c.id] || 'P-1';
+    const br = c.branch;
+    if (c.eng) { const e = d.employees.find((x) => x.name === c.eng.name) || emp(c.eng.name, 'مهندس كهربائي', br); c.eng.empId = e.id; c.eng.iqama = e.iqama; c.eng.job = e.job; }
+    const s = emp(c.sup.name, 'مراقب كهرباء', br); c.sup.empId = s.id; c.sup.iqama = s.iqama; c.sup.job = s.job;
+    c.workers.forEach((w) => { const e = emp(w.name, w.role, br); Object.assign(w, { empId: e.id, iqama: e.iqama, job: e.job }); if (w.dyna && w.dyna.driver) { const de = emp(w.dyna.driver.name, 'سائق ديانة', br); Object.assign(w.dyna.driver, { empId: de.id, iqama: de.iqama, job: de.job }); } });
+    c.eq.forEach((u) => { if (u.driver) { const de = emp(u.driver.name, 'سائق ' + u.kind, br); Object.assign(u.driver, { empId: de.id, iqama: de.iqama, job: de.job }); } });
+    allUnitsOf(c).forEach((u, i) => { u.odo = 20000 + i * 7300 + c.id.charCodeAt(0) * 10; u.maint = { filters: { km: u.odo - 4000, date: addDays(-60) }, brakes: { km: u.odo - (i % 3 === 0 ? 21000 : 8000), date: addDays(-200) }, tires: { km: u.odo - 12000, date: addDays(-300) }, battery: { km: 0, date: addDays(-400) }, service: { km: u.odo - 6000, date: addDays(-90) }, grease: { km: 0, date: addDays(i % 2 ? -10 : -35) } }; u.regExp = addDays(i % 4 === 1 ? 12 : 200); });
+  });
+  d.jobs.forEach((j) => { j.workType = classifyWorkIn(d, j.title + ' ' + j.dept) || (crewById2(d, j.crewId) && crewById2(d, j.crewId).type === 'excav' ? 'excav' : ''); });
+  if (d.jobs[0]) d.jobs[0].sec = { no: 'SEC-2026-11874', date: addDays(-3), by: 'م. فهد الشمري — الشركة السعودية للكهرباء' };
+  return d;
+}
+const crewById2 = (d, id) => d.crews.find((c) => c.id === id);
+
+// ---------- maintenance ----------
+function findUnit(id) {
+  for (const c of DB.crews) {
+    if (c.sup.car.id === id) return { u: c.sup.car, crew: c, where: 'car', driver: { name: c.sup.name, phone: c.sup.phone } };
+    const e = c.eq.find((x) => x.id === id); if (e) return { u: e, crew: c, where: 'eq', driver: e.driver };
+    const w = c.workers.find((x) => x.dyna && x.dyna.id === id); if (w) return { u: w.dyna, crew: c, where: 'dyna', worker: w, driver: w.dyna.driver };
+  }
+  return null;
+}
+function maintStatus(u) {
+  const out = [];
+  (cfg().maintPlan || []).forEach((p) => {
+    const last = (u.maint || {})[p.key];
+    if (!last) { out.push({ p, lvl: 'unk', text: p.label + ': غير مسجّل' }); return; }
+    const kmLeft = p.km ? p.km - ((u.odo || 0) - (last.km || 0)) : null; const dLeft = p.days && last.date ? p.days - Math.max(0, -daysTo(last.date)) : null;
+    const due = (kmLeft != null && kmLeft <= 0) || (dLeft != null && dLeft <= 0);
+    const soon = !due && ((kmLeft != null && kmLeft <= p.km * 0.1) || (dLeft != null && dLeft <= 14));
+    const parts = []; if (kmLeft != null) parts.push(kmLeft <= 0 ? 'متأخر ' + nf(kmLeft) + ' كم' : 'بعد ' + nf(kmLeft) + ' كم'); if (dLeft != null) parts.push(dLeft <= 0 ? 'متأخر ' + nf(dLeft) + ' يوم' : 'بعد ' + nf(dLeft) + ' يوم');
+    out.push({ p, lvl: due ? 'bad' : soon ? 'warn' : 'ok', text: p.label + ': ' + parts.join(' / ') });
+  });
+  if (u.regExp) { const r = daysTo(u.regExp); out.push({ p: { key: 'reg', label: 'الاستمارة / الفحص الفني' }, lvl: r < 0 ? 'bad' : r <= 30 ? 'warn' : 'ok', text: 'الاستمارة: ' + (r < 0 ? 'منتهية منذ ' + nf(r) + ' يوم' : 'تنتهي ' + fmtD(u.regExp)) }); }
+  return out;
+}
+const maintDue = (u) => maintStatus(u).filter((m) => m.lvl === 'bad');
+
+// ---------- hierarchy (mandatory chain: unit+driver → supervisor → engineer → project → branch) ----------
+function hierarchyIssues() {
+  const I = [];
+  DB.crews.forEach((c) => {
+    const p = projById(c.projectId);
+    if (!p) I.push({ crew: c.id, text: c.id + ': غير مربوطة بمشروع' });
+    else if (!p.branch) I.push({ crew: c.id, text: 'المشروع ' + p.name + ' غير مربوط بفرع' });
+    if (!c.eng || !c.eng.name) I.push({ crew: c.id, text: c.id + ': لا يوجد مهندس مسؤول' });
+    if (!c.sup || !c.sup.name) I.push({ crew: c.id, text: c.id + ': لا يوجد مراقب' });
+    if (!c.sup.car || !c.sup.car.code || c.sup.car.code === '—') I.push({ crew: c.id, text: c.id + ': سيارة المراقب غير مسجلة' });
+    c.eq.forEach((u) => { if (!u.driver && u.st !== 'shop') I.push({ crew: c.id, unit: u.id, text: c.id + ': ' + u.kind + ' ' + u.code + ' بدون سائق' }); });
+    c.workers.forEach((w) => { if (w.dyna && !w.dyna.driver) I.push({ crew: c.id, unit: w.dyna.id, text: c.id + ': ديانة ' + w.dyna.code + ' بدون سائق' }); });
+  });
+  return I;
+}
+
+// ---------- work-type procedures & required documents ----------
+const procsFor = (wt) => (wt && DB.lists.workTypes[wt] ? DB.lists.workTypes[wt][1] : ['تقييم المخاطر', 'إجراءات العمل الآمن']);
+const requiredDocsFor = (t) => ['تصريح', 'نموذج فريق العمل', 'اجتماع ما قبل العمل'].concat(procsFor(t.workType).filter((x) => x !== 'تصريح'));
+const libraryDocs = (wt) => DB.docs.filter((d) => !d.taskId && !d.crewId && d.workType && d.workType === wt);
+
+// ---------- team form (auto-filled from the assigned crew) ----------
+function crewMembers(c) {
+  if (!c) return [];
+  const m = []; const add = (p, role) => { if (!p || !p.name) return; const e = (p.empId && empById(p.empId)) || empByIqama(p.iqama); const sec = e && e.docs && e.docs['كارت الأمن الصناعي']; m.push({ name: p.name, iqama: (e && e.iqama) || p.iqama || '', job: (e && e.job) || p.job || p.role || '', role, secExp: sec ? sec.exp || 'مرفق' : '' }); };
+  if (c.eng) add(c.eng, 'المهندس المسؤول'); add(c.sup, 'مراقب الموقع');
+  c.workers.forEach((w) => { add(w, w.role || 'عامل'); if (w.dyna && w.dyna.driver) add(w.dyna.driver, 'سائق ديانة ' + w.dyna.code); });
+  c.eq.forEach((u) => { if (u.driver) add(u.driver, 'سائق ' + u.kind + ' ' + u.code); });
+  const seen = new Set(); return m.filter((x) => { const k = x.name + '|' + x.iqama; if (seen.has(k)) return false; seen.add(k); return true; });
+}
+function seedForms() { if (DB.seededForms) return; DB.jobs.filter((j) => j.st !== 'done' && j.crewId).forEach((j) => ensureTeamForm(j)); DB.seededForms = true; save(); }
+function ensureTeamForm(t, force) {
+  if (!t || !t.crewId) return null; const c = crewById(t.crewId);
+  let d = DB.docs.find((x) => x.taskId === t.id && x.type === 'نموذج فريق العمل' && x.form && x.form.auto);
+  const form = { auto: true, crewId: c.id, crewName: c.name, project: (projById(c.projectId) || {}).name || '', branch: c.branch, members: crewMembers(c), generated: nowIso() };
+  if (d && !force && d.form.crewId === c.id) return d;
+  if (d) { d.form = form; d.crewId = c.id; d.tm = nowIso(); return d; }
+  d = { id: uid('d'), type: 'نموذج فريق العمل', title: 'نموذج فريق العمل — ' + t.title, crewId: c.id, taskId: t.id, person: c.eng ? c.eng.name : c.sup.name, exp: '', url: '', fileId: '', fileName: '', size: 0, form, tm: nowIso(), by: 'تلقائي' };
+  DB.docs.unshift(d); return d;
+}
+
+// ---------- CSV (RFC 4180) with spreadsheet-formula injection protection ----------
+function parseCSV(text) {
+  text = String(text).replace(/^﻿/, ''); const rows = []; let row = [], cur = '', q = false;
+  const sep = (text.split('\n')[0].match(/;/g) || []).length > (text.split('\n')[0].match(/,/g) || []).length ? ';' : ',';
+  for (let i = 0; i < text.length; i++) { const ch = text[i];
+    if (q) { if (ch === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += ch; }
+    else if (ch === '"') q = true; else if (ch === sep) { row.push(cur); cur = ''; } else if (ch === '\n') { row.push(cur.replace(/\r$/, '')); rows.push(row); row = []; cur = ''; } else cur += ch; }
+  if (cur || row.length) { row.push(cur); rows.push(row); }
+  return rows.filter((r) => r.some((c) => String(c).trim() !== ''));
+}
+const cellSafe = (v) => { const s = v == null ? '' : String(v); return /^[=+\-@\t\r]/.test(s) ? "'" + s : s; };
+function toCSV(rows) { return '﻿' + rows.map((r) => r.map((v) => { const s = cellSafe(v); return /[",\n\r;]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }).join(',')).join('\r\n'); }
+
+// ---------- XLSX read / write without external libraries (zip + DecompressionStream) ----------
+async function inflateRaw(bytes) { const ds = new DecompressionStream('deflate-raw'); const buf = await new Response(new Blob([bytes]).stream().pipeThrough(ds)).arrayBuffer(); return new Uint8Array(buf); }
+async function unzip(ab) {
+  const u8 = new Uint8Array(ab), dv = new DataView(ab); let eocd = -1;
+  for (let i = u8.length - 22; i >= Math.max(0, u8.length - 66000); i--) if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  if (eocd < 0) throw new Error('not a zip');
+  const n = dv.getUint16(eocd + 10, true); let off = dv.getUint32(eocd + 16, true); const files = {}; const dec = new TextDecoder();
+  for (let k = 0; k < n && k < 2000; k++) {
+    if (dv.getUint32(off, true) !== 0x02014b50) throw new Error('bad zip');
+    const method = dv.getUint16(off + 10, true), csize = dv.getUint32(off + 20, true), usize = dv.getUint32(off + 24, true), nl = dv.getUint16(off + 28, true), el = dv.getUint16(off + 30, true), cl = dv.getUint16(off + 32, true), lho = dv.getUint32(off + 42, true);
+    const name = dec.decode(u8.subarray(off + 46, off + 46 + nl)); off += 46 + nl + el + cl;
+    if (usize > 60 * 1024 * 1024) throw new Error('entry too large');
+    const ds = lho + 30 + dv.getUint16(lho + 26, true) + dv.getUint16(lho + 28, true); const raw = u8.subarray(ds, ds + csize);
+    files[name] = { method, raw };
+  }
+  return { read: async (name) => { const f = files[name]; if (!f) return null; const b = f.method === 0 ? f.raw : await inflateRaw(f.raw); return new TextDecoder().decode(b); }, names: Object.keys(files) };
+}
+const colIdx = (ref) => { const m = /^([A-Z]+)/.exec(ref || ''); if (!m) return 0; let n = 0; for (const ch of m[1]) n = n * 26 + ch.charCodeAt(0) - 64; return n - 1; };
+async function parseXlsx(ab) {
+  const z = await unzip(ab); const P = new DOMParser();
+  const xml = async (n) => { const t = await z.read(n); return t ? P.parseFromString(t, 'application/xml') : null; };
+  const ss = []; const sst = await xml('xl/sharedStrings.xml'); if (sst) Array.from(sst.getElementsByTagName('si')).forEach((si) => ss.push(Array.from(si.getElementsByTagName('t')).map((t) => t.textContent).join('')));
+  let sheetPath = 'xl/worksheets/sheet1.xml';
+  const wb = await xml('xl/workbook.xml'), rels = await xml('xl/_rels/workbook.xml.rels');
+  if (wb && rels) { const s = wb.getElementsByTagName('sheet')[0]; const rid = s && (s.getAttribute('r:id') || s.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'id')); const r = Array.from(rels.getElementsByTagName('Relationship')).find((x) => x.getAttribute('Id') === rid); if (r) { const tgt = r.getAttribute('Target'); sheetPath = tgt.startsWith('/') ? tgt.slice(1) : 'xl/' + tgt.replace(/^\.\//, ''); } }
+  const sh = await xml(sheetPath); if (!sh) throw new Error('no sheet');
+  const rows = [];
+  Array.from(sh.getElementsByTagName('row')).slice(0, 20000).forEach((r) => { const row = []; Array.from(r.getElementsByTagName('c')).forEach((c) => { const t = c.getAttribute('t'); const v = c.getElementsByTagName('v')[0]; let val = '';
+    if (t === 's') val = ss[+(v && v.textContent)] || ''; else if (t === 'inlineStr') val = Array.from(c.getElementsByTagName('t')).map((x) => x.textContent).join(''); else val = v ? v.textContent : '';
+    row[colIdx(c.getAttribute('r'))] = val; }); rows.push(Array.from(row, (x) => (x == null ? '' : x))); });
+  return rows.filter((r) => r.some((c) => String(c).trim() !== ''));
+}
+const CRC_T = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+const crc32 = (b) => { let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c = CRC_T[(c ^ b[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+function zipStore(files) {
+  const parts = [], cen = []; let off = 0; const te = new TextEncoder();
+  files.forEach(([name, text]) => { const nb = te.encode(name), db = te.encode(text), crc = crc32(db);
+    const lh = new DataView(new ArrayBuffer(30)); lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true); lh.setUint32(14, crc, true); lh.setUint32(18, db.length, true); lh.setUint32(22, db.length, true); lh.setUint16(26, nb.length, true);
+    parts.push(new Uint8Array(lh.buffer), nb, db);
+    const ch = new DataView(new ArrayBuffer(46)); ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true); ch.setUint32(16, crc, true); ch.setUint32(20, db.length, true); ch.setUint32(24, db.length, true); ch.setUint16(28, nb.length, true); ch.setUint32(42, off, true);
+    cen.push(new Uint8Array(ch.buffer), nb); off += 30 + nb.length + db.length; });
+  const csize = cen.reduce((a, b) => a + b.length, 0); const e = new DataView(new ArrayBuffer(22)); e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true); e.setUint32(12, csize, true); e.setUint32(16, off, true);
+  return new Blob(parts.concat(cen, [new Uint8Array(e.buffer)]), { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
+function toXlsx(rows, sheetName) {
+  const x = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
+  const col = (i) => { let s = ''; i += 1; while (i) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; };
+  const body = rows.map((r, ri) => '<row r="' + (ri + 1) + '">' + r.map((v, ci) => (typeof v === 'number' && isFinite(v) ? '<c r="' + col(ci) + (ri + 1) + '"' + (ri === 0 ? ' s="1"' : '') + '><v>' + v + '</v></c>' : '<c r="' + col(ci) + (ri + 1) + '" t="inlineStr"' + (ri === 0 ? ' s="1"' : '') + '><is><t xml:space="preserve">' + x(v == null ? '' : v) + '</t></is></c>')).join('') + '</row>').join('');
+  return zipStore([
+    ['[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>'],
+    ['_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'],
+    ['xl/workbook.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="' + x((sheetName || 'Sheet1').slice(0, 31)) + '" sheetId="1" r:id="rId1"/></sheets></workbook>'],
+    ['xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>'],
+    ['xl/styles.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf/></cellStyleXfs><cellXfs count="2"><xf/><xf fontId="1" applyFont="1"/></cellXfs></styleSheet>'],
+    ['xl/worksheets/sheet1.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0" rightToLeft="1"/></sheetViews><sheetData>' + body + '</sheetData></worksheet>']
+  ]);
+}
+function download(blob, name) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = safeName(name); a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 3000); }
+async function readSheetFile(file) {
+  if (!file) throw new Error('no file'); if (file.size > 10 * 1024 * 1024) throw new Error('الملف أكبر من 10 ميجابايت');
+  const n = file.name.toLowerCase();
+  if (n.endsWith('.csv') || n.endsWith('.txt')) return parseCSV(await file.text());
+  if (n.endsWith('.xlsx')) return parseXlsx(await file.arrayBuffer());
+  throw new Error('الصيغ المدعومة: xlsx و csv');
+}
+function exportRows(rows, base, fmt) { if (fmt === 'csv') download(new Blob([toCSV(rows)], { type: 'text/csv;charset=utf-8' }), base + '.csv'); else download(toXlsx(rows, base), base + '.xlsx'); }
+
+// ---------- employee import (Odoo hr.employee export or any sheet with name / iqama columns) ----------
+const H = (h) => String(h || '').trim().toLowerCase();
+function pickCol(head, names) { for (const n of names) { const i = head.findIndex((h) => H(h) === n || H(h).includes(n)); if (i > -1) return i; } return -1; }
+function splitNameIqama(raw) { const s = String(raw || ''); const m = /(?:^|\D)([12]\d{9})(?!\d)/.exec(s); const iq = m ? m[1] : ''; const name = s.replace(iq, ' ').replace(/[-–_]+/g, ' ').replace(/\s+/g, ' ').trim(); return { name, iqama: iq }; }
+function importEmployees(rows) {
+  const head = rows[0].map(H); const body = rows.slice(1);
+  const ci = { id: pickCol(head, ['id', 'external id']), name: pickCol(head, ['name', 'الاسم', 'اسم الموظف']), iq: pickCol(head, ['identification_id', 'iqama', 'رقم الإقامة', 'الإقامة', 'الهوية']), job: pickCol(head, ['job_id', 'job_title', 'المهنة', 'الوظيفة']), dept: pickCol(head, ['department_id', 'القسم', 'الفرع']), mgr: pickCol(head, ['parent_id', 'المدير']), email: pickCol(head, ['work_email', 'email', 'البريد']), mobile: pickCol(head, ['mobile_phone', 'mobile', 'الجوال']), wphone: pickCol(head, ['work_phone']) };
+  if (ci.name < 0) throw new Error('لم يُعثر على عمود الاسم (name)');
+  const res = { added: 0, updated: 0, noIqama: 0, noPhone: 0, total: 0 };
+  body.forEach((r) => {
+    const g = (k) => (ci[k] > -1 ? String(r[ci[k]] == null ? '' : r[ci[k]]).trim() : '');
+    const sp = splitNameIqama(g('name')); const iq = (validIqama(g('iq')) ? g('iq') : '') || sp.iqama; if (!sp.name) return;
+    const mobile = normPhone(g('mobile')); const wp = g('wphone');
+    const rec = { odooId: g('id').slice(0, 80), name: sp.name.slice(0, 100), iqama: iq, job: g('job').slice(0, 60), branch: g('dept').slice(0, 60), email: /@/.test(g('email')) ? g('email').slice(0, 120) : '', phone: validPhone(mobile) ? mobile : (validPhone(normPhone(wp)) ? normPhone(wp) : ''), empNo: /^\d+\/\d+$/.test(wp) ? wp : '', managerIqama: splitNameIqama(g('mgr')).iqama };
+    res.total++; if (!rec.iqama) res.noIqama++; if (!rec.phone) res.noPhone++;
+    const ex = DB.employees.find((e) => (rec.odooId && e.odooId === rec.odooId) || (rec.iqama && e.iqama === rec.iqama));
+    if (ex) { Object.keys(rec).forEach((k) => { if (rec[k]) ex[k] = rec[k]; }); res.updated++; } else { DB.employees.push(Object.assign({ id: uid('emp') }, rec)); res.added++; }
+    if (rec.branch && !DB.branches.includes(rec.branch) && /^فرع/.test(rec.branch)) DB.branches.push(rec.branch);
+  });
+  return res;
+}
+const EMP_EXPORT_HEAD = ['id', 'name', 'identification_id', 'job_id', 'department_id', 'parent_id', 'work_email', 'mobile_phone', 'work_phone'];
+const empRows = () => [EMP_EXPORT_HEAD].concat(DB.employees.map((e) => { const m = empByIqama(e.managerIqama); return [e.odooId, e.name, e.iqama, e.job, e.branch, m ? m.name : '', e.email, e.phone ? '+' + e.phone : '', e.empNo]; }));
+
+// ---------- task import from a sheet (permit list) with work-type classification ----------
+function rowsToTasks(rows) {
+  const head = rows[0].map(H);
+  const ci = { title: pickCol(head, ['الوصف', 'وصف', 'المهمة', 'title', 'description', 'العمل']), permit: pickCol(head, ['رقم التصريح', 'التصريح', 'permit', 'رقم الرخصة', 'الرخصة']), exp: pickCol(head, ['انتهاء', 'expiry', 'permit_exp']), crew: pickCol(head, ['الفرقة', 'crew']), date: pickCol(head, ['تاريخ التنفيذ', 'التاريخ', 'date']), site: pickCol(head, ['الموقع', 'الحي', 'site', 'location']), type: pickCol(head, ['نوع العمل', 'النوع', 'type', 'work_type']), sec: pickCol(head, ['التعميد', 'رقم التعميد', 'sec']) };
+  if (ci.title < 0 && ci.permit < 0) throw new Error('لم يُعثر على عمود الوصف أو رقم التصريح');
+  const toDate = (v) => { const s = String(v || '').trim(); if (validDate(s)) return s; if (/^\d{5}$/.test(s)) return dstr(new Date(Date.UTC(1899, 11, 30) + Number(s) * 864e5)); const m = /^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/.exec(s); return m ? m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0') : ''; };
+  return rows.slice(1).map((r) => { const g = (k) => (ci[k] > -1 ? String(r[ci[k]] == null ? '' : r[ci[k]]).trim() : '');
+    const title = (g('title') || ('معاملة ' + g('permit'))).slice(0, 140); const tTxt = g('type');
+    const wtKey = Object.keys(DB.lists.workTypes).find((k) => DB.lists.workTypes[k][0] === tTxt) || classifyWork(tTxt + ' ' + title);
+    const crew = DB.crews.find((c) => c.id.toLowerCase() === g('crew').toLowerCase() || c.name === g('crew'));
+    return { title, permit: g('permit').slice(0, 30), permitExp: toDate(g('exp')), crewId: crew ? crew.id : '', date: toDate(g('date')) || today(), site: g('site').slice(0, 80) || (crew ? crew.site : ''), workType: wtKey || '', secNo: g('sec').slice(0, 40), source: tTxt };
+  }).filter((x) => x.title);
+}
+
+const freshDB = () => seedV3(migrate3(seed()));
+const PRELOAD_EMP = null; /* private builds only: employees injected by scripts/build.py --preload */
+const withPreload = (d) => { if (Array.isArray(PRELOAD_EMP) && PRELOAD_EMP.length) { d.employees = PRELOAD_EMP.map((e) => Object.assign({}, e)); PRELOAD_EMP.forEach((e) => { if (e.branch && /^فرع/.test(e.branch) && !d.branches.includes(e.branch)) d.branches.push(e.branch); }); } return d; };
+let DB = migrate3(loadDB() || withPreload(freshDB()));
+let DEMO = false;
+let CLOUD = null;
+const SERVER_PAGE = (document.querySelector('meta[name="maydan-server"]') || {}).content === '1';
+const save = () => { if (DEMO) return; if (CLOUD) return cloudSave(); if (SERVER_PAGE) return; try { localStorage.setItem(KEY, JSON.stringify(DB)); } catch (e) { toast('تعذّر الحفظ على هذا الجهاز', 'err'); } };
+save();
+
+// ---------- session ----------
+let CUR = null;
+const pref = (k, d) => { try { return localStorage.getItem(k) || d; } catch (e) { return d; } };
+const setPref = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* private mode */ } };
+let THEME = pref('maydan_theme', (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light');
+let LANG = pref('maydan_lang', 'ar');
+function applyPrefs() { const h = document.documentElement; h.dataset.theme = THEME; h.lang = LANG; h.dir = LANG === 'en' ? 'ltr' : 'rtl'; }
+const UI = { view: 'dash', sel: 'X-03', layers: { sup: true, cars: true, workers: true, dynas: true, eq: true, drivers: true }, move: null, eqFilter: 'all', eqQ: '', mapView: null, live: null, liveCrew: null, ai: { q: '', a: '', busy: false, via: '' }, reqFrom: 'E-07', reqSvc: 'gcb', lastReq: null, dragId: null };
+const AUTH = { step: DB.users.length ? 'creds' : 'setup', err: '', note: '', uid: null, channel: 'sms', otpHash: '', otpSalt: '', otpExp: 0, tries: 0, resendAt: 0, demo: '', iqama: '' };
+const AI_KEYS = {}; // provider id -> key, memory only, never persisted
+const can = (p) => !!CUR && (PERMS[CUR.role] || []).includes(p);
+const dev = () => { const u = navigator.userAgent; const b = /Edg\//.test(u) ? 'Edge' : /Chrome\//.test(u) ? 'Chrome' : /Safari\//.test(u) ? 'Safari' : /Firefox\//.test(u) ? 'Firefox' : 'متصفح'; const o = /Android/.test(u) ? 'Android' : /iPhone|iPad/.test(u) ? 'iOS' : /Windows/.test(u) ? 'Windows' : /Mac/.test(u) ? 'macOS' : 'Linux'; return b + ' · ' + o; };
+function audit(user, res, detail) { if (CLOUD && CUR && !DEMO) api('/audit', { method: 'POST', body: JSON.stringify({ res: String(res).slice(0, 80), detail: String(detail || '').slice(0, 300) }) }).catch(() => {}); DB.audit.unshift({ tm: nowIso(), user, dev: dev(), res, detail: detail || '' }); DB.audit = DB.audit.slice(0, 500); save(); }
+function startDemo() {
+  DEMO = true; DB = freshDB(); ensureProviders(); seedForms();
+  const demoUsers = [['زائر تجريبي', 'admin'], ['م. عبدالله السيد', 'pm'], ['م/يحي الشريف', 'eng'], ['أحمد سالم', 'sup']];
+  DB.users = demoUsers.map((x, i) => ({ id: 'demo-' + i, name: x[0], iqama: '2' + String(100000000 + i), phone: '9665000009' + String(i).padStart(2, '0'), email: 'demo' + i + '@example.com', role: x[1], active: true, created: nowIso() }));
+  DB.reqs = [{ id: uid('r'), name: 'فهد القحطاني', iqama: '1098765432', phone: '966500000777', email: '', role: 'eng', msg: 'طلب صلاحية مهندس تنفيذ — حساب تجريبي.', tm: nowIso(), st: 'pending' }];
+  CUR = DB.users[0]; UI.view = 'dash'; UI.sel = 'E-07';
+  audit(CUR.name, 'نجاح', 'دخول بالوضع التجريبي');
+  requestService('E-07', 'gcb'); UI.view = 'dash'; render();
+}
+function startSession(u) { CUR = u; sessionStorage.setItem('maydan_sess', JSON.stringify({ uid: u.id, exp: Date.now() + IDLE_MS })); }
+function touch() { if (!CUR || DEMO || CLOUD) return; sessionStorage.setItem('maydan_sess', JSON.stringify({ uid: CUR.id, exp: Date.now() + IDLE_MS })); }
+function restore() { try { const s = JSON.parse(sessionStorage.getItem('maydan_sess')); if (s && s.exp > Date.now()) { const u = DB.users.find((x) => x.id === s.uid && x.active && !x.activation); if (u) CUR = u; } } catch (e) { /* ignore */ } }
+function logout(reason) {
+  if (CLOUD && !DEMO && CUR) api('/auth/logout', { method: 'POST', body: '{}' }).catch(() => {});
+  if (DEMO) { stopLive(); DEMO = false; CUR = null; DB = CLOUD ? freshDB() : migrate3(loadDB() || freshDB()); ensureProviders(); UI.move = null; UI.lastReq = null; UI.lastCode = null; UI.mapView = null; Object.assign(AUTH, { step: DB.users.length ? 'creds' : 'setup', err: '', note: 'انتهى الوضع التجريبي. لم يُحفظ أي شيء منه.' }); if (location.hash === '#demo') history.replaceState(null, '', location.pathname + location.search); return render(); }
+  if (CUR) audit(CUR.name, reason || 'خروج'); stopLive(); CUR = null; sessionStorage.removeItem('maydan_sess'); Object.assign(AUTH, { step: 'creds', err: '', note: reason === 'انتهاء الجلسة' ? 'انتهت الجلسة بعد 30 دقيقة دون نشاط. سجّل الدخول مجدداً.' : '' }); render(); }
+setInterval(() => { if (!CUR || DEMO || CLOUD) return; try { const s = JSON.parse(sessionStorage.getItem('maydan_sess')); if (!s || s.exp < Date.now()) logout('انتهاء الجلسة'); } catch (e) { logout('انتهاء الجلسة'); } }, 20000);
+['click', 'keydown'].forEach((e) => document.addEventListener(e, touch, { passive: true }));
+
+// ---------- toasts & dialog ----------
+function toast(msg, kind) { const el = document.createElement('div'); el.className = 'toast ' + (kind || 'ok'); el.textContent = LANG === 'en' && /^مرحباً /.test(msg) ? 'Welcome, ' + msg.slice(7) : tr(msg); $('#toasts').appendChild(el); setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 200); }, 4200); }
+let FORM = null;
+function openForm(title, fields, submit, opts) {
+  FORM = { fields, submit };
+  const d = $('#dlg');
+  d.innerHTML = html`<form class="dlg" data-form="dlg" novalidate>
+    <h2 id="dlgTitle" style="font-size:20px">${title}</h2>
+    ${opts && opts.note ? html`<p class="alert note">${opts.note}</p>` : ''}
+    <div class="grid g2">${fields.map((f) => fieldHtml(f))}</div>
+    <p class="alert err" id="dlgErr" hidden></p>
+    <div class="row"><button class="btn pri" type="submit">${(opts && opts.ok) || 'حفظ'}</button><button class="btn" type="button" data-act="dlg-close">إلغاء</button></div>
+  </form>`.s;
+  translateUI(d); d.showModal();
+  const first = d.querySelector('input,select,textarea'); if (first) first.focus();
+}
+function listOpts(list) {
+  if (list === 'branches') return DB.branches.map((b) => [b, b]);
+  if (list === 'projects') return (DB.projects || []).map((p) => [p.id, p.name + ' — ' + p.branch]);
+  const L = DB.lists[list]; if (!L) return [];
+  return Array.isArray(L) ? L.map((x) => [x, x]) : Object.keys(L).map((k) => [k, L[k][0]]);
+}
+function addToList(list, val, extra) {
+  val = String(val).trim().slice(0, 60); if (!val) return '';
+  if (list === 'branches') { if (!DB.branches.includes(val)) DB.branches.push(val); return val; }
+  if (list === 'projects') { const ex = DB.projects.find((p) => p.name === val); if (ex) return ex.id; const pr = { id: uid('P'), name: val, code: '', branch: DB.branches[0] || '', manager: '' }; DB.projects.push(pr); return pr.id; }
+  const L = DB.lists[list]; if (!L) return val;
+  if (Array.isArray(L)) { if (!L.includes(val)) L.push(val); return val; }
+  const found = Object.keys(L).find((k) => L[k][0] === val); if (found) return found;
+  const key = list.slice(0, 2) + Date.now().toString(36);
+  L[key] = list === 'crewTypes' ? [val, PALETTE[Object.keys(L).length % PALETTE.length]] : [val, extra || Object.keys(DB.lists.crewTypes)[0]];
+  return key;
+}
+function fieldHtml(f) {
+  const id = 'f_' + f.k;
+  const opts = f.opts || (f.list ? listOpts(f.list) : []);
+  const wide = f.wide ? new Safe(' style="grid-column:1/-1"') : '';
+  if (f.type === 'select') return html`<div class="fld"${wide}><label for="${id}">${f.label}</label><select class="in" id="${id}" name="${f.k}" ${f.list ? new Safe('data-change="addable"') : ''}>${opts.map((o) => html`<option value="${o[0]}" ${String(o[0]) === String(f.val) ? new Safe('selected') : ''}>${o[1]}</option>`)}${f.list ? html`<option value="__new__">+ إضافة خيار جديد…</option>` : ''}</select>
+    ${f.list ? html`<input class="in" name="${f.k}__new" placeholder="اكتب الخيار الجديد" hidden aria-label="خيار جديد لـ ${f.label}" maxlength="60">` : ''}${f.hint ? html`<span class="hint">${f.hint}</span>` : ''}</div>`;
+  if (f.type === 'check') return html`<label class="row" style="min-height:44px;font-size:14px${f.wide ? ';grid-column:1/-1' : ''}"><input type="checkbox" name="${f.k}" ${f.val ? new Safe('checked') : ''} style="width:20px;height:20px;accent-color:var(--acc)"> ${f.label}</label>`;
+  if (f.type === 'checks') { const vals = f.val || []; const all = opts.map((o) => o[0]).concat(vals.filter((v) => !opts.some((o) => o[0] === v))); return html`<fieldset class="fld" style="grid-column:1/-1;border:1px solid var(--line2);border-radius:12px;padding:12px"><legend style="font-size:13px;font-weight:600;padding:0 6px">${f.label}</legend>
+    <div class="chips">${all.map((o) => html`<label class="chip" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" name="${f.k}" value="${o}" ${vals.includes(o) ? new Safe('checked') : ''} style="accent-color:var(--acc)">${o}</label>`)}</div>
+    ${f.list ? html`<input class="in" name="${f.k}__new" placeholder="إضافة بنود أخرى (افصل بفاصلة)" maxlength="200" style="margin-top:8px">` : ''}</fieldset>`; }
+  if (f.type === 'textarea') return html`<div class="fld" style="grid-column:1/-1"><label for="${id}">${f.label}</label><textarea class="in" id="${id}" name="${f.k}" maxlength="${f.max || 1500}">${f.val || ''}</textarea></div>`;
+  if (f.type === 'file') return html`<div class="fld"${wide}><label for="${id}">${f.label}</label><input class="in" id="${id}" name="${f.k}" type="file" ${f.capture ? new Safe('accept="image/*" capture="environment"') : new Safe('accept=".pdf,.jpg,.jpeg,.png,.webp,.docx,.xlsx"')} style="padding:8px">${f.hint ? html`<span class="hint">${f.hint}</span>` : ''}</div>`;
+  return html`<div class="fld"${wide}><label for="${id}">${f.label}</label><input class="in ${f.ltr ? 'ltr' : ''}" id="${id}" name="${f.k}" type="${f.type || 'text'}" value="${f.val == null ? '' : f.val}" ${f.req ? new Safe('required') : ''} ${f.ph ? html`placeholder="${f.ph}"` : ''} autocomplete="off">${f.hint ? html`<span class="hint">${f.hint}</span>` : ''}</div>`;
+}
+
+// ---------- domain helpers ----------
+const crewById = (id) => DB.crews.find((c) => c.id === id);
+const cfg = () => DB.settings;
+function oilInfo(k) {
+  const w = cfg().oilWarn, pd = Math.max(1, cfg().kmPerDay);
+  if (k <= 0) return ['متأخر ' + nf(k) + ' كم', 'pill bad'];
+  const txt = 'بعد ' + nf(k) + ' كم (≈ ' + nf(Math.max(1, Math.round(k / pd))) + ' يوم)';
+  return k <= w ? [txt, 'pill warn'] : [txt, ''];
+}
+const testInfo = (v) => v ? ['تمت التجربة', 't-ok'] : ['لم تُجرَّب', 'pill bad'];
+const needsCare = (x) => x.st !== 'ok' || x.oil <= cfg().oilWarn || !x.tested || (!!x.maint && maintDue(x).length > 0);
+const allUnits = (c) => c.eq.concat(c.workers.filter((w) => w.dyna).map((w) => w.dyna));
+function readiness(c) {
+  const all = allUnits(c);
+  const working = all.filter((e) => e.st !== 'shop' && e.driver);
+  if (!working.length) return { lvl: 'bad', label: 'متوقفة', text: 'متوقفة: لا توجد معدة عاملة بسائق — فرقة بلا معدة لا تعمل.' };
+  if (c.type === 'excav' && !c.eq.some((e) => e.kind === 'حفار JCB' && e.st !== 'shop' && e.driver)) return { lvl: 'bad', label: 'متوقفة', text: 'متوقفة: فرقة الحفريات بلا حفار JCB عامل بسائقه.' };
+  const n = all.filter(needsCare).length + (needsCare(c.sup.car) ? 1 : 0);
+  if (n) return { lvl: 'warn', label: 'تعمل بتنبيه', text: 'تعمل — ' + n + ' تنبيه صيانة أو زيت أو تجربة تشغيل يحتاج متابعة.' };
+  return { lvl: 'ok', label: 'جاهزة', text: 'جاهزة: كل المعدات والديانات تعمل بسائقيها.' };
+}
+function allEquipment() {
+  const out = [];
+  DB.crews.forEach((c) => {
+    out.push({ u: c.sup.car, crew: c, where: 'car', driver: { name: c.sup.name, phone: c.sup.phone } });
+    c.eq.forEach((e) => out.push({ u: e, crew: c, where: 'eq', driver: e.driver }));
+    c.workers.forEach((w) => { if (w.dyna) out.push({ u: w.dyna, crew: c, where: 'dyna', worker: w, driver: w.dyna.driver }); });
+  });
+  return out;
+}
+
+// ---------- auth flows ----------
+async function doSetup(f) {
+  if (CLOUD) { if (!strong(f.pass)) return authErr('كلمة المرور: 10 أحرف على الأقل وتحتوي حروفاً وأرقاماً.'); if (f.pass !== f.pass2) return authErr('كلمتا المرور غير متطابقتين.'); return cloudSetup(f); }
+  const name = f.name.trim(), iqama = f.iqama.trim(), phone = normPhone(f.phone), email = f.email.trim(), pass = f.pass;
+  if (name.length < 3) return authErr('أدخل الاسم الكامل.');
+  if (!validIqama(iqama)) return authErr('رقم الإقامة/الهوية: 10 أرقام يبدأ بـ 1 أو 2.');
+  if (!validPhone(phone)) return authErr('رقم الجوال بصيغة 05xxxxxxxx.');
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return authErr('بريد إلكتروني غير صالح.');
+  if (!strong(pass)) return authErr('كلمة المرور: 10 أحرف على الأقل وتحتوي حروفاً وأرقاماً.');
+  if (pass !== f.pass2) return authErr('كلمتا المرور غير متطابقتين.');
+  const salt = b64e(rnd(16));
+  DB.users.push({ id: uid('u'), name, iqama, phone, email, role: 'admin', salt, hash: await pbkdf2(pass, salt), active: true, created: nowIso() });
+  audit(name, 'إنشاء حساب مشرف المنصة'); save();
+  Object.assign(AUTH, { step: 'creds', err: '', note: 'تم إنشاء حساب مشرف المنصة. سجّل الدخول الآن.' }); render();
+}
+const strong = (p) => typeof p === 'string' && p.length >= 10 && /[A-Za-z؀-ۿ]/.test(p) && /\d/.test(p);
+function authErr(m) { AUTH.err = m; const box = $('#authMsg'); if (box) { box.innerHTML = html`<p class="alert err" role="alert">${m}</p>${AUTH.note ? html`<p class="alert note">${AUTH.note}</p>` : ''}`.s; } else render(); }
+async function doLogin(f) {
+  if (CLOUD) return cloudLogin(f);
+  const iqama = f.iqama.trim(), pass = f.pass;
+  if (!validIqama(iqama)) return authErr('رقم الإقامة/الهوية يجب أن يكون 10 أرقام ويبدأ بـ 1 أو 2.');
+  const lk = DB.locks[iqama];
+  if (lk && lk.until > Date.now()) return authErr('الحساب مقفل مؤقتاً بسبب محاولات خاطئة. حاول بعد ' + Math.ceil((lk.until - Date.now()) / 60000) + ' دقيقة.');
+  const u = DB.users.find((x) => x.iqama === iqama);
+  if (u && u.activation) { Object.assign(AUTH, { step: 'activate', uid: u.id, err: '', note: '' }); return render(); }
+  AUTH.iqama = iqama;
+  const h = await pbkdf2(pass || ' ', u && u.salt ? u.salt : 'AAAAAAAAAAAAAAAAAAAAAA==');
+  const good = !!(u && u.active && u.hash && ctEq(h, u.hash));
+  if (!good) {
+    const l = DB.locks[iqama] || { fails: 0, until: 0 }; l.fails += 1;
+    if (l.fails >= MAX_FAILS) { l.until = Date.now() + LOCK_MS; l.fails = 0; audit('إقامة ' + maskIqama(iqama), 'قفل مؤقت'); notifyAdmins('قفل حساب مؤقت', 'تم قفل الدخول لرقم ' + maskIqama(iqama) + ' بعد ' + MAX_FAILS + ' محاولات خاطئة.'); }
+    else audit('إقامة ' + maskIqama(iqama), 'كلمة مرور خاطئة');
+    DB.locks[iqama] = l; save();
+    return authErr(l.until > Date.now() ? 'تم قفل الحساب 15 دقيقة بعد 5 محاولات خاطئة.' : 'بيانات الدخول غير صحيحة.');
+  }
+  delete DB.locks[iqama]; save();
+  Object.assign(AUTH, { step: 'otp', uid: u.id, err: '', note: '', channel: 'sms', iqama });
+  await sendOtp();
+}
+async function sendOtp() {
+  if (CLOUD) return cloudSendOtp();
+  const u = DB.users.find((x) => x.id === AUTH.uid); if (!u) return;
+  const n = new Uint32Array(1); crypto.getRandomValues(n);
+  const code = String(n[0] % 1000000).padStart(6, '0');
+  AUTH.otpSalt = b64e(rnd(12)); AUTH.otpHash = await sha(code + AUTH.otpSalt);
+  AUTH.otpExp = Date.now() + OTP_MS; AUTH.tries = 3; AUTH.resendAt = Date.now() + 60000; AUTH.demo = '';
+  const to = AUTH.channel === 'sms' ? u.phone : u.email;
+  const gw = cfg().otpGateway;
+  if (gw && /^https:\/\//.test(gw)) {
+    try {
+      const r = await fetch(gw, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ channel: AUTH.channel, to, code, app: 'Maydan' }) });
+      if (!r.ok) throw new Error(r.status);
+      AUTH.note = 'أُرسل الرمز إلى ' + (AUTH.channel === 'sms' ? maskPhone(u.phone) : maskMail(u.email)) + '.';
+    } catch (e) { AUTH.err = 'تعذّر إرسال الرمز عبر بوابة الرسائل. تحقق من الإعدادات.'; }
+  } else {
+    AUTH.demo = code;
+    AUTH.note = 'وضع تجريبي: لم تُضبط بوابة SMS/بريد بعد، لذا يظهر الرمز هنا. اضبطها من الإعدادات قبل التشغيل الفعلي.';
+  }
+  render();
+}
+async function doOtp(f) {
+  if (CLOUD) return cloudOtp(f);
+  const code = String(f.otp || '').replace(/\D/g, '');
+  if (Date.now() > AUTH.otpExp) return authErr('انتهت صلاحية الرمز. اطلب رمزاً جديداً.');
+  if (code.length !== 6) return authErr('أدخل الرمز كاملاً (6 أرقام).');
+  const h = await sha(code + AUTH.otpSalt);
+  const u = DB.users.find((x) => x.id === AUTH.uid);
+  if (!ctEq(h, AUTH.otpHash)) {
+    AUTH.tries -= 1; audit(u ? u.name : '؟', 'رمز تحقق خاطئ');
+    if (AUTH.tries <= 0) { Object.assign(AUTH, { step: 'creds', err: 'استُنفدت محاولات الرمز. سجّل الدخول من جديد.', otpHash: '' }); return render(); }
+    return authErr('رمز غير صحيح. المحاولات المتبقية: ' + AUTH.tries);
+  }
+  AUTH.otpHash = ''; AUTH.demo = '';
+  audit(u.name, 'نجاح'); startSession(u);
+  Object.assign(AUTH, { step: 'creds', err: '', note: '' });
+  UI.view = 'dash'; render(); toast('مرحباً ' + u.name);
+}
+async function doActivate(f) {
+  if (CLOUD) return cloudActivate(f);
+  const u = DB.users.find((x) => x.id === AUTH.uid); if (!u) return;
+  if (!u.activation || Date.now() > u.activation.exp) return authErr('انتهت صلاحية رمز التفعيل. اطلب رمزاً جديداً من مشرف المنصة.');
+  const h = await sha(String(f.code || '').trim().toUpperCase() + u.activation.salt);
+  if (!ctEq(h, u.activation.hash)) { audit(u.name, 'رمز تفعيل خاطئ'); return authErr('رمز التفعيل غير صحيح.'); }
+  if (!strong(f.pass)) return authErr('كلمة المرور: 10 أحرف على الأقل وتحتوي حروفاً وأرقاماً.');
+  if (f.pass !== f.pass2) return authErr('كلمتا المرور غير متطابقتين.');
+  u.salt = b64e(rnd(16)); u.hash = await pbkdf2(f.pass, u.salt); delete u.activation; u.active = true;
+  audit(u.name, 'تفعيل الحساب'); save();
+  Object.assign(AUTH, { step: 'creds', err: '', note: 'تم تفعيل حسابك. سجّل الدخول برقم الإقامة وكلمة المرور.' }); render();
+}
+function doRequest(f) {
+  if (CLOUD) return cloudRequest(f);
+  const name = f.name.trim(), iqama = f.iqama.trim(), phone = normPhone(f.phone), email = f.email.trim();
+  if (name.length < 3 || !validIqama(iqama) || !validPhone(phone)) return authErr('تحقق من الاسم ورقم الإقامة والجوال.');
+  if (DB.users.some((u) => u.iqama === iqama) || DB.reqs.some((r) => r.iqama === iqama && r.st === 'pending')) return authErr('يوجد حساب أو طلب سابق لهذا الرقم.');
+  DB.reqs.unshift({ id: uid('r'), name: name.slice(0, 80), iqama, phone, email: email.slice(0, 120), role: f.role in ROLES && f.role !== 'admin' ? f.role : 'viewer', msg: String(f.msg || '').slice(0, 400), tm: nowIso(), st: 'pending' });
+  notifyAdmins('طلب حساب جديد', name + ' يطلب صلاحية ' + (ROLES[f.role] || 'مشاهد') + '.');
+  save(); Object.assign(AUTH, { step: 'creds', err: '', note: 'أُرسل طلبك. سيصلك رمز التفعيل من مشرف المنصة عبر واتساب أو تليجرام.' }); render();
+}
+async function issueActivation(u) {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const code = Array.from(rnd(8), (b) => alphabet[b % alphabet.length]).join('');
+  const salt = b64e(rnd(12));
+  u.activation = { hash: await sha(code + salt), salt, exp: Date.now() + 72 * 3600 * 1000 };
+  u.active = false; delete u.hash; save();
+  return code;
+}
+function notifyAdmins(title, body) { DB.notifs.unshift({ id: uid('n'), tm: nowIso(), title, body, kind: 'sys', st: 'info', recips: DB.users.filter((u) => u.role === 'admin').map((u) => u.name) }); save(); }
+
+// ---------- proximity coordination ----------
+function requestService(fromId, svc) {
+  const c = crewById(fromId); const s = SERVICES[svc]; if (!c || !s) return;
+  const cands = DB.crews.filter((x) => x.id !== c.id && x.type === s[1] && readiness(x).lvl !== 'bad').map((x) => ({ x, d: km(c, x) })).sort((a, b) => a.d - b.d);
+  const best = cands[0], r = cfg().radiusKm;
+  const recips = DB.users.filter((u) => ['eng', 'pm', 'admin'].includes(u.role) && u.active).map((u) => u.name + ' — ' + ROLES[u.role]);
+  let title, body;
+  if (!best) { title = 'لا توجد فرقة ' + TYPES[s[1]][0] + ' متاحة لطلب ' + c.id; body = 'طلبت ' + c.name + ' «' + s[0] + '» في ' + c.site + '، ولا توجد فرقة جاهزة من النوع المطلوب. يلزم تدخل مدير المشروع.'; }
+  else if (best.d <= r) { title = best.x.name + ' بجوار ' + c.id + ' على بُعد ' + best.d.toFixed(1) + ' كم'; body = 'طلبت ' + c.name + ' «' + s[0] + '» في ' + c.site + '. ' + best.x.name + ' تعمل على بُعد ' + best.d.toFixed(1) + ' كم (ضمن نطاق ' + r + ' كم) — يمكن إسنادها بدل استدعاء فرقة بعيدة.'; }
+  else { title = 'أقرب ' + best.x.name + ' على بُعد ' + best.d.toFixed(1) + ' كم من ' + c.id; body = 'طلبت ' + c.name + ' «' + s[0] + '» في ' + c.site + '. لا توجد فرقة ضمن ' + r + ' كم؛ الأقرب ' + best.x.name + ' في ' + best.x.site + '.'; }
+  const n = { id: uid('n'), tm: nowIso(), title, body, kind: 'prox', st: 'open', from: c.id, to: best ? best.x.id : null, dist: best ? best.d : null, svc, recips, by: CUR.name };
+  DB.notifs.unshift(n); DB.notifs = DB.notifs.slice(0, 300);
+  audit(CUR.name, 'طلب خدمة', c.id + ' → ' + s[0]); save();
+  UI.lastReq = { from: c.id, to: n.to }; UI.sel = c.id; UI.mapView = null;
+  toast(best ? 'أُشعر المهندس ومدير المشروع ومشرف المنصة.' : 'لا توجد فرقة متاحة — أُشعر مدير المشروع.', best ? 'ok' : 'err');
+  render();
+}
+const notifText = (n) => 'ميدان | ' + n.title + '\n' + n.body;
+
+// ---------- moves ----------
+function doMove() {
+  const m = UI.move; if (!m || !m.target) return;
+  if (m.kind === 'crew') { const c = crewById(m.from); const old = c.branch; c.branch = m.target; audit(CUR.name, 'نقل فرقة', c.id + ': ' + old + ' → ' + m.target); toast('نُقلت ' + c.name + ' بكامل أفرادها ومعداتها إلى ' + m.target + '.'); UI.move = null; save(); return render(); }
+  const src = crewById(m.from), dst = crewById(m.target); let msg = '';
+  if (m.kind === 'eq') {
+    const i = src.eq.findIndex((e) => e.id === m.id); if (i < 0) return; const it = src.eq.splice(i, 1)[0];
+    if (!m.withDriver && it.driver) { src.workers.push({ id: uid('w'), name: it.driver.name, role: 'سائق — بلا معدة', phone: it.driver.phone, dyna: null }); it.driver = null; }
+    dst.eq.push(it); msg = 'نُقلت ' + it.kind + ' ' + it.code + (m.withDriver ? ' مع سائقها' : ' بدون سائق') + ' إلى ' + dst.name + '.';
+  } else if (m.kind === 'dyna') {
+    const w = src.workers.find((x) => x.id === m.id); if (!w || !w.dyna) return; const y = w.dyna; w.dyna = null;
+    const free = dst.workers.find((x) => !x.dyna);
+    if (free) { free.dyna = y; msg = 'نُقلت ديانة ' + y.code + ' بسائقها إلى ' + dst.name + ' وأُسندت لـ ' + free.name + '.'; } else { dst.eq.push(y); msg = 'نُقلت ديانة ' + y.code + ' بسائقها إلى معدات ' + dst.name + '.'; }
+  } else {
+    const i = src.workers.findIndex((w) => w.id === m.id); if (i < 0) return; const it = src.workers.splice(i, 1)[0];
+    if (!m.withDriver && it.dyna) { src.eq.push(it.dyna); it.dyna = null; }
+    dst.workers.push(it); msg = 'نُقل ' + it.name + (m.withDriver && it.dyna ? ' مع ديانته وسائقها' : '') + ' إلى ' + dst.name + '.';
+  }
+  audit(CUR.name, 'نقل', msg); UI.move = null; save(); toast(msg + ' أُشعر المراقبان.'); render();
+}
+
+// ---------- live location ----------
+function stopLive() { if (UI.live != null && navigator.geolocation) navigator.geolocation.clearWatch(UI.live); UI.live = null; UI.liveCrew = null; }
+function startLive(crewId) {
+  if (!navigator.geolocation) return toast('المتصفح لا يدعم تحديد الموقع.', 'err');
+  stopLive(); UI.liveCrew = crewId;
+  UI.live = navigator.geolocation.watchPosition((p) => {
+    const c = crewById(crewId); if (!c) return;
+    c.lat = +p.coords.latitude.toFixed(6); c.lng = +p.coords.longitude.toFixed(6); c.seen = nowIso(); c.acc = Math.round(p.coords.accuracy); save();
+    if (UI.view === 'ops') { if (MAP && MARKERS[c.id]) { MARKERS[c.id].setLatLng([c.lat, c.lng]); } renderSide(); }
+  }, (e) => { toast(e.code === 1 ? 'رُفض إذن الموقع. فعّله من إعدادات المتصفح.' : 'تعذّر تحديد الموقع.', 'err'); stopLive(); render(); }, { enableHighAccuracy: true, maximumAge: 15000, timeout: 30000 });
+  audit(CUR.name, 'بدء البث المباشر للموقع', crewId); toast('بدأ بث الموقع المباشر لـ ' + crewId + '.'); render();
+}
+
+// ---------- AI (OpenAI-compatible: 9Router / OpenRouter / DeepSeek / Groq / Gemini) ----------
+const PROVIDERS_DEFAULT = [
+  { id: '9router', name: '9Router — بوابة محلية', base: 'http://localhost:20128/v1', model: '', on: true, note: 'موصى به: المفاتيح تبقى داخل البوابة' },
+  { id: 'openai', name: 'OpenAI', base: 'https://api.openai.com/v1', model: '', on: false, note: 'نموذج من حسابك في OpenAI' },
+  { id: 'openrouter', name: 'OpenRouter', base: 'https://openrouter.ai/api/v1', model: '', on: true, note: 'اختر نموذجاً ينتهي بـ :free' },
+  { id: 'deepseek', name: 'DeepSeek', base: 'https://api.deepseek.com/v1', model: 'deepseek-chat', on: false, note: '' },
+  { id: 'groq', name: 'Groq', base: 'https://api.groq.com/openai/v1', model: '', on: false, note: '' },
+  { id: 'gemini', name: 'Google Gemini', base: 'https://generativelanguage.googleapis.com/v1beta/openai', model: '', on: false, note: '' }
+];
+const ensureProviders = () => { if (!Array.isArray(DB.settings.providers)) DB.settings.providers = []; PROVIDERS_DEFAULT.forEach((p) => { if (!DB.settings.providers.some((x) => x.id === p.id)) DB.settings.providers.push({ ...p }); }); };
+ensureProviders();
+function aiContext() {
+  return JSON.stringify({ radiusKm: cfg().radiusKm, crews: DB.crews.map((c) => ({ id: c.id, type: TYPES[c.type][0], branch: c.branch, site: c.site, lat: c.lat, lng: c.lng, readiness: readiness(c).label,
+    supCar: { code: c.sup.car.code, st: ST[c.sup.car.st][0], oilKm: c.sup.car.oil, tested: c.sup.car.tested },
+    workers: c.workers.length, units: allUnits(c).map((e) => ({ kind: e.kind, code: e.code, hasDriver: !!e.driver, st: ST[e.st][0], oilKm: e.oil, tested: e.tested })) })),
+    jobs: DB.jobs.filter((j) => j.st !== 'done').map((j, i) => ({ order: i + 1, title: j.title, crew: j.crewId, dept: j.dept, date: j.date, permit: j.permit, permitExp: j.permitExp, st: JOB_ST[j.st][0], hold: j.hold ? j.hold.reason : '', openRequests: j.reqs.filter((r) => r.st === 'open').map((r) => r.dept + ': ' + r.type + ' (' + (r.due || '') + ')'), missingDocs: docStatus(j).filter((x) => x.need && !x.ok).map((x) => x.type), remaining: j.close && !j.close.finished ? j.close.remaining : [] })), crewStates: DB.crews.map((c) => ({ id: c.id, state: crewState(c).label, reason: crewState(c).reason })) });
+}
+function localAnswer(q) {
+  const lines = [];
+  if (/أوراق|مستند|ناقص|تصريح|سلامة|إنارة|ترتيب|أولوي/.test(q)) return localReview();
+  if (/صيان|زيت|ورش|تجرب|فحص/.test(q)) {
+    allEquipment().filter((x) => needsCare(x.u)).forEach((x) => lines.push('• ' + x.u.kind + ' ' + x.u.code + ' (' + x.crew.id + '): ' + [x.u.st !== 'ok' ? ST[x.u.st][0] : '', x.u.oil <= cfg().oilWarn ? oilInfo(x.u.oil)[0] + ' لغيار الزيت' : '', !x.u.tested ? 'لم تُجرَّب' : ''].filter(Boolean).join('، ')));
+    return lines.length ? 'المعدات التي تحتاج متابعة:\n' + lines.join('\n') : 'لا توجد معدات تحتاج صيانة أو غيار زيت الآن.';
+  }
+  if (/أقرب|قريب|بجوار|مسافة/.test(q)) {
+    DB.crews.forEach((a) => { const near = DB.crews.filter((b) => b.id !== a.id).map((b) => [b, km(a, b)]).sort((x, y) => x[1] - y[1])[0]; if (near) lines.push('• ' + a.id + ' ← أقرب فرقة ' + near[0].id + ' (' + TYPES[near[0].type][0] + ') على ' + near[1].toFixed(1) + ' كم'); });
+    return 'أقرب الفرق لبعضها:\n' + lines.join('\n');
+  }
+  DB.crews.forEach((c) => { const r = readiness(c); lines.push('• ' + c.name + ': ' + r.label + ' — ' + c.workers.length + ' عمال، ' + allUnits(c).length + ' معدات/ديانات'); });
+  return 'ملخص جاهزية الفرق:\n' + lines.join('\n');
+}
+
+async function fetchModels(pid) {
+  const p = cfg().providers.find((x) => x.id === pid); if (!p) return;
+  try {
+    const headers = AI_KEYS[p.id] ? { Authorization: 'Bearer ' + AI_KEYS[p.id] } : {};
+    const r = await fetch(p.base.replace(/\/$/, '') + '/models', { headers }); if (!r.ok) throw new Error(r.status);
+    const j = await r.json(); const ids = (j.data || []).map((m) => m.id).filter(Boolean);
+    const pick = ids.find((i) => /:free$/.test(i)) || ids[0];
+    p.models = ids.slice(0, 400); if (!p.model && pick) p.model = pick; save();
+    toast('جُلب ' + ids.length + ' نموذجاً من ' + p.name + '.'); render();
+  } catch (e) { toast('تعذّر الاتصال بـ ' + p.name + ' — تحقق من العنوان والمفتاح.', 'err'); }
+}
+
+// ---------- cloud auth (server verifies passwords, sends OTP, sets an HttpOnly session cookie) ----------
+async function cloudSetup(f) {
+  try { await api('/auth/setup', { method: 'POST', body: JSON.stringify({ token: f.token || '', name: f.name, iqama: f.iqama, phone: normPhone(f.phone), email: f.email, pass: f.pass }) });
+    CLOUD.needsSetup = false; Object.assign(AUTH, { step: 'creds', err: '', note: 'تم إنشاء حساب مشرف المنصة على الخادم. سجّل الدخول الآن.' }); render(); } catch (e) { authErr(e.message); }
+}
+async function cloudLogin(f) {
+  const iqama = String(f.iqama || '').trim(); if (!validIqama(iqama)) return authErr('رقم الإقامة/الهوية يجب أن يكون 10 أرقام ويبدأ بـ 1 أو 2.');
+  AUTH.iqama = iqama;
+  try { const r = await api('/auth/login', { method: 'POST', body: JSON.stringify({ iqama, pass: f.pass }) });
+    if (r.step === 'activate') { Object.assign(AUTH, { step: 'activate', err: '', note: '' }); return render(); }
+    Object.assign(AUTH, { step: 'otp', err: '', note: '', masks: r.masks || {}, channel: 'sms' }); await cloudSendOtp();
+  } catch (e) { authErr(e.message); }
+}
+async function cloudSendOtp() {
+  try { const r = await api('/auth/otp/send', { method: 'POST', body: JSON.stringify({ channel: AUTH.channel }) }); AUTH.tries = 3; AUTH.resendAt = Date.now() + 60000; AUTH.demo = r.devCode || ''; AUTH.note = r.devCode ? 'وضع تطوير على الخادم: يظهر الرمز هنا لأن مزود الرسائل غير مضبوط.' : 'أُرسل الرمز إلى ' + (AUTH.channel === 'sms' ? (AUTH.masks.sms || 'جوالك') : (AUTH.masks.email || 'بريدك')) + '.'; AUTH.err = ''; render(); }
+  catch (e) { authErr(e.message); }
+}
+async function cloudOtp(f) {
+  try { const r = await api('/auth/otp/verify', { method: 'POST', body: JSON.stringify({ code: String(f.otp || '').replace(/\D/g, '') }) });
+    CUR = r.user; Object.assign(AUTH, { step: 'creds', err: '', note: '', demo: '' }); await cloudLoad(); UI.view = 'dash'; render(); toast('مرحباً ' + CUR.name);
+  } catch (e) { if (e.status === 401 && /استُنفدت|انتهت/.test(e.message)) { Object.assign(AUTH, { step: 'creds', err: e.message }); return render(); } authErr(e.message); }
+}
+async function cloudActivate(f) {
+  if (!strong(f.pass)) return authErr('كلمة المرور: 10 أحرف على الأقل وتحتوي حروفاً وأرقاماً.'); if (f.pass !== f.pass2) return authErr('كلمتا المرور غير متطابقتين.');
+  try { await api('/auth/activate', { method: 'POST', body: JSON.stringify({ iqama: AUTH.iqama, code: String(f.code || '').trim().toUpperCase(), pass: f.pass }) }); Object.assign(AUTH, { step: 'creds', err: '', note: 'تم تفعيل حسابك. سجّل الدخول برقم الإقامة وكلمة المرور.' }); render(); } catch (e) { authErr(e.message); }
+}
+async function cloudRequest(f) {
+  try { await api('/requests', { method: 'POST', body: JSON.stringify({ name: f.name, iqama: f.iqama, phone: normPhone(f.phone), email: f.email, role: f.role, msg: f.msg }) }); Object.assign(AUTH, { step: 'creds', err: '', note: 'أُرسل طلبك. سيصلك رمز التفعيل من مشرف المنصة عبر واتساب أو تليجرام.' }); render(); } catch (e) { authErr(e.message); }
+}
+async function aiChat(messages) {
+  if (CLOUD) { try { const r = await api('/ai/chat', { method: 'POST', body: JSON.stringify({ messages }) }); return r && r.text ? { text: String(r.text), via: r.via || 'الخادم' } : null; } catch (e) { return null; } }
+  for (const p of cfg().providers.filter((x) => x.on && x.model)) {
+    const ctl = new AbortController(); const tmo = setTimeout(() => ctl.abort(), 45000);
+    try {
+      const headers = { 'Content-Type': 'application/json' }; if (AI_KEYS[p.id]) headers.Authorization = 'Bearer ' + AI_KEYS[p.id]; if (p.id === 'openrouter') headers['X-Title'] = 'Maydan';
+      const r = await fetch(p.base.replace(/\/$/, '') + '/chat/completions', { method: 'POST', headers, signal: ctl.signal, body: JSON.stringify({ model: p.model, messages, temperature: 0.2 }) }); clearTimeout(tmo);
+      if (!r.ok) throw new Error('HTTP ' + r.status); const j = await r.json(); const a = j && j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content; if (!a) throw new Error('empty');
+      return { text: String(a), via: p.name + ' · ' + p.model };
+    } catch (e) { clearTimeout(tmo); }
+  }
+  return null;
+}
+async function askAI(q, mode) {
+  const rv = mode === 'review', pf = mode === 'perf'; UI.ai = { q, a: '', busy: true, via: '', review: rv, perf: pf }; render();
+  const sys = 'أنت محلل عمليات ميدانية لمنصة «ميدان» لإدارة فرق ومعدات البنية التحتية لمشاريع الشركة السعودية للكهرباء في الرياض. أجب بالعربية باختصار ودقة ومن البيانات المرفقة فقط، ولا تخترع أرقاماً أو أسماء. البيانات: ' + aiContext();
+  const a = await aiChat([{ role: 'system', content: sys.slice(0, 60000) }, { role: 'user', content: String(q).slice(0, 8000) }]);
+  if (a) { UI.ai = { q, a: a.text.slice(0, 8000), busy: false, via: a.via, review: rv, perf: pf }; audit(CUR ? CUR.name : '', 'استعلام ذكاء اصطناعي', a.via); return render(); }
+  UI.ai = { q, a: rv ? localReview() : pf ? localPerfReview(UI.perf || 'week') : localAnswer(q), busy: false, via: 'تحليل محلي داخل المنصة (لا يوجد مزود ذكاء اصطناعي متاح أو مضبوط)', review: rv, perf: pf }; render();
+}
+
+
+// ---------- English interface (Arabic is the source language; data such as names stays as entered) ----------
+const I18N_EN = {"إجراء": "Action", "الفرقة": "Crew", "تعديل": "Edit", "الحالة": "Status", "الاسم": "Name", "الجوال": "Mobile", "الفرع": "Branch", "واتساب": "WhatsApp", "تليجرام": "Telegram", "بدون سائق": "No driver", "الصلاحية": "Role", "رقم الإقامة": "Iqama No.", "متوقفة": "Stopped", "رقم الإقامة / الهوية": "Iqama / National ID", "التصريح": "Permit", "المراقب": "Supervisor", "غيار الزيت": "Oil change", "تجربة التشغيل": "Run test", "الرقم / اللوحة": "No. / Plate", "تفاصيل": "Details", "الكل": "All", "نوع العمل": "Work type", "المهنة": "Profession", "إلغاء": "Cancel", "رجوع": "Back", "ملاحظة": "Note", "المعدة": "Equipment", "نقل": "Move", "الإقامة": "Iqama", "القسم": "Department", "حذف": "Delete", "الحضور": "Attendees", "مستوى الخطورة العام": "Overall risk level", "تصدير Excel": "Export Excel", "المشروع": "Project", "مدير المشروع": "Project manager", "الدور": "Role", "تصدير": "Export", "رقم التصريح": "Permit No.", "ناقص": "Missing", "البند": "Item", "البريد": "Email", "تعمل": "Working", "الموقع / الحي": "Site / District", "ملاحظات": "Notes", "البيانات": "Data", "رمز التحقق": "Verification code", "تجربة المنصة بدون حساب": "Try the platform without an account", "فتح الوضع التجريبي": "Open demo mode", "البريد الإلكتروني": "Email", "كلمة المرور": "Password", "ميدان": "Maydan", "الموقع": "Site", "اللوحة / رقم المعدة": "Plate / Unit No.", "السائق": "Driver", "بحث": "Search", "لا نتائج مطابقة.": "No matching results.", "جارٍ التحليل…": "Analysing…", "إخفاء": "Hide", "الإعدادات": "Settings", "القواعد": "Rules", "حفظ الإعدادات": "Save settings", "استيراد بيانات الفرق": "Import crew data", "المهندس:": "Engineer:", "في الموعد": "On time", "تواصل": "Contact", "المهندس": "Engineer", "+ مستند": "+ Document", "مرتبط بـ": "Linked to", "المسؤول": "Responsible", "كل الأنواع": "All types", "المهمة": "Task", "تاريخ الاجتماع": "Meeting date", "المواضيع والمخاطر التي نوقشت": "Topics and hazards discussed", "المخاطر": "Hazards", "إجراءات التحكم": "Control measures", "طباعة / حفظ PDF": "Print / Save PDF", "إغلاق": "Close", "+ مشروع": "+ Project", "الفرق": "Crews", "غير مصنّف": "Unclassified", "المعاملة": "Transaction", "المستندات": "Documents", "التاريخ": "Date", "تاريخ التنفيذ": "Execution date", "الدور في الفرقة": "Role in crew", "التوقيع": "Signature", "الرقم الوظيفي": "Employee No.", "خطة الصيانة الدورية": "Periodic maintenance plan", "كل (كم)": "Every (km)", "كل (يوم)": "Every (days)", "المعاملات": "Transactions", "العداد": "Odometer", "جاهزة": "Ready", "الاسم الكامل": "Full name", "تأكيد كلمة المرور": "Confirm password", "نطاق البحث عن الفرقة القريبة (كم)": "Nearby-crew search radius (km)", "تنبيه غيار الزيت قبل (كم)": "Oil-change alert before (km)", "متوسط السير اليومي (كم)": "Average daily distance (km)", "انتهاء التصريح": "Permit expiry", "انتهاء الاستمارة / الفحص الفني": "Registration / inspection expiry", "تمت تجربة التشغيل": "Run test done", "اسم الفرقة": "Crew name", "النوع": "Type", "المشروع (إلزامي)": "Project (required)", "أو اسم المهندس يدوياً": "Or engineer name manually", "جوال المهندس": "Engineer mobile", "أو اسم المراقب يدوياً": "Or supervisor name manually", "من سجل الموظفين": "From employee register", "أو الاسم يدوياً": "Or name manually", "ربط بسجل الموظفين": "Link to employee register", "الإجراءات والمستندات المطلوبة": "Required procedures and documents", "اسم المشروع": "Project name", "رمز / رقم العقد": "Code / Contract No.", "سبب التوقف": "Stop reason", "تحتاج متابعة": "Needs follow-up", "تحتاج صيانة": "Needs service", "في الورشة": "In workshop", "+ إضافة خيار جديد…": "+ Add new option…", "الدخول": "Sign in", "إعداد مشرف المنصة": "Platform admin setup", "إنشاء الحساب": "Create account", "اختر وسيلة الاستلام ثم أدخل الرمز المكوّن من 6 أرقام.": "Choose how to receive it, then enter the 6-digit code.", "رسالة SMS": "SMS", "الرمز التجريبي:": "Test code:", "الرمز": "Code", "إعادة الإرسال": "Resend", "تحقق ودخول": "Verify and sign in", "تفعيل الحساب": "Activate account", "تفعيل": "Activate", "طلب اعتماد حساب": "Request an account", "إرسال الطلب": "Send request", "تسجيل الدخول": "Sign in", "أدخل رقم الإقامة أو الهوية الوطنية وكلمة المرور.": "Enter your Iqama or National ID and password.", "10 أرقام — تبدأ بـ 2 للإقامة أو 1 للهوية الوطنية": "10 digits — starts with 2 (Iqama) or 1 (National ID)", "متابعة": "Continue", "لا تملك حساباً؟": "No account?", "اطلب اعتماد حساب": "Request an account", "كل فرقة، كل معدة، كل موقع — في ميدان واحد.": "Every crew, every machine, every site — in one field.", "تسجيل الخروج": "Sign out", "وضع تجريبي — بيانات نموذجية لا تُحفظ. جرّب أي شيء بحرية.": "Demo mode — sample data, nothing is saved. Try anything.", "إنهاء التجربة": "End demo", "غرفة العمليات": "Operations room", "الفرقة الطالبة": "Requesting crew", "الخدمة المطلوبة": "Requested service", "إرسال الطلب والبحث عن أقرب فرقة": "Send request and find nearest crew", "+ خدمة جديدة": "+ New service", "نطاق التنسيق": "Coordination radius", "آخر موقع": "Last location", "فتح في خرائط Google": "Open in Google Maps", "ملف الفرقة": "Crew file", "إيقاف البث المباشر": "Stop live sharing", "بث موقعي المباشر لهذه الفرقة": "Share my live location for this crew", "التنبيهات والتنسيق": "Alerts and coordination", "تجاهل": "Dismiss", "المسار": "Route", "الفرق ومعداتها": "Crews & equipment", "+ فرقة جديدة": "+ New crew", "الطبقات:": "Layers:", "نقل لفرع آخر": "Move to another branch", "استئناف الفرقة": "Resume crew", "إيقاف الفرقة": "Stop crew", "واتساب الفرقة": "Crew WhatsApp", "تليجرام الفرقة": "Crew Telegram", "المهندس المسؤول": "Responsible engineer", "المهام المفتوحة": "Open tasks", "عرض المهام": "View tasks", "مستندات الفرقة": "Crew documents", "عرض الوثائق": "View documents", "تعديل المراقب وسيارته": "Edit supervisor and car", "سيارة المراقب": "Supervisor car", "+ إضافة عامل": "+ Add worker", "لا يوجد عمال في هذه الفرقة.": "No workers in this crew.", "+ إضافة معدة": "+ Add equipment", "لا توجد معدات — الفرقة لا تستطيع العمل.": "No equipment — the crew cannot work.", "نقل العامل": "Move worker", "سائق الديانة": "Dyna driver", "واتساب السائق": "Driver WhatsApp", "رقم الديانة": "Dyna No.", "نقل الديانة": "Move dyna", "بلا ديانة مُسندة — العامل بلا نقل.": "No dyna assigned — worker has no transport.", "إسناد ديانة بسائقها": "Assign dyna with driver", "تأكيد النقل وإشعار المراقبَين": "Confirm move and notify supervisors", "سجل المعدات": "Equipment register", "السائق / المستخدم": "Driver / User", "الوكيل الذكي": "AI assistant", "المزودون": "Providers", "المزودون — بالترتيب (الأول أساسي والباقي احتياطي)": "Providers — in order (first is primary, the rest are fallbacks)", "العنوان": "Endpoint", "النموذج": "Model", "المفتاح": "Key", "جلب النماذج": "Fetch models", "اسأل عن الميدان": "Ask about the field", "سؤالك": "Your question", "إرسال": "Send", "المستخدمون والطلبات": "Users & requests", "اعتماد الحسابات وإصدار رموز التفعيل وتعديل الصلاحيات.": "Approve accounts, issue activation codes and manage roles.", "+ إضافة مستخدم": "+ Add user", "إرسال عبر واتساب": "Send via WhatsApp", "إرسال عبر تليجرام": "Send via Telegram", "اعتماد": "Approve", "رفض": "Reject", "لا طلبات معلّقة.": "No pending requests.", "أنت": "You", "رمز تفعيل جديد": "New activation code", "الأمان وسجل الدخول": "Security & sign-in log", "ما تفرضه المنصة الآن، وسجل كل عمليات الدخول والتعديل.": "What the platform enforces, and a log of every sign-in and change.", "سجل الدخول والتدقيق": "Sign-in and audit log", "الوقت": "Time", "المستخدم": "User", "الجهاز": "Device", "العملية": "Event", "الحماية المفعّلة": "Active protections", "فك القفل": "Unlock", "لا يوجد.": "None.", "قبل التشغيل الفعلي": "Before going live", "المراقب:": "Supervisor:", "فتح المهمة": "Open task", "فتح الفرقة": "Open crew", "الوثائق": "Documents", "ملف الموظف": "Employee file", "لوحة الأداء": "Performance dashboard", "تفعيل إشعارات المتصفح": "Enable browser notifications", "تخصيص المؤشرات": "Customise gauges", "مراجعة ذكية بالذكاء الاصطناعي": "AI smart review", "المراجعة الذكية": "Smart review", "حالة وإنتاجية الفرق — آخر 30 يوماً": "Crew status & productivity — last 30 days", "المهندس / المراقب": "Engineer / Supervisor", "الإنتاجية (مهام منجزة)": "Productivity (tasks done)", "مهام مفتوحة": "Open tasks", "اكتمال المستندات": "Documents complete", "بلا مهندس": "No engineer", "تُحسب لحظياً من المهام والتصاريح والمستندات والمعدات": "Computed live from tasks, permits, documents and equipment", "لا توجد نواقص. كل الأوراق والترتيبات مكتملة.": "Nothing missing. All papers and arrangements are complete.", "أسباب التوقف": "Stop reasons", "لا توجد فرق متوقفة.": "No stopped crews.", "الطلبات المفتوحة حسب القسم": "Open requests by department", "لا طلبات مفتوحة.": "No open requests.", "جدول السلامة والإنارة": "Safety & lighting schedule", "لا مواعيد مفتوحة.": "No open appointments.", "المهام والطلبات": "Tasks & requests", "+ مهمة جديدة": "+ New task", "لا مهام في هذا التصنيف.": "No tasks in this category.", "بدء التنفيذ": "Start execution", "إيقاف (تصريح / استشاري…)": "Stop (permit / consultant…)", "استئناف": "Resume", "تحديث حالة الموقع قبل المغادرة": "Update site status before leaving", "إرسال للمراقب": "Send to supervisor", "الطلبات للأقسام": "Department requests", "+ طلب لقسم": "+ Department request", "الطلب": "Request", "الموعد": "Due", "مستندات المهمة": "Task documents", "اجتماع ما قبل العمل": "Pre-work meeting", "تقييم المخاطر": "Risk assessment", "لا مستندات مرفوعة بعد.": "No documents uploaded yet.", "المستند": "Document", "عرض / طباعة": "View / Print", "تنزيل": "Download", "فتح الرابط": "Open link", "مهمة مفتوحة": "Open task", "التنفيذ": "Execution", "المستندات المطلوبة": "Required documents", "لا مهام مفتوحة.": "No open tasks.", "لا مستندات مطابقة.": "No matching documents.", "القوائم المنسدلة": "Drop-down lists", "+ إضافة": "+ Add", "الحصر والهيكل": "Inventory & structure", "كل الفروع": "All branches", "كل المشاريع": "All projects", "المعدات حسب النوع": "Equipment by type", "إصلاح": "Fix", "كل الفرق والمعدات مربوطة بالكامل.": "All crews and equipment are fully linked.", "لا بيانات.": "No data.", "الرمز / العقد": "Code / Contract", "بلا فرع": "No branch", "تعيين مهندس": "Assign engineer", "تعيين مراقب": "Assign supervisor", "بلا إقامة": "No Iqama", "الوثائق والمستندات": "Documents & records", "إظهار المنجزة": "Show completed", "+ معاملة": "+ Transaction", "رفع ملف معاملات (Excel / CSV)": "Upload transactions (Excel / CSV)", "التعميد": "SEC approval", "لا يوجد": "None", "بيانات المعاملة والتعميد": "Transaction data & approval", "فتح في المهام": "Open in tasks", "المستندات المطلوبة لهذا النوع من العمل": "Documents required for this work type", "تعبئة المحضر": "Fill minutes", "تعبئة": "Fill", "إرفاق": "Attach", "مسح بالكاميرا": "Scan with camera", "لا مستندات بعد.": "No documents yet.", "تصنيف غير المصنّف بالذكاء الاصطناعي": "Classify the rest with AI", "إنشاء المعاملات": "Create transactions", "الوصف": "Description", "غير مُسندة": "Unassigned", "+ نوع عمل": "+ Work type", "رفع للمكتبة": "Upload to library", "كارت الأمن الصناعي": "Industrial security card", "غير مسجل": "Not recorded", "الختم والتوقيع": "Stamp & signature", "تحديث من الفرقة": "Refresh from crew", "سجل الموظفين": "Employee register", "استيراد Excel / CSV": "Import Excel / CSV", "تصدير بصيغة Odoo (xlsx)": "Export in Odoo format (xlsx)", "+ موظف": "+ Employee", "المرفقات": "Attachments", "الملف والمرفقات": "File & attachments", "إنشاء حساب": "Create account", "له حساب": "Has account", "لا موظفين بعد. استورد ملف hr.employee من Odoo.": "No employees yet. Import hr.employee from Odoo.", "تحليل أداء الفرق والموظفين": "Crew & employee performance", "تحليل بالذكاء الاصطناعي": "AI analysis", "مخطط": "Planned", "منجز": "Done", "متوقف": "Stopped", "السلامة": "Safety", "الدرجة": "Score", "لا مهام": "No tasks", "الموظفون الأكثر إنجازاً في الفترة": "Top employees in the period", "الموظف": "Employee", "مهام منجزة": "Tasks done", "لا مهام منجزة في هذه الفترة.": "No completed tasks in this period.", "الهوية": "Identity", "حفظ الهوية": "Save identity", "الشعارات · تظهر في الهيدر والنماذج المطبوعة": "Logos · shown in the header and printed forms", "+ رفع شعار": "+ Upload logo", "استعادة الافتراضية": "Restore defaults", "صورة الهيدر": "Header image", "رفع / تغيير الصورة": "Upload / change image", "الصورة الافتراضية": "Default image", "بدون صورة": "No image", "لا توجد صورة؛ يظهر الهيدر بلون الهوية.": "No image; the header uses the brand colour.", "المؤشرات المعروضة في لوحة الأداء": "Gauges shown on the dashboard", "حفظ": "Save", "+ بند صيانة": "+ Maintenance item", "الاستيراد والتصدير": "Import & export", "الموظفون (Odoo hr.employee)": "Employees (Odoo hr.employee)", "استيراد xlsx / csv": "Import xlsx / csv", "استيراد": "Import", "سجل المعدات والحصر": "Equipment register & inventory", "سجل الصيانة": "Maintenance log", "نسخة احتياطية كاملة": "Full backup", "تصدير JSON": "Export JSON", "إعادة البيانات التجريبية": "Reset demo data", "الربط مع Odoo": "Odoo integration", "مربوط بـ Odoo": "Connected to Odoo", "غير مربوط": "Not connected", "سحب الموظفين من Odoo الآن": "Pull employees from Odoo now", "وضع التشغيل": "Run mode", "سحابي": "Cloud", "محلي": "Local", "سجل المعدات والصيانة الدورية": "Equipment & periodic maintenance", "الزيت": "Oil", "الصيانة الدورية": "Periodic maintenance", "التجربة": "Test", "منتظمة": "Up to date", "تسجيل صيانة": "Log service", "الفلاتر (زيت / هواء / ديزل)": "Filters (oil / air / diesel)", "الفرامل (البريكات)": "Brakes", "الكفرات": "Tyres", "البطارية": "Battery", "الصيانة الدورية الشاملة": "Full periodic service", "التشحيم": "Greasing", "الاستمارة / الفحص الفني": "Registration / inspection", "تعمل بتنبيه": "Working with alerts", "رمز التفعيل": "Activation code", "كلمة المرور الجديدة": "New password", "الصلاحية المطلوبة": "Requested role", "بلا مهام": "No tasks", "وصف المهمة": "Task description", "اسم الشركة": "Company name", "اسم المنصة": "Platform name", "الجهة المالكة / العميل": "Owner / Client", "مسمى التعميد في النماذج": "Approval label in forms", "عنوان نموذج فريق العمل": "Team form title", "عنوان محضر اجتماع ما قبل العمل": "Pre-work meeting title", "نص تذييل النماذج": "Form footer text", "شكل المؤشرات": "Gauge style", "نوع المعدة": "Equipment type", "العداد (كم)": "Odometer (km)", "المتبقي لغيار الزيت (كم، بالسالب إن تأخر)": "Km left to oil change (negative if overdue)", "السائق من سجل الموظفين (إلزامي)": "Driver from employee register (required)", "أو اسم السائق يدوياً": "Or driver name manually", "جوال السائق": "Driver mobile", "إقامة السائق": "Driver Iqama", "رمز الفرقة": "Crew code", "المهندس المسؤول (إلزامي) من سجل الموظفين": "Responsible engineer (required) from register", "المراقب (إلزامي) من سجل الموظفين": "Supervisor (required) from register", "جوال المراقب": "Supervisor mobile", "سيارة المراقب (الموديل)": "Supervisor car (model)", "لوحة سيارة المراقب (إلزامي)": "Supervisor car plate (required)", "المهندس من سجل الموظفين": "Engineer from register", "خط العرض": "Latitude", "خط الطول": "Longitude", "حذف هذه الفرقة نهائياً مع عمالها ومعداتها": "Delete this crew with its workers and equipment", "المراقب من سجل الموظفين": "Supervisor from register", "موديل السيارة": "Car model", "حالة السيارة": "Car status", "انتهاء الاستمارة": "Registration expiry", "حذف هذا العامل من الفرقة": "Remove this worker from the crew", "فك الديانة عن العامل وحذفها": "Unassign and delete this dyna", "حذف هذه المعدة من الفرقة": "Remove this equipment from the crew", "تاريخ التعميد": "Approval date", "المعتمِد": "Approved by", "اسم نوع العمل": "Work type name", "كلمات التصنيف": "Classification keywords", "حذف نوع العمل": "Delete work type", "حذف المشروع": "Delete project", "قراءة العداد الآن (كم)": "Current odometer (km)", "البنود التي نُفذت": "Items done", "الحالة بعد الصيانة": "Status after service", "تمت تجربة التشغيل بعد الصيانة": "Run test done after service", "قراءة العداد (كم)": "Odometer reading (km)", "حذف الموظف من السجل": "Delete employee from register", "حذف هذه المهمة": "Delete this task", "إيقاف الفرقة كاملة أيضاً": "Stop the whole crew too", "تم الانتهاء من جميع الأعمال في هذا الموقع": "All work at this site is complete", "المتبقي في الموقع (إن لم يكتمل)": "Remaining at site (if not complete)", "نوع الطلب": "Request type", "مطلوب بتاريخ": "Needed by", "اسم الخدمة": "Service name", "نوع الفرقة المطلوبة": "Required crew type", "نوع المستند": "Document type", "عنوان / رقم المستند": "Document title / No.", "المهندس / المراقب المسؤول": "Responsible engineer / supervisor", "تاريخ الانتهاء (إن وُجد)": "Expiry date (if any)", "رابط (Google Drive أو غيره)": "Link (Google Drive or other)", "إجراءات التحكم والوقاية": "Control and prevention measures", "الخيار الجديد": "New option", "رقم الإقامة / الهوية (اسم الدخول)": "Iqama / ID (sign-in name)", "الجوال (لرمز التحقق)": "Mobile (for verification code)", "المدير": "Manager", "المراقبون": "Supervisors", "سيارات المراقبين": "Supervisor cars", "العمال": "Workers", "الديانات وسائقوها": "Dynas & drivers", "المعدات": "Equipment", "سائقو المعدات": "Equipment drivers", "المفتوحة": "Open", "جديدة": "New", "قيد التنفيذ": "In progress", "منجزة": "Done", "مكتبة الإجراءات حسب نوع العمل": "Procedure library by work type", "حسب المهندس والمراقب": "By engineer & supervisor", "كل المستندات": "All documents", "يومي": "Daily", "أسبوعي": "Weekly", "شهري": "Monthly", "عام": "General", "الهوية والشعارات": "Identity & logos", "مؤشرات اللوحة": "Dashboard gauges", "القوائم": "Lists", "البيانات والربط": "Data & integrations", "دوائر": "Rings", "أرقام ونسب": "Numbers & percentages", "صيانة دورية مستحقة": "Periodic maintenance due", "تغيير الزيت": "Oil change", "الفرق العاملة": "Crews working", "جاهزية المعدات": "Equipment readiness", "الالتزام بالصيانة": "Maintenance compliance", "الإنجاز في الموعد": "On-time completion", "الالتزام بالسلامة": "Safety compliance", "إنجاز الأسبوع": "Week completion", "اكتمال الربط الإلزامي": "Mandatory links complete", "مهام اليوم": "Today's tasks", "منجز آخر 7 أيام": "Done in last 7 days", "فرق متوقفة": "Stopped crews", "طلبات مفتوحة للأقسام": "Open department requests", "تنبيهات عاجلة": "Urgent alerts", "عاجل": "Urgent", "تنبيه": "Alert", "المشاريع": "Projects", "المهندسون والمراقبون": "Engineers & supervisors", "المهندسون": "Engineers", "العمال والفنيون": "Workers & technicians", "السائقون": "Drivers", "المعدات والسيارات": "Equipment & vehicles", "روابط ناقصة": "Missing links", "المستخدمون": "Users", "الطلبات": "Requests", "صورة الإقامة": "Iqama copy", "رخصة القيادة": "Driving licence", "كارت التأمين الطبي": "Medical insurance card", "الأمن الصناعي": "Industrial security", "الرخصة": "Licence", "التأمين": "Insurance", "مستندات الموظفين": "Employee documents", "حفظ ملف الموظف": "Save employee file", "إدارة الفرق والمعدات والخدمات اللوجستية": "Crews, equipment & logistics management", "حفريات": "Excavation", "كهرباء": "Electrical", "سلامة": "Safety", "إمداد": "Supply", "تركيبات كهربائية": "Electrical installation", "تركيب عدادات": "Meter installation", "فحص عدادات": "Meter testing", "فتح وتشغيل محطات": "Substation commissioning", "تصريح": "Permit", "نموذج فريق العمل": "Team form", "إجراءات العمل الآمن": "Safe work procedure", "محضر اجتماع ما قبل بدء العمل": "Pre-work meeting minutes", "مشرف المنصة": "Platform admin", "مدير مشروع": "Project manager", "مهندس تنفيذ": "Site engineer", "مراقب": "Supervisor", "مشاهد": "Viewer", "جلسة نشطة": "Active session", "المواقع الحية للفرق والتنسيق التلقائي بين الفرق القريبة": "Live crew locations and automatic coordination between nearby crews", "المراقب وسيارته ← العمال وكل عامل مع سائق ديانته ← معدات الفرقة بسائقيها. فرقة بلا معدة عاملة لا تعمل.": "Supervisor and car → workers, each with his dyna driver → crew equipment with drivers. A crew without working equipment cannot work.", "تحليل بيانات الأعمال والتحقق المكاني عبر مزودين مجانيين بترتيب احتياطي. إن لم يتوفر مزود، يعمل تحليل محلي داخل المنصة.": "Business and location analysis through free providers with fallback. Without a provider, a local analysis runs inside the platform.", "إنتاجية الفرق وحالتها وأسباب التوقف، والطلبات بين الأقسام، والتنبيهات الذكية لنقص الأوراق والترتيبات": "Crew productivity, status and stop reasons, department requests, and smart alerts for missing papers and arrangements", "كل مهمة بتصريحها وفرقتها وطلباتها للأقسام: تأمين السلامة والإنارة قبل التنفيذ بيوم، وإزالتها بعد التنفيذ، وتحديث حالة الموقع قبل المغادرة.": "Each task with its permit, crew and department requests: safety and lighting one day before work, removal after, and a site status update before leaving.", "الربط الإلزامي: المعدة أو السيارة بسائقها ← المراقب ← المهندس ← المشروع ← الفرع. لمدير الشركة ومدير التنفيذ ومدير المشاريع.": "Mandatory chain: unit or car with driver → supervisor → engineer → project → branch. For the CEO, execution manager and project managers.", "كل معاملة بمستنداتها: التصريح، تعميد الشركة السعودية للكهرباء، نموذج فريق العمل، اجتماع ما قبل العمل، وتقييم المخاطر وإجراءات العمل حسب نوع العمل.": "Every transaction with its documents: permit, SEC approval, team form, pre-work meeting, and the risk assessment and procedures of its work type.", "مستورد من Odoo (hr.employee) أو من Excel / CSV. منه تُسحب الأسماء وأرقام الإقامات والمهن إلى الفرق ونماذج فريق العمل، ومنه تُنشأ حسابات الدخول.": "Imported from Odoo (hr.employee) or Excel / CSV. Names, Iqama numbers and professions flow from here into crews and team forms, and sign-in accounts are created from it.", "الهوية والشعارات، المؤشرات، الصيانة الدورية، القوائم، والبيانات والربط مع Odoo وGoogle Cloud.": "Identity and logos, gauges, periodic maintenance, lists, data and integration with Odoo and Google Cloud.", "كل معدة وديانة وسيارة مراقب بسائقها وعدادها: الزيت، الفلاتر، الفرامل، الكفرات، البطارية، التشحيم، الصيانة الشاملة، والاستمارة.": "Every unit, dyna and supervisor car with its driver and odometer: oil, filters, brakes, tyres, battery, greasing, full service and registration.", "فرقة تعمل": "crews working", "معدة جاهزة بسائقها": "units ready with driver", "بلا صيانة متأخرة": "without overdue service", "مستند مكتمل": "documents complete", "في الموعد (30 يوماً)": "on time (30 days)", "موقع مؤمَّن قبل التنفيذ": "sites secured before work", "مهمة منجزة هذا الأسبوع": "tasks done this week", "ربط مكتمل": "links complete", "غير منجزة بعد": "not done yet", "مهمة مغلقة": "closed tasks", "أقسام": "departments", "تنبيه إجمالاً": "alerts in total", "بانتظار الاستشاري": "Waiting for consultant", "بانتظار التصريح": "Waiting for permit", "مع تنبيهات صيانة": "with maintenance alerts", "بانتظار بدء المهام": "waiting to start tasks", "اليوم": "Today", "غداً": "Tomorrow", "أمس": "Yesterday", "تمت التجربة": "Tested", "لم تُجرَّب": "Not tested", "بعد": "in", "متأخر": "overdue", "فرق": "crews"};
+const I18N_KEYS = Object.keys(I18N_EN).filter((k) => k.length > 2).sort((a, b) => b.length - a.length);
+function tr(t) {
+  if (LANG !== 'en' || !t) return t; const s = t.trim(); if (!s || !/[\u0600-\u06FF]/.test(s)) return t;
+  if (I18N_EN[s]) return t.replace(s, I18N_EN[s]);
+  const of = s.replace(/(\d[\d,]*) من (\d[\d,]*)/g, '$1 of $2'); if (of !== s && !/[\u0600-\u06FF]/.test(of)) return t.replace(s, of);
+  if (/ · | — /.test(s)) { const parts = s.split(/( · | — )/); const out = parts.map((x) => (/^( · | — )$/.test(x) ? x : (I18N_EN[x.trim()] || trPrefix(x)))); const joined = out.join(''); if (joined !== s) return t.replace(s, joined.replace(/(\d[\d,]*) من (\d[\d,]*)/g, '$1 of $2')); }
+  const num = /^([\d,.%]+) (.+)$/.exec(s); if (num && I18N_EN[num[2]]) return t.replace(s, num[1] + ' ' + I18N_EN[num[2]]);
+  const p = trPrefix(s); return p !== s ? t.replace(s, p) : t;
+}
+function trPrefix(s) { for (const k of I18N_KEYS) { if (s.startsWith(k)) { const rest = s.slice(k.length); if (!rest || /^[\s·:(\-—–0-9!.،]/.test(rest)) return I18N_EN[k] + rest; } } return s; }
+function translateUI(root) {
+  if (LANG !== 'en' || !root) return;
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT); const nodes = []; while (w.nextNode()) nodes.push(w.currentNode);
+  nodes.forEach((n) => { const v = tr(n.nodeValue); if (v !== n.nodeValue) n.nodeValue = v; });
+  root.querySelectorAll('[placeholder],[aria-label],[title]').forEach((el) => ['placeholder', 'aria-label', 'title'].forEach((a) => { const v = el.getAttribute(a); if (v) { const t2 = tr(v); if (t2 !== v) el.setAttribute(a, t2); } }));
+}
+// ================= VIEWS =================
+const svgLogo = (s) => new Safe('<svg width="' + s + '" height="' + s + '" viewBox="0 0 44 44" fill="none" aria-hidden="true"><rect x="1" y="1" width="42" height="42" rx="11" stroke="#F97316" stroke-width="2.5"/><path d="M22 10c-5 0-9 4-9 9 0 7 9 15 9 15s9-8 9-15c0-5-4-9-9-9z" stroke="#F8FAFC" stroke-width="2.5"/><circle cx="22" cy="19" r="3" fill="#F97316"/></svg>');
+
+function viewAuth() {
+  const a = AUTH; const u = DB.users.find((x) => x.id === a.uid);
+  const steps = html`<ol class="steps" aria-label="مراحل الدخول"><li class="${a.step === 'creds' || a.step === 'otp' ? 'on' : ''}">البيانات</li><li class="${a.step === 'otp' ? 'on' : ''}">رمز التحقق</li><li>الدخول</li></ol>`;
+  const msgs = html`<div id="authMsg" style="display:contents">${a.err ? html`<p class="alert err" role="alert">${a.err}</p>` : ''}${a.note ? html`<p class="alert note">${a.note}</p>` : ''}</div>`;
+  let box;
+  if (a.step === 'setup') box = html`<form class="grid" data-form="setup" novalidate style="gap:14px">
+      <h2 style="font-size:24px">إعداد مشرف المنصة</h2><p class="t-mut" style="font-size:14px">أول تشغيل: أنشئ حساب المشرف. لا توجد أي حسابات أو كلمات مرور افتراضية.</p>${msgs}${CLOUD ? fieldHtml({ k: 'token', label: 'رمز الإعداد (SETUP_TOKEN من إعدادات الخادم)', type: 'password', req: true }) : ''}
+      ${fieldHtml({ k: 'name', label: 'الاسم الكامل', req: true })}${fieldHtml({ k: 'iqama', label: 'رقم الإقامة / الهوية', ltr: true, ph: '2xxxxxxxxx', req: true })}
+      <div class="grid g2">${fieldHtml({ k: 'phone', label: 'الجوال', ltr: true, ph: '05xxxxxxxx', req: true })}${fieldHtml({ k: 'email', label: 'البريد الإلكتروني', type: 'email', ltr: true, req: true })}</div>
+      <div class="grid g2">${fieldHtml({ k: 'pass', label: 'كلمة المرور', type: 'password', req: true, hint: '10 أحرف على الأقل، حروف وأرقام' })}${fieldHtml({ k: 'pass2', label: 'تأكيد كلمة المرور', type: 'password', req: true })}</div>
+      <button class="btn pri" type="submit">إنشاء الحساب</button></form><div class="alert note" style="display:flex;flex-direction:column;gap:10px"><span><b>تجربة المنصة بدون حساب</b> — يفتح ميدان بحساب مشرف تجريبي وبيانات نموذجية. لا يُحفظ شيء، ولا تُمس بياناتك.</span><button class="btn dark" type="button" data-act="demo">فتح الوضع التجريبي</button></div>`;
+  else if (a.step === 'otp') box = html`${steps}<form class="grid" data-form="otp" novalidate style="gap:16px">
+      <h2 style="font-size:24px">رمز التحقق</h2><p class="t-mut" style="font-size:14px">اختر وسيلة الاستلام ثم أدخل الرمز المكوّن من 6 أرقام.</p>
+      <div class="chans" role="radiogroup" aria-label="وسيلة الاستلام">
+        <button type="button" class="chan" role="radio" aria-checked="${a.channel === 'sms'}" data-act="otp-ch" data-ch="sms"><b>رسالة SMS</b><span class="t-mut ltr" style="font-size:13px">${u ? maskPhone(u.phone) : (AUTH.masks ? AUTH.masks.sms : '')}</span></button>
+        <button type="button" class="chan" role="radio" aria-checked="${a.channel === 'email'}" data-act="otp-ch" data-ch="email"><b>البريد الإلكتروني</b><span class="t-mut ltr" style="font-size:13px">${u ? maskMail(u.email) : (AUTH.masks ? AUTH.masks.email : '')}</span></button>
+      </div>${msgs}${a.demo ? html`<p class="alert wr">الرمز التجريبي: <b class="ltr" style="letter-spacing:4px">${a.demo}</b></p>` : ''}
+      <div class="fld"><label for="otp">الرمز</label><input class="in otp" id="otp" name="otp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required>
+      <div class="row between" style="font-size:13px;color:var(--mut)"><span>صالح 5 دقائق · محاولات متبقية ${a.tries}</span><button type="button" class="btn ghost sm" data-act="otp-resend">إعادة الإرسال</button></div></div>
+      <div class="row"><button class="btn" type="button" data-act="auth-to" data-step="creds">رجوع</button><button class="btn pri" type="submit" style="flex:1">تحقق ودخول</button></div></form>`;
+  else if (a.step === 'activate') box = html`<form class="grid" data-form="activate" novalidate style="gap:14px">
+      <h2 style="font-size:24px">تفعيل الحساب</h2><p class="t-mut" style="font-size:14px">أدخل رمز التفعيل الذي أرسله مشرف المنصة، ثم اختر كلمة مرورك.</p>${msgs}
+      ${fieldHtml({ k: 'code', label: 'رمز التفعيل', ltr: true, req: true })}
+      <div class="grid g2">${fieldHtml({ k: 'pass', label: 'كلمة المرور الجديدة', type: 'password', req: true, hint: '10 أحرف على الأقل، حروف وأرقام' })}${fieldHtml({ k: 'pass2', label: 'تأكيد كلمة المرور', type: 'password', req: true })}</div>
+      <div class="row"><button class="btn" type="button" data-act="auth-to" data-step="creds">رجوع</button><button class="btn pri" type="submit" style="flex:1">تفعيل</button></div></form>`;
+  else if (a.step === 'request') box = html`<form class="grid" data-form="request" novalidate style="gap:14px">
+      <h2 style="font-size:24px">طلب اعتماد حساب</h2><p class="t-mut" style="font-size:14px">يراجع مشرف المنصة طلبك ويرسل لك رمز التفعيل. لا تُطلب كلمة مرور هنا.</p>${msgs}
+      ${fieldHtml({ k: 'name', label: 'الاسم الكامل', req: true })}${fieldHtml({ k: 'iqama', label: 'رقم الإقامة / الهوية', ltr: true, req: true })}
+      <div class="grid g2">${fieldHtml({ k: 'phone', label: 'الجوال', ltr: true, ph: '05xxxxxxxx', req: true })}${fieldHtml({ k: 'email', label: 'البريد', type: 'email', ltr: true })}</div>
+      ${fieldHtml({ k: 'role', label: 'الصلاحية المطلوبة', type: 'select', val: 'sup', opts: [['eng', ROLES.eng], ['sup', ROLES.sup], ['pm', ROLES.pm], ['viewer', ROLES.viewer]] })}
+      <div class="fld"><label for="f_msg">ملاحظة</label><textarea class="in" id="f_msg" name="msg" maxlength="400"></textarea></div>
+      <div class="row"><button class="btn" type="button" data-act="auth-to" data-step="creds">رجوع</button><button class="btn pri" type="submit" style="flex:1">إرسال الطلب</button></div></form>`;
+  else box = html`${steps}<form class="grid" data-form="login" novalidate style="gap:16px">
+      <h2 style="font-size:26px">تسجيل الدخول</h2><p class="t-mut" style="font-size:14px">أدخل رقم الإقامة أو الهوية الوطنية وكلمة المرور.</p>${msgs}
+      <div class="fld"><label for="iq">رقم الإقامة / الهوية</label><input class="in ltr" id="iq" name="iqama" inputmode="numeric" autocomplete="username" maxlength="10" placeholder="2xxxxxxxxx" required value="${a.iqama}"><span class="hint">10 أرقام — تبدأ بـ 2 للإقامة أو 1 للهوية الوطنية</span></div>
+      <div class="fld"><label for="pw">كلمة المرور</label><input class="in" id="pw" name="pass" type="password" autocomplete="current-password" required></div>
+      <button class="btn pri" type="submit" style="min-height:50px;font-size:16px">متابعة</button>
+      <p style="font-size:14px;text-align:center" class="t-mut">لا تملك حساباً؟ <button type="button" class="btn ghost sm" data-act="auth-to" data-step="request" style="color:var(--acc)">اطلب اعتماد حساب</button></p></form><div class="alert note" style="display:flex;flex-direction:column;gap:10px"><span><b>تجربة المنصة بدون حساب</b> — يفتح ميدان بحساب مشرف تجريبي وبيانات نموذجية. لا يُحفظ شيء، ولا تُمس بياناتك.</span><button class="btn dark" type="button" data-act="demo">فتح الوضع التجريبي</button></div>`;
+  return html`<div class="auth">
+    <section class="hero"${imgOk(cfg().brand.cover) ? new Safe(' style="background-image:linear-gradient(180deg,rgba(11,22,38,.82),rgba(11,22,38,.94)),url(&quot;' + cfg().brand.cover + '&quot;)"') : ''}><div class="row between" style="gap:8px"><div class="brand">${svgLogo(44)}<div><b style="font-size:30px">ميدان</b><div style="font-size:13px;color:#CBD5E1">MAYDAN · Field Operations</div></div></div><div class="row" style="gap:6px"><button class="hh-btn" type="button" data-act="lang">${LANG === 'en' ? 'عربي' : 'EN'}</button><button class="hh-btn" type="button" data-act="theme" aria-label="الوضع المظلم">${THEME === 'dark' ? '☀' : '☾'}</button></div></div>
+      <div class="authlogos">${brandLogos(44)}</div><div><h1>كل فرقة، كل معدة، كل موقع — في ميدان واحد.</h1><p>منصة إدارة الفرق والمعدات والخدمات اللوجستية لمشاريع البنية التحتية: مواقع حية، تنسيق تلقائي بين الفرق القريبة، واعتمادات موثّقة.</p></div>
+      <ul><li>${new Safe('<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F97316" stroke-width="2" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>')}دخول برقم الإقامة + رمز تحقق لمرة واحدة على الجوال أو البريد</li><li>${new Safe('<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F97316" stroke-width="2" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>')}قفل بعد 5 محاولات خاطئة، وجلسة تنتهي بعد 30 دقيقة خمول</li><li>${new Safe('<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F97316" stroke-width="2" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>')}كل دخول مُسجَّل: الوقت والجهاز والنتيجة</li></ul></section>
+    <section class="pane"><div class="box">${box}</div></section></div>`;
+}
+
+function shell(inner) {
+  const openN = DB.notifs.filter((n) => n.st === 'open').length;
+  const pendingR = DB.reqs.filter((r) => r.st === 'pending').length;
+  const A = smartAlerts(); const badN = A.filter((x) => x.lvl === 'bad').length;
+  const items = [['dash', 'لوحة الأداء', badN], ['ops', 'غرفة العمليات', openN], ['tasks', 'المهام والطلبات', DB.jobs.filter((j) => j.st !== 'done' && A.some((x) => x.task === j.id)).length], ['crews', 'الفرق ومعداتها', DB.crews.filter((c) => crewState(c).lvl === 'bad').length], ['inv', 'الحصر والهيكل', hierarchyIssues().length], ['equip', 'سجل المعدات', allEquipment().filter((x) => needsCare(x.u)).length], ['docs', 'الوثائق والمستندات', 0], ['ai', 'الوكيل الذكي', 0]]
+    .concat(can('users') ? [['users', 'المستخدمون والطلبات', pendingR]] : []).concat(can('audit') ? [['security', 'الأمان وسجل الدخول', 0]] : []).concat(can('settings') ? [['settings', 'الإعدادات', 0]] : []);
+  return html`<div class="shell"><nav class="nav" aria-label="القائمة الرئيسية"><div class="brand">${svgLogo(32)}<b>ميدان</b></div>
+    <ul>${items.map((i) => html`<li><button type="button" data-act="nav" data-v="${i[0]}" ${UI.view === i[0] ? new Safe('aria-current="page"') : ''}>${i[1]}${i[2] ? html`<span class="badge-n">${i[2]}</span>` : ''}</button></li>`)}</ul>
+    <div class="me">${CUR.name}<br>${ROLES[CUR.role]} · جلسة نشطة<br><button class="btn sm" type="button" data-act="logout" style="margin-top:8px;background:transparent;color:#fff;border-color:#334155">تسجيل الخروج</button></div></nav>
+    <main class="main" id="main">${brandBar()}${DEMO ? html`<div class="alert wr row between" role="status" style="font-weight:600"><span>وضع تجريبي — بيانات نموذجية لا تُحفظ. جرّب أي شيء بحرية.</span><button class="btn sm dark" type="button" data-act="logout">إنهاء التجربة</button></div>` : ''}${inner}</main></div>`;
+}
+
+function viewOps() {
+  const typeOpts = DB.crews.map((c) => [c.id, c.name]);
+  return html`<div class="ph"><div><h1 style="font-size:28px">غرفة العمليات</h1><p>المواقع الحية للفرق والتنسيق التلقائي بين الفرق القريبة · نطاق البحث ${cfg().radiusKm} كم</p></div></div>
+  ${can('request') ? html`<form class="card" data-form="svc" style="flex-direction:row;flex-wrap:wrap;align-items:flex-end;gap:12px">
+    <div class="fld" style="flex:1 1 220px"><label for="rqf">الفرقة الطالبة</label><select class="in" id="rqf" name="from">${typeOpts.map((o) => html`<option value="${o[0]}" ${o[0] === UI.reqFrom ? new Safe('selected') : ''}>${o[1]}</option>`)}</select></div>
+    <div class="fld" style="flex:1 1 220px"><label for="rqs">الخدمة المطلوبة</label><select class="in" id="rqs" name="svc">${Object.keys(SERVICES).map((k) => html`<option value="${k}" ${k === UI.reqSvc ? new Safe('selected') : ''}>${SERVICES[k][0]} — يحتاج ${TYPES[SERVICES[k][1]][0]}</option>`)}</select></div>
+    <button class="btn pri" type="submit">إرسال الطلب والبحث عن أقرب فرقة</button>${can('settings') ? html`<button class="btn" type="button" data-act="svc-add">+ خدمة جديدة</button>` : ''}</form>` : ''}
+  <div class="split"><section class="wide" aria-label="الخريطة"><div id="map" role="region" aria-label="خريطة المواقع الحية"></div>
+    <ul class="legend">${Object.keys(TYPES).map((k) => html`<li><span class="dot" style="background:${TYPES[k][1]}"></span>${TYPES[k][0]}</li>`)}<li><span class="dot" style="background:transparent;border:2px dashed var(--acc)"></span>نطاق التنسيق</li></ul></section>
+    <aside class="side" id="opsSide">${opsSide()}</aside></div>`;
+}
+function opsSide() {
+  const c = crewById(UI.sel) || DB.crews[0]; const r = readiness(c);
+  const notifs = DB.notifs.slice(0, 6);
+  return html`<section class="card"><div class="row between"><h2 style="font-size:17px">${c.name}</h2><span class="pill ${r.lvl}">${r.label}</span></div>
+    <div class="grid g2" style="font-size:14px"><div class="kv"><span>الموقع</span><b>${c.site}</b></div><div class="kv"><span>الفرع</span><b>${c.branch}</b></div><div class="kv"><span>المراقب</span><b>${c.sup.name}</b></div><div class="kv"><span>آخر موقع</span><b>${ago(c.seen)}${c.acc ? ' · ±' + c.acc + ' م' : ''}</b></div></div>
+    <div class="row"><a class="btn sm" href="${safeUrl(gmap(c))}" target="_blank" rel="noopener noreferrer">فتح في خرائط Google</a><button class="btn sm" type="button" data-act="nav-crew" data-id="${c.id}">ملف الفرقة</button>
+    ${UI.liveCrew === c.id ? html`<button class="btn sm dark" type="button" data-act="live-stop">إيقاف البث المباشر</button>` : html`<button class="btn sm" type="button" data-act="live-start" data-id="${c.id}">بث موقعي المباشر لهذه الفرقة</button>`}</div></section>
+  <section class="card"><h2 style="font-size:17px">التنبيهات والتنسيق</h2>
+    ${notifs.length ? notifs.map((n) => notifCard(n)) : html`<p class="empty">لا تنبيهات بعد. أرسل طلب خدمة من الأعلى ليبحث النظام عن أقرب فرقة.</p>`}</section>`;
+}
+function notifCard(n) {
+  const from = n.from && crewById(n.from), to = n.to && crewById(n.to);
+  const st = { open: ['بانتظار القرار', 'warn'], assigned: ['تم الإسناد', 'ok'], dismissed: ['تم التجاهل', 'mutp'], info: ['إشعار', 'info'] }[n.st] || ['', 'mutp'];
+  return html`<article class="notif ${n.st === 'open' ? 'open' : ''}"><div class="row between"><span class="pill ${st[1]}">${st[0]}</span><span class="t-mut" style="font-size:12px">${ago(n.tm)}</span></div>
+    <h3>${n.title}</h3><p class="body">${n.body}</p>${from || to ? html`<p class="who">${from ? html`<span>${from.id}: المراقب <b>${from.sup.name}</b></span>` : ''}${to ? html`<span>${to.id}: المراقب <b>${to.sup.name}</b></span>` : ''}</p>` : ''}
+    ${n.recips && n.recips.length ? html`<p class="t-mut" style="font-size:12px">أُرسل إلى: ${n.recips.join('، ')}</p>` : ''}
+    <div class="row">${n.st === 'open' && to && can('move') ? html`<button class="btn sm dark" type="button" data-act="n-assign" data-id="${n.id}">إسناد ${to.id} وربط المهمتين</button><button class="btn sm" type="button" data-act="n-dismiss" data-id="${n.id}">تجاهل</button>` : ''}
+      <a class="btn sm wa" href="${safeUrl(wa('', notifText(n)))}" target="_blank" rel="noopener noreferrer">واتساب</a><a class="btn sm tg" href="${safeUrl(tgShare(notifText(n)))}" target="_blank" rel="noopener noreferrer">تليجرام</a>
+      ${from && to ? html`<a class="btn sm" href="${safeUrl(gdir(to, from))}" target="_blank" rel="noopener noreferrer">المسار</a>` : ''}</div></article>`;
+}
+
+let MAP = null, MARKERS = {};
+function mountMap() {
+  const el = $('#map'); if (!el) return;
+  if (!window.L) { el.outerHTML = html`<div class="mapfb" id="map">تعذّر تحميل الخريطة (لا يوجد اتصال). البيانات والتنبيهات تعمل، ويمكن فتح كل موقع في خرائط Google من بطاقة الفرقة.</div>`.s; return; }
+  if (MAP) { MAP.remove(); MAP = null; }
+  MARKERS = {};
+  MAP = L.map(el, { zoomControl: true, attributionControl: true });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(MAP);
+  DB.crews.forEach((c) => {
+    const col = TYPES[c.type][1]; const on = c.id === UI.sel;
+    const m = L.circleMarker([c.lat, c.lng], { radius: on ? 13 : 10, color: '#fff', weight: on ? 4 : 2, fillColor: col, fillOpacity: 1 }).addTo(MAP);
+    m.bindTooltip(c.id + ' · ' + TYPES[c.type][0], { permanent: true, direction: 'top', offset: [0, -10] });
+    m.on('click', () => { UI.sel = c.id; Object.keys(MARKERS).forEach((k) => MARKERS[k].setStyle({ radius: k === c.id ? 13 : 10, weight: k === c.id ? 4 : 2 })); renderSide(); });
+    MARKERS[c.id] = m;
+  });
+  const lr = UI.lastReq && crewById(UI.lastReq.from);
+  if (lr) {
+    L.circle([lr.lat, lr.lng], { radius: cfg().radiusKm * 1000, color: '#C2410C', weight: 2, dashArray: '6 6', fillOpacity: 0.07 }).addTo(MAP);
+    const to = UI.lastReq.to && crewById(UI.lastReq.to);
+    if (to) L.polyline([[lr.lat, lr.lng], [to.lat, to.lng]], { color: '#C2410C', weight: 3 }).addTo(MAP).bindTooltip(km(lr, to).toFixed(1) + ' كم', { permanent: true });
+  }
+  const toC = lr && UI.lastReq.to && crewById(UI.lastReq.to);
+  if (UI.mapView) MAP.setView(UI.mapView.c, UI.mapView.z);
+  else if (lr) MAP.fitBounds(L.latLngBounds([[lr.lat, lr.lng]].concat(toC ? [[toC.lat, toC.lng]] : [])).pad(1.2), { maxZoom: 15 });
+  else MAP.fitBounds(L.latLngBounds(DB.crews.map((c) => [c.lat, c.lng])).pad(0.15));
+  MAP.on('moveend', () => { UI.mapView = { c: MAP.getCenter(), z: MAP.getZoom() }; });
+}
+function renderSide() { const s = $('#opsSide'); if (s) { s.innerHTML = opsSide().s; translateUI(s); } }
+
+function viewCrews() {
+  const c = crewById(UI.sel) || DB.crews[0]; UI.sel = c.id; const r = readiness(c); const L_ = UI.layers;
+  const layerDefs = [['sup', 'المراقبون'], ['cars', 'سيارات المراقبين'], ['workers', 'العمال'], ['dynas', 'الديانات وسائقوها'], ['eq', 'المعدات'], ['drivers', 'سائقو المعدات']];
+  const car = c.sup.car, co = oilInfo(car.oil), ct = testInfo(car.tested);
+  const kinds = c.eq.reduce((a, e) => { a[e.kind] = (a[e.kind] || 0) + 1; return a; }, {});
+  const E = can('edit'), M = can('move');
+  return html`<div class="ph"><div><h1 style="font-size:28px">الفرق ومعداتها</h1><p>المراقب وسيارته ← العمال وكل عامل مع سائق ديانته ← معدات الفرقة بسائقيها. فرقة بلا معدة عاملة لا تعمل.</p></div>
+    ${E ? html`<button class="btn pri" type="button" data-act="crew-add">+ فرقة جديدة</button>` : ''}</div>
+  <div class="chips" role="group" aria-label="الطبقات"><span style="font-size:13px;font-weight:600;color:#334155">الطبقات:</span>${layerDefs.map((l) => html`<button type="button" class="chip" aria-pressed="${!!L_[l[0]]}" data-act="layer" data-k="${l[0]}">${l[1]}</button>`)}</div>
+  ${movePanel()}
+  <div class="split"><aside class="side" aria-label="الفرق" style="flex:1 1 280px">${DB.crews.map((x) => { const rr = crewState(x); return html`<button type="button" class="crewbtn" aria-pressed="${x.id === c.id}" data-act="crew-sel" data-id="${x.id}"><span class="row between" style="width:100%"><span class="nm">${x.name}</span><span class="pill ${rr.lvl}">${rr.label}</span></span><span class="t-mut" style="font-size:13px">1 مراقب · ${x.workers.length} عمال · ${x.workers.filter((w) => w.dyna).length} ديانة · ${x.eq.length} معدات</span><span class="t-mut" style="font-size:12px">${x.branch} · ${x.site}</span></button>`; })}</aside>
+  <section class="wide" aria-label="تفاصيل الفرقة">
+    <div class="card"><div class="row between"><div><h2 style="font-size:22px">${c.name}</h2><span class="t-mut" style="font-size:14px">${TYPES[c.type][0]} · ${c.branch} · ${c.site}</span></div>
+      <div class="row">${E ? html`<button class="btn sm" type="button" data-act="crew-edit">تعديل</button>` : ''}${M ? html`<button class="btn sm" type="button" data-act="move-crew">نقل لفرع آخر</button>` : ''}${can('request') ? (c.hold ? html`<button class="btn sm dark" type="button" data-act="crew-resume">استئناف الفرقة</button>` : html`<button class="btn sm" type="button" data-act="crew-hold">إيقاف الفرقة</button>`) : ''}
+      <a class="btn sm wa" href="${safeUrl(wa(c.sup.phone))}" target="_blank" rel="noopener noreferrer">واتساب الفرقة</a><a class="btn sm tg" href="${safeUrl(tg(c.sup.phone))}" target="_blank" rel="noopener noreferrer">تليجرام الفرقة</a></div></div>
+      <p class="alert ${r.lvl === 'ok' ? 'okk' : r.lvl === 'warn' ? 'wr' : 'err'}" role="status" style="font-weight:600">${r.text}</p>
+      ${c.hold ? html`<p class="alert err" style="font-weight:600">متوقفة: ${c.hold.reason}${c.hold.note ? ' — ' + c.hold.note : ''} · منذ ${ago(c.hold.since)}</p>` : ''}
+      <div class="grid g3" style="font-size:13px"><div class="kv"><span>المهندس المسؤول</span><b>${c.eng ? c.eng.name : 'غير محدد'}</b><span>${contactLinks(c.eng)}</span></div><div class="kv"><span>المهام المفتوحة</span><b>${crewTasks(c.id).filter((j) => j.st !== 'done').length}</b><button class="btn ghost sm" type="button" data-act="nav" data-v="tasks" style="padding:0;width:max-content;color:var(--acc)">عرض المهام</button></div><div class="kv"><span>مستندات الفرقة</span><b>${DB.docs.filter((d) => d.crewId === c.id).length}</b><button class="btn ghost sm" type="button" data-act="docs-crew" data-id="${c.id}" style="padding:0;width:max-content;color:var(--acc)">عرض الوثائق</button></div></div></div>
+    ${L_.sup ? html`<div class="card"><div class="row between"><h3 style="font-size:16px;color:#334155">المراقب</h3>${E ? html`<button class="btn sm" type="button" data-act="sup-edit">تعديل المراقب وسيارته</button>` : ''}</div>
+      <div class="row between"><div class="row"><span class="avatar">${c.sup.name.replace('م/', '').charAt(0)}</span><div><b style="font-size:16px">${c.sup.name}</b><div class="t-mut ltr" style="font-size:13px">+${c.sup.phone}</div></div></div>
+      <div class="row"><a class="lnk w" href="${safeUrl(wa(c.sup.phone))}" target="_blank" rel="noopener noreferrer">واتساب</a><a class="lnk t" href="${safeUrl(tg(c.sup.phone))}" target="_blank" rel="noopener noreferrer">تليجرام</a></div></div>
+      ${L_.cars ? html`<div class="carbox"><div class="kv"><span>سيارة المراقب</span><b>${car.model}</b></div><div class="kv"><span>اللوحة / رقم المعدة</span><b>${car.code}</b></div><div class="kv"><span>الحالة</span><span class="pill ${ST[car.st][1]}">${ST[car.st][0]}</span></div><div class="kv"><span>غيار الزيت</span><span class="${co[1]}">${co[0]}</span></div><div class="kv"><span>تجربة التشغيل</span><span class="${ct[1]}">${ct[0]}</span></div></div>` : ''}</div>` : ''}
+    ${L_.workers ? html`<div class="card"><div class="row between"><h3 style="font-size:16px;color:#334155">العمال تحت المراقب · ${c.workers.length}</h3>${E ? html`<button class="btn sm" type="button" data-act="w-add">+ إضافة عامل</button>` : ''}</div>
+      ${c.workers.length ? html`<ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px">${c.workers.map((w) => workerRow(c, w, E, M))}</ul>` : html`<p class="empty">لا يوجد عمال في هذه الفرقة.</p>`}</div>` : ''}
+    ${L_.eq ? html`<div class="card"><div class="row between"><h3 style="font-size:16px;color:#334155">معدات الفرقة والسائقون · ${Object.keys(kinds).map((k) => kinds[k] + ' ' + k).join(' · ') || 'لا معدات'}</h3>${E ? html`<button class="btn sm" type="button" data-act="eq-add">+ إضافة معدة</button>` : ''}</div>
+      ${c.eq.length ? html`<div class="tblw"><table style="min-width:760px"><thead><tr><th scope="col">المعدة</th><th scope="col">الرقم / اللوحة</th>${L_.drivers ? html`<th scope="col">السائق</th>` : ''}<th scope="col">الحالة</th><th scope="col">غيار الزيت</th><th scope="col">تجربة التشغيل</th><th scope="col">إجراء</th></tr></thead>
+      <tbody>${c.eq.map((e) => { const o = oilInfo(e.oil), t = testInfo(e.tested); return html`<tr><td><b>${e.kind}</b></td><td>${e.code}</td>${L_.drivers ? html`<td>${e.driver ? html`<span class="row" style="gap:8px">${e.driver.name}<a class="lnk w" href="${safeUrl(wa(e.driver.phone))}" target="_blank" rel="noopener noreferrer" aria-label="واتساب ${e.driver.name}">واتساب</a></span>` : html`<span class="pill bad">بدون سائق</span>`}</td>` : ''}<td><span class="pill ${ST[e.st][1]}">${ST[e.st][0]}</span></td><td><span class="${o[1]}">${o[0]}</span></td><td><span class="${t[1]}">${t[0]}</span></td>
+        <td><div class="row" style="gap:6px">${E ? html`<button class="btn sm" type="button" data-act="eq-edit" data-id="${e.id}">تعديل</button>` : ''}${M ? html`<button class="btn sm" type="button" data-act="move-eq" data-id="${e.id}">نقل</button>` : ''}</div></td></tr>`; })}</tbody></table></div>` : html`<p class="empty">لا توجد معدات — الفرقة لا تستطيع العمل.</p>`}</div>` : ''}
+  </section></div>`;
+}
+function workerRow(c, w, E, M) {
+  const y = w.dyna;
+  return html`<li class="worker"><div class="top"><div style="flex:1 1 200px;min-width:0"><b style="font-size:15px">${w.name}</b><div class="t-mut" style="font-size:12px">${w.role}</div></div>
+    <a class="lnk w" href="${safeUrl(wa(w.phone))}" target="_blank" rel="noopener noreferrer" aria-label="واتساب ${w.name}">واتساب</a><a class="lnk t" href="${safeUrl(tg(w.phone))}" target="_blank" rel="noopener noreferrer" aria-label="تليجرام ${w.name}">تليجرام</a>
+    ${E ? html`<button class="btn sm" type="button" data-act="w-edit" data-id="${w.id}">تعديل</button>` : ''}${M ? html`<button class="btn sm" type="button" data-act="move-w" data-id="${w.id}">نقل العامل</button>` : ''}</div>
+    ${UI.layers.dynas ? (y ? (() => { const o = oilInfo(y.oil), t = testInfo(y.tested); return html`<div class="dyna"><div class="kv"><span>سائق الديانة</span><b>${y.driver ? y.driver.name : 'بدون سائق'}</b>${y.driver ? html`<a class="lnk w" href="${safeUrl(wa(y.driver.phone))}" target="_blank" rel="noopener noreferrer">واتساب السائق</a>` : ''}</div><div class="kv"><span>رقم الديانة</span><b>${y.code}</b></div><div class="kv"><span>الحالة</span><span class="pill ${ST[y.st][1]}">${ST[y.st][0]}</span></div><div class="kv"><span>غيار الزيت</span><span class="${o[1]}">${o[0]}</span></div><div class="kv"><span>تجربة التشغيل</span><span class="${t[1]}">${t[0]}</span></div>
+      <div class="row" style="gap:6px">${E ? html`<button class="btn sm" type="button" data-act="dy-edit" data-id="${w.id}">تعديل</button>` : ''}${M ? html`<button class="btn sm" type="button" data-act="move-dy" data-id="${w.id}">نقل الديانة</button>` : ''}</div></div>`; })()
+      : html`<div class="nody"><span>بلا ديانة مُسندة — العامل بلا نقل.</span>${E ? html`<button class="btn sm" type="button" data-act="dy-add" data-id="${w.id}">إسناد ديانة بسائقها</button>` : ''}</div>`) : ''}</li>`;
+}
+function movePanel() {
+  const m = UI.move; if (!m) return '';
+  const isCrew = m.kind === 'crew'; const from = crewById(m.from);
+  const targets = isCrew ? DB.branches.filter((b) => b !== from.branch).map((b) => [b, b]) : DB.crews.filter((x) => x.id !== m.from).map((x) => [x.id, x.name]);
+  return html`<div class="movep" role="dialog" aria-label="نقل"><b style="font-size:16px">نقل: ${m.label}</b><span style="font-size:13px;color:#334155">${isCrew ? 'اختر الفرع المستلم — تنتقل الفرقة بمراقبها وعمالها ودياناتها ومعداتها:' : 'اختر الفرقة المستلمة:'}</span>
+    <div class="chips">${targets.map((t) => html`<button type="button" class="chip" aria-pressed="${m.target === t[0]}" data-act="move-target" data-id="${t[0]}">${t[1]}</button>`)}</div>
+    ${m.kind === 'eq' || m.kind === 'worker' ? html`<label class="row" style="min-height:44px;font-size:14px"><input type="checkbox" data-change="move-driver" ${m.withDriver ? new Safe('checked') : ''} style="width:20px;height:20px;accent-color:var(--acc)"> ${m.kind === 'worker' ? 'ينتقل العامل مع ديانته وسائقها' : 'تنتقل المعدة مع سائقها'}</label>` : ''}
+    <div class="row"><button class="btn dark" type="button" data-act="move-go" ${m.target ? '' : new Safe('disabled')}>تأكيد النقل وإشعار المراقبَين</button><button class="btn" type="button" data-act="move-cancel">إلغاء</button></div></div>`;
+}
+
+function viewEquip() {
+  const f = UI.eqFilter, q = UI.eqQ.trim();
+  const rows = allEquipment().filter((x) => (f === 'all' || (f === 'care' ? needsCare(x.u) : x.u.st === f)) && (!q || (x.u.kind + x.u.code + x.crew.id + x.crew.name + (x.driver ? x.driver.name : '')).includes(q)));
+  const chips = [['all', 'الكل'], ['care', 'تحتاج متابعة'], ['ok', 'تعمل'], ['due', 'تحتاج صيانة'], ['shop', 'في الورشة']];
+  return html`<div class="ph"><div><h1 style="font-size:28px">سجل المعدات</h1><p>كل المعدات والديانات وسيارات المراقبين عبر الفرق — مع سائقيها وحالتها وغيار الزيت والتجربة.</p></div></div>
+  ${movePanel()}
+  <div class="card"><div class="row between"><div class="chips">${chips.map((c) => html`<button type="button" class="chip" aria-pressed="${f === c[0]}" data-act="eq-filter" data-k="${c[0]}">${c[1]}</button>`)}</div>
+    <div class="fld" style="flex:0 1 280px"><label class="sr" for="eqq">بحث</label><input class="in" id="eqq" type="search" placeholder="بحث بالرقم أو الفرقة أو السائق" value="${UI.eqQ}" data-input="eq-q"></div></div>
+  ${rows.length ? html`<div class="tblw"><table style="min-width:900px"><thead><tr><th scope="col">المعدة</th><th scope="col">الرقم / اللوحة</th><th scope="col">الفرقة</th><th scope="col">السائق / المستخدم</th><th scope="col">الحالة</th><th scope="col">غيار الزيت</th><th scope="col">تجربة التشغيل</th><th scope="col">إجراء</th></tr></thead>
+  <tbody>${rows.map((x) => { const o = oilInfo(x.u.oil), t = testInfo(x.u.tested); return html`<tr><td><b>${x.where === 'car' ? 'سيارة مراقب' : x.u.kind}</b>${x.where === 'dyna' ? html`<div class="t-mut" style="font-size:12px">مع العامل ${x.worker.name}</div>` : ''}</td><td>${x.u.code}</td><td>${x.crew.id}</td><td>${x.driver ? x.driver.name : html`<span class="pill bad">بدون سائق</span>`}</td><td><span class="pill ${ST[x.u.st][1]}">${ST[x.u.st][0]}</span></td><td><span class="${o[1]}">${o[0]}</span></td><td><span class="${t[1]}">${t[0]}</span></td>
+    <td>${can('move') && x.where !== 'car' ? html`<button class="btn sm" type="button" data-act="${x.where === 'eq' ? 'move-eq' : 'move-dy'}" data-crew="${x.crew.id}" data-id="${x.where === 'eq' ? x.u.id : x.worker.id}">نقل</button>` : ''}</td></tr>`; })}</tbody></table></div>` : html`<p class="empty">لا نتائج مطابقة.</p>`}</div>`;
+}
+
+function viewAI() {
+  const P = cfg().providers;
+  const quick = ['ما الأوراق والترتيبات الناقصة لمهام اليوم وغداً؟', 'ما المعدات التي تحتاج صيانة أو غيار زيت هذا الأسبوع؟', 'ما أقرب فرقة حفريات لكل فرقة كهرباء؟', 'لخّص جاهزية الفرق وما الذي يوقف أي فرقة.'];
+  return html`<div class="ph"><div><h1 style="font-size:28px">الوكيل الذكي</h1><p>تحليل بيانات الأعمال والتحقق المكاني عبر مزودين مجانيين بترتيب احتياطي. إن لم يتوفر مزود، يعمل تحليل محلي داخل المنصة.</p></div></div>
+  ${perfPanel()}
+  ${CLOUD ? html`<div class="card"><h2 style="font-size:17px">المزودون</h2><p style="font-size:14px;line-height:1.8">يعمل الذكاء الاصطناعي عبر خادم الشركة: ${(CLOUD.ai || []).length ? (CLOUD.ai || []).join(' ← ') : 'لم يُضبط أي مزود بعد'}. المفاتيح محفوظة في Secret Manager ولا تصل إلى المتصفح.</p></div>` : html`<div class="card"><h2 style="font-size:17px">المزودون — بالترتيب (الأول أساسي والباقي احتياطي)</h2>
+    ${P.map((p, i) => html`<div class="prov"><label class="row" style="gap:8px"><input type="checkbox" data-change="prov-on" data-id="${p.id}" ${p.on ? new Safe('checked') : ''} style="width:20px;height:20px;accent-color:var(--acc)"><span class="sr">تفعيل ${p.name}</span><span class="num">${i + 1}</span></label>
+      <div><b>${p.name}</b>${p.note ? html`<div class="t-mut" style="font-size:12px">${p.note}</div>` : ''}</div>
+      <div class="fld"><label class="sr" for="pb_${p.id}">العنوان</label><input class="in ltr" id="pb_${p.id}" value="${p.base}" data-change="prov-base" data-id="${p.id}" ${can('settings') ? '' : new Safe('disabled')}></div>
+      <div class="fld"><label class="sr" for="pm_${p.id}">النموذج</label>${p.models && p.models.length ? html`<select class="in ltr" id="pm_${p.id}" data-change="prov-model" data-id="${p.id}">${p.models.map((m) => html`<option ${m === p.model ? new Safe('selected') : ''}>${m}</option>`)}</select>` : html`<input class="in ltr" id="pm_${p.id}" placeholder="model id" value="${p.model}" data-change="prov-model" data-id="${p.id}">`}</div>
+      <div class="fld"><label class="sr" for="pk_${p.id}">المفتاح</label><input class="in ltr" id="pk_${p.id}" type="password" autocomplete="off" placeholder="${p.id === '9router' ? 'مفتاح البوابة إن وُجد' : 'API key — في الذاكرة فقط'}" value="${AI_KEYS[p.id] || ''}" data-change="prov-key" data-id="${p.id}"></div>
+      <div class="row" style="gap:6px"><button class="btn sm" type="button" data-act="prov-models" data-id="${p.id}">جلب النماذج</button><button class="btn sm" type="button" data-act="prov-up" data-id="${p.id}" aria-label="رفع ${p.name}">▲</button></div></div>`)}
+    <p class="alert note">المفاتيح تُحفظ في ذاكرة الصفحة فقط وتُمسح عند الإغلاق. للتشغيل الدائم استخدم 9Router على جهاز أو خادم الشركة: تضع المفاتيح داخل البوابة، ولا يصل أي مفتاح إلى المتصفح. لا تُرسل أرقام الجوالات للمزودين.</p></div>`}
+  <div class="card"><h2 style="font-size:17px">اسأل عن الميدان</h2>
+    <div class="chips">${quick.map((q) => html`<button type="button" class="chip" data-act="ai-quick" data-q="${q}">${q}</button>`)}</div>
+    ${UI.ai.q ? html`<div class="msg q">${UI.ai.q}</div>` : ''}
+    ${UI.ai.busy ? html`<div class="msg a">جارٍ التحليل…</div>` : UI.ai.a ? html`<div class="msg a">${UI.ai.a}</div><span class="t-mut" style="font-size:12px">أُجيب عبر: ${UI.ai.via}</span>` : ''}
+    <form class="row" data-form="ai"><label class="sr" for="aiq">سؤالك</label><input class="in" id="aiq" name="q" maxlength="2000" placeholder="اكتب سؤالاً عن الفرق أو المعدات أو المواقع…" style="flex:1 1 300px"><button class="btn pri" type="submit" ${UI.ai.busy ? new Safe('disabled') : ''}>إرسال</button></form></div>`;
+}
+
+function viewUsers() {
+  const pend = DB.reqs.filter((r) => r.st === 'pending');
+  return html`<div class="ph"><div><h1 style="font-size:28px">المستخدمون والطلبات</h1><p>اعتماد الحسابات وإصدار رموز التفعيل وتعديل الصلاحيات.</p></div><button class="btn pri" type="button" data-act="u-add">+ إضافة مستخدم</button></div>
+  ${UI.lastCode ? html`<div class="alert okk" role="status"><b>رمز التفعيل لـ ${UI.lastCode.name}: <span class="ltr" style="letter-spacing:3px">${UI.lastCode.code}</span></b> — صالح 72 ساعة، ولن يظهر مرة أخرى. أرسله للمستخدم:
+    <div class="row" style="margin-top:8px"><a class="btn sm wa txt" href="${safeUrl(wa(UI.lastCode.phone, 'ميدان: رمز تفعيل حسابك ' + UI.lastCode.code + ' — صالح 72 ساعة. ادخل برقم إقامتك ثم أدخل الرمز.'))}" target="_blank" rel="noopener noreferrer">إرسال عبر واتساب</a><a class="btn sm tg txt" href="${safeUrl(tgShare('ميدان: رمز تفعيل حسابك ' + UI.lastCode.code))}" target="_blank" rel="noopener noreferrer">إرسال عبر تليجرام</a><button class="btn sm" type="button" data-act="code-hide">إخفاء</button></div></div>` : ''}
+  <div class="card"><h2 style="font-size:17px">طلبات الحسابات · ${pend.length}</h2>
+    ${pend.length ? html`<div class="tblw"><table><thead><tr><th scope="col">الاسم</th><th scope="col">الإقامة</th><th scope="col">الجوال</th><th scope="col">الصلاحية</th><th scope="col">ملاحظة</th><th scope="col">إجراء</th></tr></thead><tbody>
+    ${pend.map((r) => html`<tr><td><b>${r.name}</b><div class="t-mut" style="font-size:12px">${ago(r.tm)}</div></td><td class="ltr">${maskIqama(r.iqama)}</td><td class="ltr">${maskPhone(r.phone)}</td><td>${ROLES[r.role]}</td><td style="max-width:260px;overflow-wrap:anywhere">${r.msg}</td><td><div class="row" style="gap:6px"><button class="btn sm dark" type="button" data-act="r-ok" data-id="${r.id}">اعتماد</button><button class="btn sm" type="button" data-act="r-no" data-id="${r.id}">رفض</button></div></td></tr>`)}</tbody></table></div>` : html`<p class="empty">لا طلبات معلّقة.</p>`}</div>
+  <div class="card"><h2 style="font-size:17px">المستخدمون · ${DB.users.length}</h2><div class="tblw"><table><thead><tr><th scope="col">الاسم</th><th scope="col">الإقامة</th><th scope="col">الصلاحية</th><th scope="col">الحالة</th><th scope="col">إجراء</th></tr></thead><tbody>
+    ${DB.users.map((u) => html`<tr><td><b>${u.name}</b><div class="t-mut ltr" style="font-size:12px">${maskPhone(u.phone)}</div></td><td class="ltr">${maskIqama(u.iqama)}</td><td>${ROLES[u.role]}</td><td><span class="pill ${u.activation || u.pending ? 'warn' : u.active ? 'ok' : 'bad'}">${u.activation || u.pending ? 'بانتظار التفعيل' : u.active ? 'نشط' : 'موقوف'}</span></td>
+      <td>${u.id === CUR.id ? html`<span class="t-mut">أنت</span>` : html`<div class="row" style="gap:6px"><button class="btn sm" type="button" data-act="u-role" data-id="${u.id}">الصلاحية</button><button class="btn sm" type="button" data-act="u-reset" data-id="${u.id}">رمز تفعيل جديد</button><button class="btn sm" type="button" data-act="u-toggle" data-id="${u.id}">${u.active ? 'إيقاف' : 'تفعيل'}</button></div>`}</td></tr>`)}</tbody></table></div></div>`;
+}
+
+function viewSecurity() {
+  const locks = Object.keys(DB.locks).filter((k) => DB.locks[k].until > Date.now());
+  const enforced = [['كلمات المرور', 'مشفّرة PBKDF2-SHA256 (210,000 تكرار) مع ملح عشوائي — لا كلمات مرور افتراضية في الكود'], ['رمز التحقق', '6 أرقام عشوائية آمنة، صالح 5 دقائق، 3 محاولات، يُخزَّن مُجزّأً'], ['القفل', '15 دقيقة بعد 5 محاولات خاطئة مع إشعار المشرف'], ['الجلسة', 'تنتهي بعد 30 دقيقة خمول وتُمسح بإغلاق المتصفح'], ['الحقن XSS', 'كل نص يُهرَّب تلقائياً قبل العرض، ولا معالجات أحداث داخلية'], ['CSP و SRI', 'سياسة أمان صارمة وبصمة تحقق للمكتبات الخارجية'], ['مفاتيح الذكاء الاصطناعي', 'في الذاكرة فقط، أو داخل بوابة 9Router']];
+  return html`<div class="ph"><div><h1 style="font-size:28px">الأمان وسجل الدخول</h1><p>ما تفرضه المنصة الآن، وسجل كل عمليات الدخول والتعديل.</p></div></div>
+  <div class="split"><section class="wide"><div class="card"><h2 style="font-size:17px">سجل الدخول والتدقيق</h2><div class="tblw"><table style="min-width:640px"><thead><tr><th scope="col">الوقت</th><th scope="col">المستخدم</th><th scope="col">الجهاز</th><th scope="col">العملية</th><th scope="col">تفاصيل</th></tr></thead><tbody>
+    ${DB.audit.slice(0, 120).map((a) => html`<tr><td class="ltr">${fmtT(a.tm)}</td><td>${a.user}</td><td>${a.dev}</td><td><span class="pill ${a.res === 'نجاح' ? 'ok' : /خاطئ|قفل/.test(a.res) ? 'bad' : 'mutp'}">${a.res}</span></td><td style="max-width:280px;overflow-wrap:anywhere" class="t-mut">${a.detail}</td></tr>`)}</tbody></table></div></div></section>
+  <aside class="side"><div class="card"><h2 style="font-size:17px">الحماية المفعّلة</h2><ul style="margin:0;padding-inline-start:18px;display:flex;flex-direction:column;gap:8px;font-size:13px;line-height:1.7">${enforced.map((e) => html`<li><b>${e[0]}:</b> ${e[1]}</li>`)}</ul></div>
+    <div class="card"><h2 style="font-size:17px">حسابات مقفلة الآن · ${locks.length}</h2>${locks.length ? locks.map((k) => html`<div class="row between"><span class="ltr">${maskIqama(k)}</span><button class="btn sm" type="button" data-act="unlock" data-id="${k}">فك القفل</button></div>`) : html`<p class="t-mut" style="font-size:13px">لا يوجد.</p>`}</div>
+    <div class="card"><h2 style="font-size:17px">قبل التشغيل الفعلي</h2><p style="font-size:13px;line-height:1.8">هذه نسخة تعمل من ملف واحد وتحفظ بياناتها على الجهاز. للتشغيل على عدة أجهزة بأمان كامل يلزم خادم يتحقق من الدخول ويرسل الرموز (Twilio أو Unifonic)، وتُنقل البيانات إليه عبر «تصدير البيانات» من الإعدادات.</p></div></aside></div>`;
+}
+
+function viewSettings() {
+  const s = cfg();
+  return html`<div class="ph"><div><h1 style="font-size:28px">الإعدادات</h1><p>قواعد التنسيق والصيانة، وبوابة الرسائل، والفروع، والبيانات.</p></div></div>
+  <form class="card" data-form="settings"><h2 style="font-size:17px">القواعد</h2><div class="grid g3">
+    ${fieldHtml({ k: 'radiusKm', label: 'نطاق البحث عن الفرقة القريبة (كم)', type: 'number', val: s.radiusKm })}${fieldHtml({ k: 'oilWarn', label: 'تنبيه غيار الزيت قبل (كم)', type: 'number', val: s.oilWarn })}${fieldHtml({ k: 'kmPerDay', label: 'متوسط السير اليومي (كم)', type: 'number', val: s.kmPerDay })}</div>
+    ${fieldHtml({ k: 'otpGateway', label: 'بوابة إرسال رمز التحقق (https)', ltr: true, val: s.otpGateway, ph: 'https://api.your-company.sa/otp', hint: 'تستقبل POST {channel, to, code} وترسل SMS أو بريداً عبر مزودك. اتركها فارغة للوضع التجريبي.' })}
+    <div class="row"><button class="btn pri" type="submit">حفظ الإعدادات</button></div></form>
+  ${listsManager()}
+  <div class="card"><h2 style="font-size:17px">البيانات</h2><div class="row"><button class="btn" type="button" data-act="export">تصدير البيانات (JSON)</button><label class="btn" for="imp">استيراد بيانات الفرق</label><input id="imp" type="file" accept="application/json" class="sr" data-change="import"><button class="btn" type="button" data-act="reset-ops" style="color:var(--red)">إعادة بيانات الفرق التجريبية</button></div>
+  <p class="t-mut" style="font-size:13px">الاستيراد يستبدل الفرق والأعمال والفروع فقط، ولا يمس الحسابات.</p></div>`;
+}
+
+// ================= v2: crew status, tasks, documents, smart alerts, dashboard =================
+const crewTasks = (cid) => DB.jobs.filter((j) => j.crewId === cid);
+function crewState(c) {
+  const r = readiness(c);
+  if (c.hold) return { lvl: 'bad', label: 'متوقفة', reason: c.hold.reason, note: c.hold.note || '' };
+  if (r.lvl === 'bad') return { lvl: 'bad', label: 'متوقفة', reason: 'نقص معدات', note: r.text };
+  const open = crewTasks(c.id).filter((j) => j.st !== 'done');
+  const prog = open.filter((j) => j.st === 'prog'), holds = open.filter((j) => j.st === 'hold');
+  if (prog.length) return { lvl: r.lvl === 'warn' ? 'warn' : 'ok', label: 'تعمل', reason: r.lvl === 'warn' ? 'مع تنبيهات صيانة' : '', note: '' };
+  if (holds.length) return { lvl: 'bad', label: 'متوقفة', reason: holds[0].hold ? holds[0].hold.reason : 'غير محدد', note: holds[0].title };
+  if (open.length) return { lvl: 'info', label: 'جاهزة', reason: 'بانتظار بدء المهام', note: '' };
+  return { lvl: 'mutp', label: 'بلا مهام', reason: '', note: '' };
+}
+function productivity(c) {
+  const since = Date.now() - 30 * 864e5;
+  const done = crewTasks(c.id).filter((j) => j.st === 'done' && j.doneAt && new Date(j.doneAt) >= since);
+  const onTime = done.filter((j) => dstr(j.doneAt) <= j.date).length;
+  const docsAll = crewTasks(c.id).filter((j) => j.st !== 'done').map((j) => docStatus(j)).flat().filter((x) => x.need);
+  return { done: done.length, onTime: done.length ? Math.round((onTime / done.length) * 100) : null, active: crewTasks(c.id).filter((j) => j.st !== 'done').length, docs: docsAll.length ? Math.round((docsAll.filter((x) => x.ok).length / docsAll.length) * 100) : null };
+}
+function docStatus(t) {
+  const valid = (d) => !(d.exp && daysTo(d.exp) < 0);
+  const has = (type) => DB.docs.some((d) => d.type === type && valid(d) && (d.taskId === t.id || (CREW_LEVEL_DOCS.includes(type) && !d.taskId && d.crewId && d.crewId === t.crewId) || (!d.taskId && !d.crewId && d.workType && d.workType === t.workType)));
+  const dd = daysTo(t.date);
+  return requiredDocsFor(t).map((type) => {
+    if (type === 'تصريح') return { type, ok: (!!t.permit && !(t.permitExp && daysTo(t.permitExp) < 0)) || has('تصريح'), need: true };
+    if (type === 'اجتماع ما قبل العمل') return { type, ok: DB.docs.some((d) => d.type === type && d.taskId === t.id && d.form && d.form.date === today()) || (dd > 0 && has(type)), need: dd <= 0 && t.st !== 'done' };
+    return { type, ok: has(type), need: t.st !== 'done' };
+  });
+}
+const people = () => {
+  const m = {};
+  DB.crews.forEach((c) => { if (c.eng) { m[c.eng.name] = m[c.eng.name] || { name: c.eng.name, phone: c.eng.phone, role: 'مهندس', crews: [] }; m[c.eng.name].crews.push(c.id); }
+    m[c.sup.name] = m[c.sup.name] || { name: c.sup.name, phone: c.sup.phone, role: 'مراقب', crews: [] }; m[c.sup.name].crews.push(c.id); });
+  return Object.values(m).sort((a, b) => (a.role === b.role ? a.name.localeCompare(b.name, 'ar') : a.role === 'مهندس' ? -1 : 1));
+};
+
+function smartAlerts() {
+  const A = []; const seen = new Set();
+  const add = (lvl, title, body, o) => { const id = title + '|' + (o && (o.task || o.unit || o.emp || o.crew || o.doc) || ''); if (seen.has(id)) return; seen.add(id); A.push(Object.assign({ id, lvl, title, body }, o || {})); };
+  DB.jobs.forEach((t) => {
+    const nm = t.title + (t.crewId ? ' · ' + t.crewId : ''); const dd = daysTo(t.date);
+    if (t.st !== 'done') {
+      const sin = t.reqs.find((r) => r.type === SAFE_IN);
+      if (dd <= 1 && t.st !== 'hold' && (!sin || sin.st !== 'done')) add(dd <= 0 ? 'bad' : 'warn', 'تأمين السلامة والإنارة لم يُنفَّذ', nm + ' — التنفيذ ' + fmtD(t.date) + '. يجب تأمين الموقع بالسلامة والإنارة قبل التنفيذ بيوم.', { task: t.id, to: 'السلامة والإنارة' });
+      if (!t.permit) add(dd <= 2 ? 'bad' : 'warn', 'لا يوجد رقم تصريح', nm + ' — لا يُبدأ العمل بدون تصريح ساري.', { task: t.id });
+      else if (t.permitExp) { const pe = daysTo(t.permitExp); if (pe < 0) add('bad', 'التصريح ' + t.permit + ' منتهٍ', nm + ' — انتهى في ' + t.permitExp + '. جدّده قبل أي عمل.', { task: t.id }); else if (pe <= 3) add('warn', 'التصريح ' + t.permit + ' ينتهي ' + fmtD(t.permitExp), nm + ' — ابدأ إجراءات التمديد الآن.', { task: t.id }); }
+      if (dd <= 2) { const miss = docStatus(t).filter((x) => x.need && !x.ok && x.type !== 'تصريح').map((x) => x.type); if (miss.length) add(dd <= 0 ? 'bad' : 'warn', 'نقص مستندات: ' + miss.join('، '), nm + ' — التنفيذ ' + fmtD(t.date) + '.', { task: t.id, docType: miss[0] }); }
+      if (t.st === 'hold') add('bad', 'مهمة متوقفة: ' + (t.hold ? t.hold.reason : ''), nm + (t.hold && t.hold.note ? ' — ' + t.hold.note : ''), { task: t.id });
+      if (t.close && !t.close.finished && t.close.remaining && t.close.remaining.length) add('warn', 'متبقٍ في الموقع: ' + t.close.remaining.join('، '), nm + ' — آخر تحديث للموقع ' + ago(t.close.tm) + '.', { task: t.id });
+      if (dd < 0 && t.st === 'new') add('warn', 'مهمة متأخرة لم تبدأ', nm + ' — كان موعدها ' + t.date + '.', { task: t.id });
+      if (t.st === 'prog' && dd < 0 && !t.close) add('warn', 'لم يُحدَّث وضع الموقع', nm + ' — حدّث حالة الموقع قبل المغادرة.', { task: t.id });
+    } else {
+      const so = t.reqs.find((r) => r.type === SAFE_OUT);
+      if (!so || so.st !== 'done') add('warn', 'إزالة السلامة والإنارة بعد التنفيذ', nm + ' — المهمة منجزة والسلامة ما زالت في الموقع.', { task: t.id, to: 'السلامة والإنارة' });
+    }
+    t.reqs.filter((r) => r.st === 'open' && r.type !== SAFE_IN && r.type !== SAFE_OUT && r.due && daysTo(r.due) < 0).forEach((r) => add('warn', 'طلب متأخر: ' + r.type, nm + ' — قسم ' + r.dept + '، كان مطلوباً ' + r.due + '.', { task: t.id, to: r.dept }));
+  });
+  DB.crews.forEach((c) => {
+    if (c.hold) { const days = Math.floor((Date.now() - new Date(c.hold.since)) / 864e5); add(days >= 2 ? 'bad' : 'warn', c.id + ' متوقفة: ' + c.hold.reason, (days ? 'منذ ' + days + ' أيام. ' : '') + (c.hold.note || ''), { crew: c.id }); }
+    const r = readiness(c); if (r.lvl === 'bad') add('bad', c.id + ': ' + r.label, r.text, { crew: c.id });
+  });
+  DB.docs.forEach((d) => { if (d.exp) { const n = daysTo(d.exp); const nm = (d.title || d.type) + (d.crewId ? ' · ' + d.crewId : ''); if (n < 0) add('bad', 'مستند منتهٍ: ' + d.type, nm + ' — انتهى ' + d.exp + '.', { doc: d.id }); else if (n <= 7) add('warn', 'مستند ينتهي ' + fmtD(d.exp), nm, { doc: d.id }); } });
+  DB.crews.forEach((c) => allUnitsOf(c).forEach((u) => { const due = maintDue(u); if (due.length) add(due.some((m) => m.p.key === 'brakes' || m.p.key === 'reg') ? 'bad' : 'warn', 'صيانة دورية مستحقة: ' + (u === c.sup.car ? 'سيارة المراقب' : u.kind) + ' ' + u.code, c.id + ' — ' + due.map((m) => m.text).join('، '), { crew: c.id, unit: u.id }); }));
+  (DB.employees || []).forEach((e) => { const L = empLink(e); if (!L) return; const bad = [], warn = []; DB.lists.empDocs.forEach((t) => { const st = empDocState(e, t); if (st.lvl === 'bad') bad.push(t + ' (' + st.d.exp + ')'); else if (st.lvl === 'warn') warn.push(t + ' (' + fmtD(st.d.exp) + ')'); });
+    if (bad.length) add('bad', 'مستندات منتهية: ' + e.name, L.crew.id + ' · ' + L.role + ' — ' + bad.join('، '), { crew: L.crew.id, emp: e.id }); else if (warn.length) add('warn', 'مستندات تنتهي قريباً: ' + e.name, L.crew.id + ' · ' + L.role + ' — ' + warn.join('، '), { crew: L.crew.id, emp: e.id }); });
+  hierarchyIssues().forEach((i) => add('warn', 'ربط ناقص: ' + i.text, 'السلسلة الإلزامية: المعدة بسائقها ← المراقب ← المهندس ← المشروع ← الفرع.', { crew: i.crew }));
+  return A.sort((a, b) => (a.lvl === 'bad' ? 0 : 1) - (b.lvl === 'bad' ? 0 : 1));
+}
+const alertText = (a) => 'ميدان | تنبيه: ' + a.title + '\n' + a.body;
+let NOTIFIED = new Set();
+function pushBrowserAlerts() {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  smartAlerts().filter((a) => a.lvl === 'bad' && !NOTIFIED.has(a.id)).slice(0, 3).forEach((a) => { NOTIFIED.add(a.id); try { new Notification('ميدان — ' + a.title, { body: a.body, tag: a.id }); } catch (e) { /* ignore */ } });
+}
+
+// ---------- local files (IndexedDB; memory in demo) ----------
+const FILES_MEM = {};
+const ALLOWED_FILES = { 'application/pdf': 1, 'image/jpeg': 1, 'image/png': 1, 'image/webp': 1, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 1, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 1 };
+function idb() { return new Promise((res, rej) => { const r = indexedDB.open('maydan_files', 1); r.onupgradeneeded = () => r.result.createObjectStore('f'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); }
+async function filePut(id, blob) { if (DEMO) { FILES_MEM[id] = blob; return; } if (CLOUD) { const r = await fetch('/api/files', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': blob.type || 'application/octet-stream', 'X-Requested-With': 'maydan', 'X-File-Id': id, 'X-File-Name': encodeURIComponent(blob.name || 'file') }, body: blob }); if (!r.ok) throw new Error('upload ' + r.status); return; } const db = await idb(); await new Promise((res, rej) => { const tx = db.transaction('f', 'readwrite'); tx.objectStore('f').put(blob, id); tx.oncomplete = res; tx.onerror = () => rej(tx.error); }); }
+async function fileGet(id) { if (DEMO) return FILES_MEM[id]; if (CLOUD) { const r = await fetch('/api/files/' + encodeURIComponent(id), { credentials: 'same-origin' }); if (r.ok) return r.blob(); } const db = await idb(); return new Promise((res, rej) => { const q = db.transaction('f').objectStore('f').get(id); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }); }
+async function fileDel(id) { if (DEMO) { delete FILES_MEM[id]; return; } if (CLOUD) { fetch('/api/files/' + encodeURIComponent(id), { method: 'DELETE', credentials: 'same-origin', headers: { 'X-Requested-With': 'maydan' } }).catch(() => {}); return; } try { const db = await idb(); db.transaction('f', 'readwrite').objectStore('f').delete(id); } catch (e) { /* ignore */ } }
+const safeName = (n) => String(n || 'file').replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').slice(0, 120);
+
+// ---------- shared bits ----------
+const pct = (n, max) => (max ? Math.max(3, Math.round((n / max) * 100)) : 0);
+const bar = (n, max, color) => html`<span style="display:block;height:10px;border-radius:5px;background:#EEF2F6;overflow:hidden" aria-hidden="true"><span style="display:block;height:100%;width:${pct(n, max)}%;background:${color || 'var(--ink)'};border-radius:5px"></span></span>`;
+const contactLinks = (p) => p && p.phone ? html`<a class="lnk w" href="${safeUrl(wa(p.phone))}" target="_blank" rel="noopener noreferrer" aria-label="واتساب ${p.name}">واتساب</a> <a class="lnk t" href="${safeUrl(tg(p.phone))}" target="_blank" rel="noopener noreferrer" aria-label="تليجرام ${p.name}">تليجرام</a>` : '';
+const taskById = (id) => DB.jobs.find((j) => j.id === id);
+function alertCard(a) {
+  const t = a.task && taskById(a.task); const c = (t && crewById(t.crewId)) || (a.crew && crewById(a.crew));
+  const who = c ? (c.sup && c.sup.phone ? c.sup : c.eng) : null;
+  return html`<article class="notif ${a.lvl === 'bad' ? 'open' : ''}" style="${a.lvl === 'bad' ? '' : 'border-color:#FCD34D'}"><div class="row between"><span class="pill ${a.lvl}">${a.lvl === 'bad' ? 'عاجل' : 'تنبيه'}</span>${a.to ? html`<span class="t-mut" style="font-size:12px">القسم: ${a.to}</span>` : ''}</div>
+    <h3>${a.title}</h3><p class="body">${a.body}</p>
+    ${c ? html`<p class="who"><span>المراقب: <b>${c.sup.name}</b>${c.sup.phone ? html` <span class="ltr t-mut">+${c.sup.phone}</span>` : ''}</span>${c.eng ? html`<span>المهندس: <b>${c.eng.name}</b></span>` : ''}<span class="t-mut">${c.name}</span></p>` : ''}
+    <div class="row">${a.task ? html`<button class="btn sm dark" type="button" data-act="task-open" data-id="${a.task}">فتح المهمة</button>` : ''}${a.crew ? html`<button class="btn sm dark" type="button" data-act="nav-crew" data-id="${a.crew}">فتح الفرقة</button>` : ''}${a.doc ? html`<button class="btn sm dark" type="button" data-act="nav" data-v="docs">الوثائق</button>` : ''}${a.emp ? html`<button class="btn sm dark" type="button" data-act="emp-edit" data-id="${a.emp}">ملف الموظف</button>` : ''}
+      <a class="btn sm wa" href="${safeUrl(wa(who ? who.phone : '', alertText(a)))}" target="_blank" rel="noopener noreferrer">واتساب${who ? ' — ' + who.name : ''}</a><a class="btn sm tg" href="${safeUrl(tgShare(alertText(a)))}" target="_blank" rel="noopener noreferrer">تليجرام</a></div></article>`;
+}
+
+// ---------- dashboard ----------
+function viewDash() {
+  const A = smartAlerts(); const bad = A.filter((a) => a.lvl === 'bad').length;
+  const states = DB.crews.map((c) => ({ c, s: crewState(c), p: productivity(c) }));
+  const working = states.filter((x) => x.s.label === 'تعمل').length, stopped = states.filter((x) => x.s.lvl === 'bad');
+  const todayT = DB.jobs.filter((j) => j.date === today() && j.st !== 'done').length;
+  const week = DB.jobs.filter((j) => j.st === 'done' && j.doneAt && Date.now() - new Date(j.doneAt) <= 7 * 864e5).length;
+  const openReqs = DB.jobs.flatMap((j) => j.reqs.filter((r) => r.st === 'open').map((r) => ({ r, j })));
+  const reasons = {}; stopped.forEach((x) => { reasons[x.s.reason] = (reasons[x.s.reason] || 0) + 1; });
+  DB.jobs.filter((j) => j.st === 'hold' && j.hold).forEach((j) => { if (!stopped.some((x) => x.c.id === j.crewId)) reasons[j.hold.reason] = (reasons[j.hold.reason] || 0) + 1; });
+  const byDept = {}; openReqs.forEach((x) => { byDept[x.r.dept] = (byDept[x.r.dept] || 0) + 1; });
+  const maxDone = Math.max(1, ...states.map((x) => x.p.done)); const maxR = Math.max(1, ...Object.values(reasons)); const maxD = Math.max(1, ...Object.values(byDept));
+  const safety = DB.jobs.flatMap((j) => j.reqs.filter((r) => (r.type === SAFE_IN || r.type === SAFE_OUT) && r.st === 'open').map((r) => ({ r, j }))).sort((a, b) => (a.r.due || '').localeCompare(b.r.due || '')).slice(0, 8);
+  const kpi = (label, val, sub, tone) => html`<div class="card" style="gap:6px;padding:16px"><span class="t-mut" style="font-size:13px">${label}</span><b style="font-size:30px;line-height:1.1;color:${tone || 'var(--tx)'}">${val}</b><span class="t-mut" style="font-size:12px">${sub}</span></div>`;
+  return html`<div class="ph"><div><h1 style="font-size:28px">لوحة الأداء</h1><p>إنتاجية الفرق وحالتها وأسباب التوقف، والطلبات بين الأقسام، والتنبيهات الذكية لنقص الأوراق والترتيبات · ${today()}</p></div>
+    <div class="row">${'Notification' in window && Notification.permission !== 'granted' ? html`<button class="btn" type="button" data-act="notif-enable">تفعيل إشعارات المتصفح</button>` : ''}${can('settings') ? html`<button class="btn" type="button" data-act="gauge-cfg">تخصيص المؤشرات</button>` : ''}<button class="btn pri" type="button" data-act="ai-review" ${UI.ai.busy ? new Safe('disabled') : ''}>مراجعة ذكية بالذكاء الاصطناعي</button></div></div>
+  ${gaugesPanel()}
+  <div class="kpis">${kpi('مهام اليوم', todayT, 'غير منجزة بعد')}${kpi('منجز آخر 7 أيام', week, 'مهمة مغلقة')}${kpi('فرق متوقفة', stopped.length, Object.keys(reasons).join(' · ') || 'لا يوجد', stopped.length ? 'var(--bad-tx)' : '')}${kpi('طلبات مفتوحة للأقسام', openReqs.length, Object.keys(byDept).length + ' أقسام')}${kpi('تنبيهات عاجلة', bad, A.length + ' تنبيه إجمالاً', bad ? 'var(--bad-tx)' : '')}</div>
+  ${UI.ai.review ? html`<div class="card"><div class="row between"><h2 style="font-size:17px">المراجعة الذكية</h2><button class="btn sm" type="button" data-act="ai-review-hide">إخفاء</button></div>${UI.ai.busy ? html`<p class="msg a">جارٍ التحليل…</p>` : html`<div class="msg a" style="max-width:100%">${UI.ai.a}</div><span class="t-mut" style="font-size:12px">عبر: ${UI.ai.via}</span>`}</div>` : ''}
+  <div class="card"><h2 style="font-size:17px">حالة وإنتاجية الفرق — آخر 30 يوماً</h2><div class="tblw"><table style="min-width:980px"><thead><tr><th scope="col">الفرقة</th><th scope="col">المهندس / المراقب</th><th scope="col">الحالة</th><th scope="col" style="width:200px">الإنتاجية (مهام منجزة)</th><th scope="col">في الموعد</th><th scope="col">مهام مفتوحة</th><th scope="col">اكتمال المستندات</th><th scope="col">تواصل</th></tr></thead><tbody>
+    ${states.map((x) => html`<tr><td><button class="btn ghost sm" type="button" data-act="nav-crew" data-id="${x.c.id}" style="padding:0;font-weight:700">${x.c.name}</button><div class="t-mut" style="font-size:12px">${TYPES[x.c.type] ? TYPES[x.c.type][0] : ''} · ${x.c.site}</div></td>
+      <td style="font-size:13px">${x.c.eng ? x.c.eng.name : html`<span class="pill warn">بلا مهندس</span>`}<div class="t-mut">${x.c.sup.name}</div></td>
+      <td><span class="pill ${x.s.lvl}">${x.s.label}</span>${x.s.reason ? html`<div class="t-mut" style="font-size:12px;margin-top:4px">${x.s.reason}</div>` : ''}</td>
+      <td><div class="row" style="gap:8px;flex-wrap:nowrap"><span style="flex:1">${bar(x.p.done, maxDone, TYPES[x.c.type] ? TYPES[x.c.type][1] : '')}</span><b>${x.p.done}</b></div></td>
+      <td>${x.p.onTime == null ? '—' : html`<span class="${x.p.onTime >= 80 ? 't-ok' : 'pill warn'}">${x.p.onTime}%</span>`}</td><td>${x.p.active}</td>
+      <td>${x.p.docs == null ? '—' : html`<span class="pill ${x.p.docs === 100 ? 'ok' : x.p.docs >= 60 ? 'warn' : 'bad'}">${x.p.docs}%</span>`}</td>
+      <td>${contactLinks(x.c.eng || x.c.sup)}</td></tr>`)}</tbody></table></div></div>
+  <div class="split"><section class="wide">
+    <div class="card"><div class="row between"><h2 style="font-size:17px">التنبيهات الذكية · ${A.length}</h2><span class="t-mut" style="font-size:12px">تُحسب لحظياً من المهام والتصاريح والمستندات والمعدات</span></div>
+      ${A.length ? A.slice(0, UI.allAlerts ? A.length : 8).map(alertCard) : html`<p class="empty">لا توجد نواقص. كل الأوراق والترتيبات مكتملة.</p>`}${A.length > 8 ? html`<button class="btn" type="button" data-act="alerts-all">${UI.allAlerts ? 'عرض أهم 8 فقط' : 'عرض كل التنبيهات (' + A.length + ')'}</button>` : ''}</div></section>
+  <aside class="side">
+    <div class="card"><h2 style="font-size:17px">أسباب التوقف</h2>${Object.keys(reasons).length ? Object.keys(reasons).map((k) => html`<div class="grid" style="gap:4px"><div class="row between" style="font-size:13px"><span>${k}</span><b>${reasons[k]}</b></div>${bar(reasons[k], maxR, 'var(--red)')}</div>`) : html`<p class="t-mut" style="font-size:13px">لا توجد فرق متوقفة.</p>`}</div>
+    <div class="card"><h2 style="font-size:17px">الطلبات المفتوحة حسب القسم</h2>${Object.keys(byDept).length ? Object.keys(byDept).map((k) => html`<div class="grid" style="gap:4px"><div class="row between" style="font-size:13px"><span>${k}</span><b>${byDept[k]}</b></div>${bar(byDept[k], maxD, 'var(--blue)')}</div>`) : html`<p class="t-mut" style="font-size:13px">لا طلبات مفتوحة.</p>`}</div>
+    <div class="card"><h2 style="font-size:17px">جدول السلامة والإنارة</h2>${safety.length ? html`<ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px">${safety.map((x) => html`<li class="row between" style="font-size:13px;border-bottom:1px solid #F1F5F9;padding-bottom:8px"><span><b>${x.r.type === SAFE_IN ? 'تأمين' : 'إزالة'}</b> · ${x.j.title}</span><span class="pill ${x.r.due && daysTo(x.r.due) < 0 ? 'bad' : x.r.due && daysTo(x.r.due) <= 1 ? 'warn' : 'mutp'}">${fmtD(x.r.due)}</span></li>`)}</ul>` : html`<p class="t-mut" style="font-size:13px">لا مواعيد مفتوحة.</p>`}</div>
+  </aside></div>`;
+}
+
+// ---------- tasks & department requests ----------
+function viewTasks() {
+  const E = can('edit'); const f = UI.tf || 'open';
+  const list = DB.jobs.filter((j) => f === 'all' || (f === 'open' ? j.st !== 'done' : j.st === f));
+  const sel = taskById(UI.task) || list[0]; if (sel) UI.task = sel.id;
+  const chips = [['open', 'المفتوحة'], ['new', 'جديدة'], ['prog', 'قيد التنفيذ'], ['hold', 'متوقفة'], ['done', 'منجزة'], ['all', 'الكل']];
+  return html`<div class="ph"><div><h1 style="font-size:28px">المهام والطلبات</h1><p>كل مهمة بتصريحها وفرقتها وطلباتها للأقسام: تأمين السلامة والإنارة قبل التنفيذ بيوم، وإزالتها بعد التنفيذ، وتحديث حالة الموقع قبل المغادرة.</p></div>${E ? html`<button class="btn pri" type="button" data-act="task-add">+ مهمة جديدة</button>` : ''}</div>
+  <div class="chips">${chips.map((c) => html`<button type="button" class="chip" aria-pressed="${f === c[0]}" data-act="task-filter" data-k="${c[0]}">${c[1]} · ${DB.jobs.filter((j) => c[0] === 'all' || (c[0] === 'open' ? j.st !== 'done' : j.st === c[0])).length}</button>`)}</div>
+  <div class="split"><aside class="side" style="flex:1 1 340px">
+    ${list.length ? html`<ol class="jobs">${list.map((j) => { const c = crewById(j.crewId); const al = smartAlerts().filter((a) => a.task === j.id); return html`<li class="job" ${E && f === 'all' ? new Safe('draggable="true"') : ''} data-job="${j.id}" style="${sel && sel.id === j.id ? 'border:2px solid var(--acc);background:#fff' : ''}">
+      <button type="button" data-act="task-sel" data-id="${j.id}" style="all:unset;cursor:pointer;flex:1 1 200px;min-width:0;display:flex;flex-direction:column;gap:2px"><b style="font-size:14px">${j.title}</b><span class="t-mut" style="font-size:12px">${c ? c.id : 'غير مُسندة'} · ${j.dept} · ${fmtD(j.date)}</span></button>
+      <span class="pill ${JOB_ST[j.st][1]}">${JOB_ST[j.st][0]}</span>${al.length ? html`<span class="pill ${al.some((a) => a.lvl === 'bad') ? 'bad' : 'warn'}" title="تنبيهات">${al.length} !</span>` : ''}
+      ${E ? html`<span style="display:flex;flex-direction:column;gap:2px"><button class="btn sm" type="button" data-act="job-up" data-id="${j.id}" aria-label="تقديم ${j.title}" style="min-height:22px;padding:0 10px">▲</button><button class="btn sm" type="button" data-act="job-down" data-id="${j.id}" aria-label="تأخير ${j.title}" style="min-height:22px;padding:0 10px">▼</button></span>` : ''}</li>`; })}</ol>` : html`<p class="empty">لا مهام في هذا التصنيف.</p>`}
+  </aside><section class="wide">${sel ? taskDetail(sel) : ''}</section></div>`;
+}
+function taskDetail(t) {
+  const E = can('edit'), R = can('request'); const c = crewById(t.crewId); const al = smartAlerts().filter((a) => a.task === t.id); const ds = docStatus(t);
+  const docs = DB.docs.filter((d) => d.taskId === t.id || (CREW_LEVEL_DOCS.includes(d.type) && !d.taskId && d.crewId === t.crewId));
+  return html`<div class="card"><div class="row between"><div><h2 style="font-size:21px">${t.title}</h2><span class="t-mut" style="font-size:13px">${t.dept} · التنفيذ ${fmtD(t.date)} (${t.date}) · ${t.site}</span></div><span class="pill ${JOB_ST[t.st][1]}">${JOB_ST[t.st][0]}${t.st === 'hold' && t.hold ? ' — ' + t.hold.reason : ''}</span></div>
+    <div class="grid g4"><div class="kv"><span>التصريح</span><b>${t.permit || '—'}</b>${t.permitExp ? html`<span class="${daysTo(t.permitExp) < 0 ? 'pill bad' : daysTo(t.permitExp) <= 3 ? 'pill warn' : 't-mut'}" style="font-size:12px">ينتهي ${fmtD(t.permitExp)}</span>` : ''}</div>
+      <div class="kv"><span>الفرقة</span><b>${c ? c.name : 'غير مُسندة'}</b>${c ? html`<span class="pill ${crewState(c).lvl}" style="width:max-content">${crewState(c).label}</span>` : ''}</div>
+      <div class="kv"><span>المهندس</span><b>${c && c.eng ? c.eng.name : '—'}</b><span>${c ? contactLinks(c.eng) : ''}</span></div>
+      <div class="kv"><span>المراقب</span><b>${c ? c.sup.name : '—'}</b><span>${c ? contactLinks(c.sup) : ''}</span></div></div>
+    ${c ? html`<p class="t-mut" style="font-size:13px">الفنيون والعمال: ${c.workers.map((w) => w.name + ' (' + w.role + ')').join('، ') || '—'}</p>` : ''}
+    <div class="row">${E ? html`<button class="btn sm" type="button" data-act="task-edit" data-id="${t.id}">تعديل</button>` : ''}
+      ${R && t.st === 'new' ? html`<button class="btn sm dark" type="button" data-act="task-start" data-id="${t.id}">بدء التنفيذ</button>` : ''}
+      ${R && t.st !== 'done' && t.st !== 'hold' ? html`<button class="btn sm" type="button" data-act="task-hold" data-id="${t.id}">إيقاف (تصريح / استشاري…)</button>` : ''}
+      ${R && t.st === 'hold' ? html`<button class="btn sm dark" type="button" data-act="task-resume" data-id="${t.id}">استئناف</button>` : ''}
+      ${R && t.st !== 'done' ? html`<button class="btn sm pri" type="button" data-act="task-close" data-id="${t.id}">تحديث حالة الموقع قبل المغادرة</button>` : ''}
+      <a class="btn sm wa" href="${safeUrl(wa(c && c.sup ? c.sup.phone : '', 'ميدان | ' + t.title + '\nالتنفيذ: ' + t.date + '\nالتصريح: ' + (t.permit || '—')))}" target="_blank" rel="noopener noreferrer">إرسال للمراقب</a></div>
+    ${t.close ? html`<div class="alert ${t.close.finished ? 'okk' : 'wr'}"><b>آخر حالة للموقع (${ago(t.close.tm)}${t.close.by ? ' — ' + t.close.by : ''}):</b> ${t.close.finished ? 'تم الانتهاء من الأعمال.' : 'لم يكتمل — متبقٍ: ' + (t.close.remaining.join('، ') || 'غير محدد')}${t.close.note ? ' · ' + t.close.note : ''}</div>` : ''}
+  </div>
+  ${al.length ? html`<div class="card"><h3 style="font-size:16px">تنبيهات هذه المهمة · ${al.length}</h3>${al.map(alertCard)}</div>` : ''}
+  <div class="card"><div class="row between"><h3 style="font-size:16px">الطلبات للأقسام</h3>${R ? html`<button class="btn sm" type="button" data-act="req-add" data-id="${t.id}">+ طلب لقسم</button>` : ''}</div>
+    <div class="tblw"><table style="min-width:620px"><thead><tr><th scope="col">الطلب</th><th scope="col">القسم</th><th scope="col">الموعد</th><th scope="col">الحالة</th><th scope="col">إجراء</th></tr></thead><tbody>
+    ${t.reqs.map((r) => html`<tr><td><b>${r.type}</b>${r.note ? html`<div class="t-mut" style="font-size:12px">${r.note}</div>` : ''}</td><td>${r.dept}</td><td><span class="${r.st === 'open' && r.due && daysTo(r.due) < 0 ? 'pill bad' : ''}">${fmtD(r.due)}</span></td><td><span class="pill ${r.st === 'done' ? 'ok' : 'warn'}">${r.st === 'done' ? 'منفّذ' : 'مفتوح'}</span></td>
+      <td><div class="row" style="gap:6px">${R ? html`<button class="btn sm" type="button" data-act="req-toggle" data-task="${t.id}" data-id="${r.id}">${r.st === 'done' ? 'إعادة فتح' : 'تم التنفيذ'}</button>` : ''}<a class="btn sm wa" href="${safeUrl(wa('', 'ميدان | طلب لقسم ' + r.dept + ': ' + r.type + '\nالمهمة: ' + t.title + '\nالموقع: ' + t.site + '\nالموعد: ' + (r.due || '—')))}" target="_blank" rel="noopener noreferrer">واتساب</a><a class="btn sm tg" href="${safeUrl(tgShare('ميدان | طلب لقسم ' + r.dept + ': ' + r.type + ' — ' + t.title + ' — ' + (r.due || '')))}" target="_blank" rel="noopener noreferrer">تليجرام</a></div></td></tr>`)}</tbody></table></div></div>
+  <div class="card"><div class="row between"><h3 style="font-size:16px">مستندات المهمة</h3><div class="row" style="gap:6px">${R ? html`<button class="btn sm" type="button" data-act="form-meeting" data-id="${t.id}">اجتماع ما قبل العمل</button><button class="btn sm" type="button" data-act="form-risk" data-id="${t.id}">تقييم المخاطر</button><button class="btn sm" type="button" data-act="doc-add" data-task="${t.id}">+ مستند</button>` : ''}</div></div>
+    <div class="chips">${ds.map((x) => html`<span class="pill ${!x.need ? 'mutp' : x.ok ? 'ok' : 'bad'}">${x.ok ? '✓' : x.need ? '✗' : '○'} ${x.type}</span>`)}</div>
+    ${docs.length ? docTable(docs) : html`<p class="t-mut" style="font-size:13px">لا مستندات مرفوعة بعد.</p>`}</div>`;
+}
+
+// ---------- documents ----------
+function docTable(docs) {
+  return html`<div class="tblw"><table style="min-width:700px"><thead><tr><th scope="col">المستند</th><th scope="col">مرتبط بـ</th><th scope="col">المسؤول</th><th scope="col">الصلاحية</th><th scope="col">إجراء</th></tr></thead><tbody>
+  ${docs.map((d) => { const t = d.taskId && taskById(d.taskId); return html`<tr><td><b>${d.type}</b>${d.title && d.title !== d.type ? html`<div class="t-mut" style="font-size:12px">${d.title}</div>` : ''}${d.fileName ? html`<div class="t-mut" style="font-size:12px">ملف: ${d.fileName}</div>` : ''}</td>
+    <td style="font-size:13px">${d.crewId || '—'}${t ? html`<div class="t-mut">${t.title}</div>` : ''}</td><td style="font-size:13px">${d.person || '—'}</td>
+    <td>${d.exp ? html`<span class="pill ${daysTo(d.exp) < 0 ? 'bad' : daysTo(d.exp) <= 7 ? 'warn' : 'ok'}">${daysTo(d.exp) < 0 ? 'منتهٍ ' : ''}${d.exp}</span>` : html`<span class="t-mut">—</span>`}</td>
+    <td><div class="row" style="gap:6px">${d.form ? html`<button class="btn sm" type="button" data-act="doc-view" data-id="${d.id}">عرض / طباعة</button>` : ''}${d.fileId ? html`<button class="btn sm" type="button" data-act="doc-file" data-id="${d.id}">تنزيل</button>` : ''}${d.url ? html`<a class="btn sm" href="${safeUrl(d.url)}" target="_blank" rel="noopener noreferrer">فتح الرابط</a>` : ''}${can('edit') ? html`<button class="btn sm" type="button" data-act="doc-del" data-id="${d.id}" aria-label="حذف ${d.type}">حذف</button>` : ''}</div></td></tr>`; })}</tbody></table></div>`;
+}
+function viewDocs() {
+  const P = people(); const sel = UI.person && P.find((p) => p.name === UI.person);
+  const tf = UI.docType || 'all';
+  let docs = DB.docs.filter((d) => tf === 'all' || d.type === tf);
+  if (sel) docs = docs.filter((d) => d.person === sel.name || sel.crews.includes(d.crewId));
+  const tasks = sel ? DB.jobs.filter((j) => sel.crews.includes(j.crewId) && j.st !== 'done') : [];
+  return html`<div class="row">${can('request') ? html`<button class="btn pri" type="button" data-act="doc-add">+ مستند</button>` : ''}</div>
+  <div class="split"><aside class="side" style="flex:1 1 260px" aria-label="المهندسون والمراقبون">
+    <button type="button" class="crewbtn" aria-pressed="${!sel}" data-act="person-sel" data-id=""><span class="nm">الكل</span><span class="t-mut" style="font-size:12px">${DB.docs.length} مستند</span></button>
+    ${P.map((p) => html`<button type="button" class="crewbtn" aria-pressed="${!!sel && sel.name === p.name}" data-act="person-sel" data-id="${p.name}"><span class="row between" style="width:100%"><span class="nm">${p.name}</span><span class="pill ${p.role === 'مهندس' ? 'info' : 'mutp'}">${p.role}</span></span><span class="t-mut" style="font-size:12px">الفرق: ${p.crews.join('، ')}</span></button>`)}
+  </aside><section class="wide">
+    ${sel ? html`<div class="card"><div class="row between"><div><h2 style="font-size:19px">${sel.name}</h2><span class="t-mut" style="font-size:13px">${sel.role} · ${sel.crews.map((id) => (crewById(id) || {}).name || id).join('، ')}</span></div><div class="row">${contactLinks(sel)}</div></div>
+      ${tasks.length ? html`<div class="tblw"><table><thead><tr><th scope="col">مهمة مفتوحة</th><th scope="col">التنفيذ</th><th scope="col">المستندات المطلوبة</th></tr></thead><tbody>${tasks.map((t) => html`<tr><td><button class="btn ghost sm" type="button" data-act="task-open" data-id="${t.id}" style="padding:0;font-weight:700">${t.title}</button></td><td>${fmtD(t.date)}</td><td><div class="chips">${docStatus(t).filter((x) => x.need).map((x) => html`<span class="pill ${x.ok ? 'ok' : 'bad'}">${x.type}</span>`)}</div></td></tr>`)}</tbody></table></div>` : html`<p class="t-mut" style="font-size:13px">لا مهام مفتوحة.</p>`}</div>` : ''}
+    <div class="card"><div class="chips"><button type="button" class="chip" aria-pressed="${tf === 'all'}" data-act="doc-type" data-k="all">كل الأنواع</button>${DB.lists.docTypes.map((t) => html`<button type="button" class="chip" aria-pressed="${tf === t}" data-act="doc-type" data-k="${t}">${t}</button>`)}</div>
+      ${docs.length ? docTable(docs) : html`<p class="empty">لا مستندات مطابقة.</p>`}</div>
+  </section></div>`;
+}
+function docViewHtml(d) {
+  const f = d.form || {}; const t = d.taskId && taskById(d.taskId); const c = crewById(d.crewId);
+  return html`<div class="dlg printable"><div class="row between"><h2 id="dlgTitle" style="font-size:20px">${d.type}</h2><span class="t-mut">ميدان · ${fmtT(d.tm)}</span></div>
+    <div class="grid g2" style="font-size:14px"><div class="kv"><span>المهمة</span><b>${t ? t.title : '—'}</b></div><div class="kv"><span>الفرقة</span><b>${c ? c.name : d.crewId || '—'}</b></div><div class="kv"><span>التصريح</span><b>${t ? t.permit || '—' : '—'}</b></div><div class="kv"><span>المسؤول</span><b>${d.person || '—'}</b></div></div>
+    ${d.type === 'اجتماع ما قبل العمل' ? html`<div class="kv"><span>تاريخ الاجتماع</span><b>${f.date || ''}</b></div><h3 style="font-size:15px">الحضور</h3><ol style="margin:0;font-size:14px;line-height:2">${(f.attendees || []).map((a) => html`<li>${a} <span class="t-mut">— التوقيع: ____________</span></li>`)}</ol><h3 style="font-size:15px">المواضيع والمخاطر التي نوقشت</h3><div class="chips">${(f.topics || []).map((x) => html`<span class="pill mutp">${x}</span>`)}</div>` : ''}
+    ${d.type === 'تقييم المخاطر' ? html`<div class="kv"><span>مستوى الخطورة العام</span><b>${f.level || ''}</b></div><h3 style="font-size:15px">المخاطر</h3><div class="chips">${(f.hazards || []).map((x) => html`<span class="pill warn">${x}</span>`)}</div><h3 style="font-size:15px">إجراءات التحكم</h3><p style="font-size:14px;line-height:1.9;white-space:pre-line">${f.controls || ''}</p>` : ''}
+    ${f.note ? html`<p style="font-size:14px">ملاحظات: ${f.note}</p>` : ''}
+    <p class="t-mut" style="font-size:13px">اعتماد المهندس: ____________ · اعتماد المراقب: ____________</p>
+    <div class="row noprint"><button class="btn pri" type="button" data-act="print">طباعة / حفظ PDF</button><button class="btn" type="button" data-act="dlg-close">إغلاق</button></div></div>`;
+}
+
+// ---------- lists manager (settings) ----------
+function listsManager() {
+  const names = { empDocs: 'مستندات الموظفين', eqKinds: 'أنواع المعدات', workerRoles: 'أدوار العمال والفنيين', crewTypes: 'أنواع الفرق', services: 'خدمات التنسيق', depts: 'الأقسام', reqTypes: 'أنواع الطلبات', remaining: 'المتبقيات في الموقع', holdReasons: 'أسباب التوقف', docTypes: 'أنواع المستندات', hazards: 'المخاطر', branches: 'الفروع' };
+  return html`<div class="card"><h2 style="font-size:17px">القوائم المنسدلة</h2><p class="t-mut" style="font-size:13px">أضف أو احذف خيارات أي قائمة. يمكن أيضاً إضافة خيار جديد مباشرة من أي نموذج. الحذف لا يغيّر السجلات الموجودة.</p>
+    ${Object.keys(names).map((k) => html`<div class="grid" style="gap:8px;border-top:1px solid #F1F5F9;padding-top:12px"><div class="row between"><b style="font-size:14px">${names[k]}</b><button class="btn sm" type="button" data-act="list-add" data-k="${k}">+ إضافة</button></div>
+      <div class="chips">${listOpts(k).map((o) => html`<span class="chip" style="display:inline-flex;align-items:center;gap:6px">${k === 'crewTypes' ? html`<span class="dot" style="background:${TYPES[o[0]][1]}"></span>` : ''}${o[1]}${k === 'services' ? html`<span class="t-mut" style="font-size:11px">(${TYPES[SERVICES[o[0]][1]] ? TYPES[SERVICES[o[0]][1]][0] : '؟'})</span>` : ''}<button type="button" data-act="list-del" data-k="${k}" data-id="${o[0]}" aria-label="حذف ${o[1]}" style="border:0;background:transparent;color:var(--red);font-size:16px;line-height:1;padding:0 2px">×</button></span>`)}</div></div>`)}</div>`;
+}
+
+// ---------- task form helpers ----------
+function taskFields(t) {
+  t = t || { title: '', permit: '', permitExp: '', site: '', crewId: UI.sel || '', dept: 'التنفيذ', date: addDays(1) };
+  return [{ k: 'title', label: 'وصف المهمة', val: t.title, req: true, wide: true }, { k: 'permit', label: 'رقم التصريح', val: t.permit, ltr: true, ph: 'R7047' }, { k: 'permitExp', label: 'انتهاء التصريح', type: 'date', val: t.permitExp, ltr: true },
+    { k: 'crewId', label: 'الفرقة', type: 'select', val: t.crewId, opts: [['', '— غير مُسندة']].concat(DB.crews.map((c) => [c.id, c.name])) }, { k: 'dept', label: 'القسم', type: 'select', val: t.dept, list: 'depts' },
+    { k: 'date', label: 'تاريخ التنفيذ', type: 'date', val: t.date, ltr: true, req: true }, { k: 'site', label: 'الموقع / الحي', val: t.site }];
+}
+function taskValidate(v) { if (!validDate(v.date)) return 'تاريخ التنفيذ غير صالح.'; if (v.permitExp && !validDate(v.permitExp)) return 'تاريخ انتهاء التصريح غير صالح.'; if (v.permit && !/^[A-Za-z0-9؀-ۿ\-\/ ]{1,30}$/.test(v.permit)) return 'رقم التصريح غير صالح.'; return ''; }
+function taskFromForm(v) { const c = crewById(v.crewId); return { title: v.title.trim().slice(0, 140), permit: v.permit.trim(), permitExp: v.permitExp, crewId: v.crewId, dept: v.dept, date: v.date, site: v.site.trim().slice(0, 80) || (c ? c.site : '') }; }
+function localReview() {
+  const A = smartAlerts(); if (!A.length) return 'لا توجد نواقص: كل التصاريح والمستندات وترتيبات السلامة مكتملة.';
+  const by = {}; A.forEach((a) => { const k = a.to || (a.title.startsWith('نقص مستند') ? 'المستندات' : a.title.includes('تصريح') ? 'التصاريح' : a.crew ? 'الفرق والمعدات' : 'التنفيذ'); (by[k] = by[k] || []).push(a); });
+  return 'أولويات اليوم (' + A.filter((a) => a.lvl === 'bad').length + ' عاجل):\n' + Object.keys(by).map((k) => '\n' + k + ':\n' + by[k].map((a) => (a.lvl === 'bad' ? '• [عاجل] ' : '• ') + a.title + ' — ' + a.body).join('\n')).join('\n');
+}
+
+// ================= v3 views =================
+const imgOk = (s) => typeof s === 'string' && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(s);
+function brandLogos(h) { const B = cfg().brand || {}; return (B.logos || []).filter((l) => imgOk(l.src)).map((l) => html`<img src="${l.src}" alt="${l.name}" style="height:${h || 40}px;width:auto;object-fit:contain">`); }
+function brandBar() {
+  const B = cfg().brand || {}; const cov = imgOk(B.cover) ? B.cover : '';
+  const d = new Date(); const ds = d.toLocaleDateString(LANG === 'en' ? 'en-GB' : 'ar-SA-u-ca-gregory-nu-latn', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  return html`<header class="hero-h${cov ? '' : ' nocover'}"${cov ? new Safe(' style="background-image:url(&quot;' + cov + '&quot;)"') : ''}><div class="hh-in">
+    <div class="hh-main"><div class="hh-logos">${brandLogos(38)}</div><div class="hh-title"><b>${B.company || ''}</b><span>${B.app || 'ميدان'} · إدارة الفرق والمعدات والخدمات اللوجستية</span></div></div>
+    <div class="hh-side"><span class="hh-date">${ds}</span>${CUR ? html`<span class="hh-user">${CUR.name} · ${ROLES[CUR.role]}</span>` : ''}
+      <div class="row" style="gap:6px"><button class="hh-btn" type="button" data-act="lang" aria-label="${LANG === 'en' ? 'العربية' : 'English'}">${LANG === 'en' ? 'عربي' : 'EN'}</button><button class="hh-btn" type="button" data-act="theme" aria-label="${THEME === 'dark' ? 'الوضع الفاتح' : 'الوضع المظلم'}">${THEME === 'dark' ? new Safe('<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>') : new Safe('<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>')}</button></div></div></div></header>`;
+}
+
+// ---------- gauges ----------
+function gaugeValues() {
+  const units = DB.crews.flatMap(allUnitsOf); const open = DB.jobs.filter((j) => j.st !== 'done');
+  const ds = open.flatMap((j) => docStatus(j)).filter((x) => x.need);
+  const p30 = DB.jobs.filter((j) => j.st === 'done' && j.doneAt && Date.now() - new Date(j.doneAt) <= 30 * 864e5);
+  const sNeed = open.filter((j) => daysTo(j.date) <= 1 && j.st !== 'hold'); const sOk = sNeed.filter((j) => { const r = j.reqs.find((x) => x.type === SAFE_IN); return r && r.st === 'done'; });
+  const wk = DB.jobs.filter((j) => daysTo(j.date) <= 0 && daysTo(j.date) > -7);
+  const linkTotal = DB.crews.length * 4 + DB.crews.reduce((a, c) => a + c.eq.length + c.workers.filter((w) => w.dyna).length, 0);
+  return { crews: [DB.crews.filter((c) => crewState(c).label === 'تعمل').length, DB.crews.length, 'فرقة تعمل'], ready: [units.filter((u) => u.st !== 'shop' && (u.kind === 'سيارة' || u.driver)).length, units.length, 'معدة جاهزة بسائقها'],
+    maint: [units.filter((u) => !maintDue(u).length && u.oil > 0).length, units.length, 'بلا صيانة متأخرة'], docs: [ds.filter((x) => x.ok).length, ds.length, 'مستند مكتمل'],
+    ontime: [p30.filter((j) => dstr(j.doneAt) <= j.date).length, p30.length, 'في الموعد (30 يوماً)'], safety: [sOk.length, sNeed.length, 'موقع مؤمَّن قبل التنفيذ'],
+    week: [wk.filter((j) => j.st === 'done').length, wk.length, 'مهمة منجزة هذا الأسبوع'], links: [Math.max(0, linkTotal - hierarchyIssues().length), linkTotal, 'ربط مكتمل'] };
+}
+function gauge(key, v) {
+  const [a, b, sub] = v; const p = b ? Math.round((a / b) * 100) : null; const R = 46, C = 2 * Math.PI * R; const off = p == null ? C : C * (1 - p / 100);
+  const col = p == null ? '#94A3B8' : p >= 85 ? '#15803D' : p >= 60 ? '#B45309' : '#B91C1C';
+  return html`<div class="gauge card" role="img" aria-label="${GAUGES[key]}: ${p == null ? 'لا بيانات' : p + '%'}">
+    <svg viewBox="0 0 120 120" width="118" height="118" aria-hidden="true"><circle cx="60" cy="60" r="${R}" fill="none" stroke="#EEF2F6" stroke-width="12"/><circle cx="60" cy="60" r="${R}" fill="none" stroke="${col}" stroke-width="12" stroke-linecap="round" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" transform="rotate(-90 60 60)" class="g-arc"/><text x="60" y="58" text-anchor="middle" font-size="24" font-weight="700" fill="#0F172A">${p == null ? '—' : p + '%'}</text><text x="60" y="80" text-anchor="middle" font-size="12" fill="#475569">${a} من ${b}</text></svg>
+    <b style="font-size:14px">${GAUGES[key]}</b><span class="t-mut" style="font-size:12px">${sub}</span></div>`;
+}
+function gaugesPanel() {
+  const s = cfg(); const V = gaugeValues(); const keys = (s.gauges || []).filter((k) => GAUGES[k]);
+  if (s.gaugeStyle === 'number') return html`<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))">${keys.map((k) => { const [a, b] = V[k]; const p = b ? Math.round((a / b) * 100) : null; return html`<div class="card" style="gap:6px;padding:16px"><span class="t-mut" style="font-size:13px">${GAUGES[k]}</span><b style="font-size:30px">${p == null ? '—' : p + '%'}</b><span class="t-mut" style="font-size:12px">${a} من ${b} ${V[k][2]}</span></div>`; })}</div>`;
+  return html`<div class="gauges">${keys.map((k) => gauge(k, V[k]))}</div>`;
+}
+
+// ---------- inventory & hierarchy (for company / execution / project managers) ----------
+function viewInv() {
+  const fb = UI.invBranch || '', fp = UI.invProj || '';
+  const crews = DB.crews.filter((c) => { const p = projById(c.projectId); return (!fb || (p && p.branch) === fb || c.branch === fb) && (!fp || c.projectId === fp); });
+  const units = crews.flatMap((c) => allUnitsOf(c).map((u) => ({ u, c })));
+  const kinds = {}; units.forEach((x) => { const k = x.u === x.c.sup.car ? 'سيارات المراقبين' : x.u.kind; kinds[k] = (kinds[k] || 0) + 1; });
+  const engs = new Set(crews.filter((c) => c.eng).map((c) => c.eng.name)); const drivers = units.filter((x) => x.u.driver).length;
+  const issues = hierarchyIssues().filter((i) => crews.some((c) => c.id === i.crew));
+  const branches = [...new Set(DB.projects.map((p) => p.branch).concat(DB.branches))].filter(Boolean);
+  const stat = (l, v) => html`<div class="card" style="gap:4px;padding:14px"><span class="t-mut" style="font-size:12px">${l}</span><b style="font-size:24px">${v}</b></div>`;
+  const tree = branches.filter((b) => !fb || b === fb).map((b) => { const ps = DB.projects.filter((p) => p.branch === b && (!fp || p.id === fp)); const cs = (p) => crews.filter((c) => c.projectId === p.id); if (!ps.some((p) => cs(p).length) && !ps.length) return '';
+    return html`<details open class="tree"><summary><b>${b}</b> <span class="t-mut">· ${ps.length} مشروع</span></summary>${ps.map((p) => { const byEng = {}; cs(p).forEach((c) => { const k = c.eng ? c.eng.name : 'بدون مهندس'; (byEng[k] = byEng[k] || []).push(c); });
+      return html`<details open class="tree"><summary><b>${p.name}</b> <span class="t-mut">${p.code} · ${cs(p).length} فرقة</span>${can('edit') ? html` <button class="btn sm" type="button" data-act="proj-edit" data-id="${p.id}">تعديل</button>` : ''}</summary>
+        ${Object.keys(byEng).map((e) => html`<details open class="tree"><summary>المهندس: <b>${e}</b></summary>${byEng[e].map((c) => { const st = crewState(c); return html`<details class="tree"><summary><b>${c.name}</b> <span class="pill ${st.lvl}">${st.label}</span> <span class="t-mut">المراقب ${c.sup.name} · سيارة ${c.sup.car.code} · ${c.workers.length} عمال · ${c.eq.length} معدات · ${c.workers.filter((w) => w.dyna).length} ديانات</span></summary>
+          <ul class="tree-ul">${c.eq.map((u) => html`<li>${u.kind} ${u.code} — ${u.driver ? 'السائق ' + u.driver.name : html`<span class="pill bad">بدون سائق</span>`} <span class="pill ${ST[u.st][1]}">${ST[u.st][0]}</span>${maintDue(u).length ? html` <span class="pill bad">صيانة متأخرة ${maintDue(u).length}</span>` : ''}</li>`)}${c.workers.filter((w) => w.dyna).map((w) => html`<li>ديانة ${w.dyna.code} — ${w.dyna.driver ? 'السائق ' + w.dyna.driver.name : html`<span class="pill bad">بدون سائق</span>`} · مع العامل ${w.name}</li>`)}</ul></details>`; })}</details>`)}</details>`; })}</details>`; });
+  return html`<div class="ph"><div><h1 style="font-size:28px">الحصر والهيكل</h1><p>الربط الإلزامي: المعدة أو السيارة بسائقها ← المراقب ← المهندس ← المشروع ← الفرع. لمدير الشركة ومدير التنفيذ ومدير المشاريع.</p></div>
+    <div class="row">${can('edit') ? html`<button class="btn" type="button" data-act="proj-add">+ مشروع</button>` : ''}<button class="btn" type="button" data-act="inv-export" data-fmt="xlsx">تصدير Excel</button><button class="btn" type="button" data-act="inv-export" data-fmt="csv">CSV</button></div></div>
+  <div class="card" style="flex-direction:row;flex-wrap:wrap;gap:12px;align-items:flex-end">
+    <div class="fld" style="flex:1 1 200px"><label for="invb">الفرع</label><select class="in" id="invb" data-change="inv-branch"><option value="">كل الفروع</option>${branches.map((b) => html`<option ${b === fb ? new Safe('selected') : ''}>${b}</option>`)}</select></div>
+    <div class="fld" style="flex:1 1 260px"><label for="invp">المشروع</label><select class="in" id="invp" data-change="inv-proj"><option value="">كل المشاريع</option>${DB.projects.map((p) => html`<option value="${p.id}" ${p.id === fp ? new Safe('selected') : ''}>${p.name}</option>`)}</select></div></div>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr))">${stat('المشاريع', DB.projects.filter((p) => (!fb || p.branch === fb) && (!fp || p.id === fp)).length)}${stat('المهندسون', engs.size)}${stat('الفرق', crews.length)}${stat('المراقبون', crews.length)}${stat('العمال والفنيون', crews.reduce((a, c) => a + c.workers.length, 0))}${stat('السائقون', drivers)}${stat('المعدات والسيارات', units.length)}</div>
+  <div class="card"><h2 style="font-size:17px">المعدات حسب النوع</h2><div class="chips">${Object.keys(kinds).map((k) => html`<span class="pill mutp" style="font-size:13px">${k}: ${kinds[k]}</span>`)}</div></div>
+  ${issues.length ? html`<div class="card" style="border-color:#FCA5A5"><h2 style="font-size:17px">روابط ناقصة · ${issues.length}</h2><ul style="margin:0;padding-inline-start:18px;font-size:13px;line-height:1.9">${issues.map((i) => html`<li>${i.text} <button class="btn ghost sm" type="button" data-act="nav-crew" data-id="${i.crew}" style="color:var(--acc)">إصلاح</button></li>`)}</ul></div>` : html`<p class="alert okk">كل الفرق والمعدات مربوطة بالكامل.</p>`}
+  ${peopleMgmt()}
+  <div class="card">${tree.length ? tree : html`<p class="empty">لا بيانات.</p>`}</div>`;
+}
+function peopleMgmt() {
+  const E = can('edit'); const P = people();
+  return html`<div class="split"><section class="wide"><div class="card"><div class="row between"><h2 style="font-size:17px">المشاريع · ${DB.projects.length}</h2>${E ? html`<button class="btn sm pri" type="button" data-act="proj-add">+ مشروع</button>` : ''}</div>
+    <div class="tblw"><table><thead><tr><th scope="col">المشروع</th><th scope="col">الرمز / العقد</th><th scope="col">الفرع</th><th scope="col">مدير المشروع</th><th scope="col">الفرق</th><th scope="col">إجراء</th></tr></thead><tbody>
+    ${DB.projects.map((p) => html`<tr><td><b>${p.name}</b></td><td class="ltr">${p.code || '—'}</td><td>${p.branch || html`<span class="pill bad">بلا فرع</span>`}</td><td>${p.manager || '—'}</td><td>${DB.crews.filter((c) => c.projectId === p.id).map((c) => c.id).join('، ') || '—'}</td><td>${E ? html`<button class="btn sm" type="button" data-act="proj-edit" data-id="${p.id}">تعديل</button>` : ''}</td></tr>`)}</tbody></table></div></div></section>
+  <aside class="side" style="flex:1 1 420px"><div class="card"><div class="row between"><h2 style="font-size:17px">المهندسون والمراقبون · ${P.length}</h2>${E ? html`<div class="row" style="gap:6px"><button class="btn sm" type="button" data-act="assign-person" data-role="eng">تعيين مهندس</button><button class="btn sm" type="button" data-act="assign-person" data-role="sup">تعيين مراقب</button></div>` : ''}</div>
+    <div class="tblw"><table><thead><tr><th scope="col">الاسم</th><th scope="col">الدور</th><th scope="col">الفرق</th><th scope="col">تواصل</th><th scope="col">إجراء</th></tr></thead><tbody>
+    ${P.map((x) => { const e = x.crews.map(crewById).find(Boolean); const per = e ? (x.role === 'مهندس' ? e.eng : e.sup) : null; return html`<tr><td><b>${x.name}</b>${per && per.iqama ? html`<div class="t-mut ltr" style="font-size:12px">${maskIqama(per.iqama)}</div>` : html`<div><span class="pill warn">بلا إقامة</span></div>`}</td><td><span class="pill ${x.role === 'مهندس' ? 'info' : 'mutp'}">${x.role}</span></td><td>${x.crews.join('، ')}</td><td>${contactLinks(x)}</td><td>${E ? html`<button class="btn sm" type="button" data-act="person-edit" data-role="${x.role === 'مهندس' ? 'eng' : 'sup'}" data-name="${x.name}">تعديل</button>` : ''}</td></tr>`; })}</tbody></table></div></div></aside></div>`;
+}
+function invRows() {
+  const rows = [['الفرع', 'المشروع', 'المهندس', 'المراقب', 'سيارة المراقب', 'الفرقة', 'النوع', 'المعدة', 'الرقم / اللوحة', 'السائق', 'إقامة السائق', 'الحالة', 'العداد (كم)', 'صيانة متأخرة']];
+  DB.crews.forEach((c) => { const p = projById(c.projectId) || {}; allUnitsOf(c).forEach((u) => { const isCar = u === c.sup.car; const drv = isCar ? { name: c.sup.name, iqama: c.sup.iqama } : u.driver;
+    rows.push([p.branch || c.branch, p.name || '', c.eng ? c.eng.name : '', c.sup.name, c.sup.car.code, c.id, TYPES[c.type] ? TYPES[c.type][0] : '', isCar ? 'سيارة مراقب' : u.kind, u.code, drv ? drv.name : '', drv && drv.iqama ? drv.iqama : '', ST[u.st][0], u.odo || 0, maintDue(u).map((m) => m.p.label).join('، ')]); }); });
+  return rows;
+}
+
+// ---------- transactions (documents section) ----------
+function txProgress(t) { const ds = docStatus(t).filter((x) => x.need); return ds.length ? Math.round((ds.filter((x) => x.ok).length / ds.length) * 100) : 100; }
+function viewDocs3() {
+  const tab = UI.docsTab || 'tx';
+  const tabs = [['tx', 'المعاملات'], ['lib', 'مكتبة الإجراءات حسب نوع العمل'], ['people', 'حسب المهندس والمراقب'], ['all', 'كل المستندات']];
+  return html`<div class="ph"><div><h1 style="font-size:28px">الوثائق والمستندات</h1><p>كل معاملة بمستنداتها: التصريح، تعميد الشركة السعودية للكهرباء، نموذج فريق العمل، اجتماع ما قبل العمل، وتقييم المخاطر وإجراءات العمل حسب نوع العمل.</p></div></div>
+  <div class="tabs" role="tablist">${tabs.map((t) => html`<button type="button" role="tab" aria-selected="${tab === t[0]}" data-act="docs-tab" data-k="${t[0]}">${t[1]}</button>`)}</div>
+  ${tab === 'tx' ? txView() : tab === 'lib' ? libView() : tab === 'people' ? viewDocs() : html`<div class="card">${docTable(DB.docs)}</div>`}`;
+}
+function txView() {
+  const q = (UI.txQ || '').trim(), wt = UI.txWT || '';
+  const list = DB.jobs.filter((j) => j.st !== 'done' || UI.txDone).filter((j) => (!wt || j.workType === wt) && (!q || (j.title + j.permit + j.crewId + (j.sec && j.sec.no)).includes(q)));
+  const sel = taskById(UI.tx) || list[0]; if (sel) UI.tx = sel.id;
+  return html`${UI.txPreview ? txPreview() : ''}
+  <div class="card"><div class="row between"><div class="row"><input class="in" type="search" style="width:260px" placeholder="بحث بالتصريح أو التعميد أو الفرقة" value="${UI.txQ || ''}" data-input="tx-q" aria-label="بحث في المعاملات">
+      <label class="row" style="font-size:13px"><input type="checkbox" data-change="tx-done" ${UI.txDone ? new Safe('checked') : ''}> إظهار المنجزة</label></div>
+    <div class="row">${can('edit') ? html`<button class="btn pri" type="button" data-act="task-add">+ معاملة</button><label class="btn" for="txf">رفع ملف معاملات (Excel / CSV)</label><input id="txf" class="sr" type="file" accept=".xlsx,.csv" data-change="tx-import">` : ''}<button class="btn" type="button" data-act="tx-export">تصدير</button></div></div>
+    <div class="chips"><button type="button" class="chip" aria-pressed="${!wt}" data-act="tx-wt" data-k="">كل الأنواع</button>${Object.keys(DB.lists.workTypes).map((k) => html`<button type="button" class="chip" aria-pressed="${wt === k}" data-act="tx-wt" data-k="${k}">${wtName(k)} · ${DB.jobs.filter((j) => j.workType === k && (j.st !== 'done' || UI.txDone)).length}</button>`)}<button type="button" class="chip" aria-pressed="${wt === '__'}" data-act="tx-wt" data-k="__">غير مصنّف</button></div>
+    <div class="tblw"><table style="min-width:900px"><thead><tr><th scope="col">المعاملة</th><th scope="col">التصريح</th><th scope="col">نوع العمل</th><th scope="col">الفرقة</th><th scope="col">التعميد</th><th scope="col">المستندات</th><th scope="col">الحالة</th></tr></thead><tbody>
+    ${(wt === '__' ? DB.jobs.filter((j) => !j.workType && (j.st !== 'done' || UI.txDone)) : list).map((j) => { const p = txProgress(j); return html`<tr style="${sel && sel.id === j.id ? 'background:#FFF7ED' : ''}"><td><button class="btn ghost sm" type="button" data-act="tx-sel" data-id="${j.id}" style="padding:0;font-weight:700;text-align:right">${j.title}</button><div class="t-mut" style="font-size:12px">${fmtD(j.date)} · ${j.site}</div></td><td class="ltr">${j.permit || '—'}</td><td><span class="pill ${j.workType ? 'info' : 'warn'}">${wtName(j.workType)}</span></td><td>${j.crewId || '—'}</td><td class="ltr">${(j.sec && j.sec.no) || html`<span class="pill warn">لا يوجد</span>`}</td><td style="min-width:120px"><div class="row" style="gap:6px;flex-wrap:nowrap"><span style="flex:1">${bar(p, 100, p === 100 ? 'var(--green)' : p >= 60 ? '#B45309' : 'var(--red)')}</span><b>${p}%</b></div></td><td><span class="pill ${JOB_ST[j.st][1]}">${JOB_ST[j.st][0]}</span></td></tr>`; })}</tbody></table></div></div>
+  ${sel ? txPanel(sel) : ''}`;
+}
+function txPanel(t) {
+  const c = crewById(t.crewId); const R = can('request'), E = can('edit'); const team = DB.docs.find((d) => d.taskId === t.id && d.type === 'نموذج فريق العمل' && d.form && d.form.auto);
+  const docs = DB.docs.filter((d) => d.taskId === t.id || (CREW_LEVEL_DOCS.includes(d.type) && !d.taskId && d.crewId === t.crewId)).concat(libraryDocs(t.workType));
+  return html`<div class="card" style="border:2px solid var(--acc)"><div class="row between"><div><h2 style="font-size:20px">${t.title}</h2><span class="t-mut" style="font-size:13px">${wtName(t.workType)} · ${c ? c.name : 'غير مُسندة'} · التنفيذ ${fmtD(t.date)}</span></div>
+      <div class="row">${E ? html`<button class="btn sm" type="button" data-act="task-data" data-id="${t.id}">بيانات المعاملة والتعميد</button>` : ''}<button class="btn sm" type="button" data-act="task-open" data-id="${t.id}">فتح في المهام</button></div></div>
+    <div class="grid g4"><div class="kv"><span>التصريح</span><b class="ltr">${t.permit || '—'}</b>${t.permitExp ? html`<span class="t-mut">ينتهي ${t.permitExp}</span>` : ''}</div><div class="kv"><span>${cfg().brand.secLabel}</span><b class="ltr">${(t.sec && t.sec.no) || '—'}</b><span class="t-mut">${(t.sec && t.sec.date) || ''} ${(t.sec && t.sec.by) || ''}</span></div><div class="kv"><span>المهندس</span><b>${c && c.eng ? c.eng.name : '—'}</b></div><div class="kv"><span>المراقب</span><b>${c ? c.sup.name : '—'}</b></div></div>
+    ${Object.keys(t.data || {}).length ? html`<div class="chips">${Object.keys(t.data).map((k) => html`<span class="pill mutp">${k}: ${t.data[k]}</span>`)}</div>` : ''}
+    <h3 style="font-size:15px">المستندات المطلوبة لهذا النوع من العمل</h3>
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(230px,1fr))">${docStatus(t).map((x) => html`<div class="reqdoc ${x.ok ? 'ok' : x.need ? 'bad' : ''}"><b>${x.ok ? '✓' : x.need ? '✗' : '○'} ${x.type}</b><span class="t-mut" style="font-size:12px">${x.ok ? 'مرفق' : x.need ? 'مطلوب' : 'مطلوب يوم التنفيذ'}</span>
+      ${R ? html`<div class="row" style="gap:6px">${x.type === 'نموذج فريق العمل' ? html`<button class="btn sm dark" type="button" data-act="team-gen" data-id="${t.id}">${team ? 'تحديث من الفرقة' : 'توليد تلقائي'}</button>` : x.type === 'اجتماع ما قبل العمل' ? html`<button class="btn sm dark" type="button" data-act="form-meeting" data-id="${t.id}">تعبئة المحضر</button>` : x.type === 'تقييم المخاطر' ? html`<button class="btn sm dark" type="button" data-act="form-risk" data-id="${t.id}">تعبئة</button>` : ''}<button class="btn sm" type="button" data-act="doc-add" data-task="${t.id}" data-type="${x.type}">إرفاق</button><button class="btn sm" type="button" data-act="doc-add" data-task="${t.id}" data-type="${x.type}" data-scan="1">مسح بالكاميرا</button></div>` : ''}</div>`)}</div>
+    <h3 style="font-size:15px">المستندات المرفقة · ${docs.length}</h3>${docs.length ? docTable(docs) : html`<p class="t-mut" style="font-size:13px">لا مستندات بعد.</p>`}</div>`;
+}
+function txPreview() {
+  const P = UI.txPreview;
+  return html`<div class="card" style="border:2px solid var(--blue)"><div class="row between"><h2 style="font-size:17px">معاينة الاستيراد · ${P.rows.length} معاملة</h2><div class="row"><button class="btn sm" type="button" data-act="tx-ai-classify" ${UI.ai.busy ? new Safe('disabled') : ''}>تصنيف غير المصنّف بالذكاء الاصطناعي</button><button class="btn sm pri" type="button" data-act="tx-import-go">إنشاء المعاملات</button><button class="btn sm" type="button" data-act="tx-import-cancel">إلغاء</button></div></div>
+    <p class="t-mut" style="font-size:13px">صُنّف نوع العمل تلقائياً من الوصف. ستُربط كل معاملة بإجراءاتها وتقييم مخاطرها، ويُولَّد نموذج فريق العمل لما أُسند لفرقة.</p>
+    <div class="tblw"><table style="min-width:760px"><thead><tr><th scope="col">الوصف</th><th scope="col">التصريح</th><th scope="col">الفرقة</th><th scope="col">التاريخ</th><th scope="col">نوع العمل</th></tr></thead><tbody>${P.rows.slice(0, 200).map((r, i) => html`<tr><td>${r.title}</td><td class="ltr">${r.permit}</td><td>${r.crewId || html`<span class="pill warn">غير مُسندة</span>`}</td><td>${r.date}</td><td><select class="in" style="min-height:36px" data-change="tx-prev-wt" data-i="${i}" aria-label="نوع العمل"><option value="">غير مصنّف</option>${Object.keys(DB.lists.workTypes).map((k) => html`<option value="${k}" ${r.workType === k ? new Safe('selected') : ''}>${wtName(k)}</option>`)}</select></td></tr>`)}</tbody></table></div></div>`;
+}
+function libView() {
+  return html`<p class="alert note">ارفع تقييم المخاطر وإجراءات العمل الآمن مرة واحدة لكل نوع عمل؛ تُربط تلقائياً بكل معاملة من النوع نفسه. ويمكن إضافة أنواع أعمال جديدة وكلماتها المفتاحية للتصنيف.</p>
+  ${can('settings') ? html`<div><button class="btn" type="button" data-act="wt-add">+ نوع عمل</button></div>` : ''}
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr))">${Object.keys(DB.lists.workTypes).map((k) => { const W = DB.lists.workTypes[k]; const docs = libraryDocs(k); return html`<div class="card"><div class="row between"><h2 style="font-size:17px">${W[0]}</h2>${can('settings') ? html`<button class="btn sm" type="button" data-act="wt-edit" data-k="${k}">تعديل</button>` : ''}</div>
+    <span class="t-mut" style="font-size:12px">كلمات التصنيف: ${(W[2] || []).join('، ')}</span>
+    ${W[1].map((p) => { const have = docs.filter((d) => d.type === p); return html`<div class="reqdoc ${have.length ? 'ok' : 'bad'}"><b>${have.length ? '✓' : '✗'} ${p}</b>${have.map((d) => html`<span style="font-size:12px">${d.title}${d.fileName ? ' · ' + d.fileName : ''}</span>`)}${can('request') ? html`<button class="btn sm" type="button" data-act="doc-add" data-type="${p}" data-wt="${k}">رفع للمكتبة</button>` : ''}</div>`; })}
+    <span class="t-mut" style="font-size:12px">${DB.jobs.filter((j) => j.workType === k && j.st !== 'done').length} معاملة مفتوحة من هذا النوع</span></div>`; })}</div>`;
+}
+
+// ---------- printable forms (logos + brand texts) ----------
+function formHeader(title, d) {
+  const B = cfg().brand; const t = d.taskId && taskById(d.taskId); const c = crewById(d.crewId || (t && t.crewId)); const p = c && projById(c.projectId);
+  return html`<div class="fhead"><div class="row" style="gap:16px;flex-wrap:wrap">${brandLogos(48)}</div><div style="text-align:left"><b>${B.company}</b><div class="t-mut" style="font-size:12px">${B.client}</div></div></div>
+    <h2 id="dlgTitle" style="font-size:21px;text-align:center;margin:6px 0">${title}</h2>
+    <table class="ftable"><tbody><tr><th>المعاملة</th><td>${t ? t.title : '—'}</td><th>رقم التصريح</th><td>${t ? t.permit || '—' : '—'}</td></tr>
+    <tr><th>نوع العمل</th><td>${t ? wtName(t.workType) : '—'}</td><th>الموقع</th><td>${t ? t.site : (c ? c.site : '—')}</td></tr>
+    <tr><th>المشروع</th><td>${p ? p.name : '—'}</td><th>الفرقة</th><td>${c ? c.name : '—'}</td></tr>
+    <tr><th>${B.secLabel}</th><td>${t && t.sec && t.sec.no ? t.sec.no + (t.sec.date ? ' بتاريخ ' + t.sec.date : '') : '—'}</td><th>تاريخ التنفيذ</th><td>${t ? t.date : '—'}</td></tr></tbody></table>`;
+}
+function docViewHtml3(d) {
+  const B = cfg().brand; const f = d.form || {};
+  let body = '';
+  if (d.type === 'نموذج فريق العمل' && f.members) f.members.forEach((m) => { const e = empByIqama(m.iqama) || DB.employees.find((z) => z.name === m.name); const sc = e && e.docs && e.docs['كارت الأمن الصناعي']; if (sc) m.secExp = sc.exp || 'مرفق'; });
+  if (d.type === 'نموذج فريق العمل' && f.members) body = html`<table class="ftable"><thead><tr><th>م</th><th>الاسم</th><th>رقم الإقامة / الهوية</th><th>المهنة</th><th>الدور في الفرقة</th><th>كارت الأمن الصناعي</th><th>التوقيع</th></tr></thead><tbody>${f.members.map((m, i) => html`<tr><td>${i + 1}</td><td>${m.name}</td><td class="ltr">${m.iqama || html`<span class="pill bad">ناقص</span>`}</td><td>${m.job || '—'}</td><td>${m.role}</td><td class="ltr">${m.secExp ? (/^\d{4}-/.test(m.secExp) ? html`<span class="${daysTo(m.secExp) < 0 ? 'pill bad' : ''}">${m.secExp}</span>` : m.secExp) : html`<span class="pill warn">غير مسجل</span>`}</td><td style="min-width:90px"></td></tr>`)}</tbody></table>
+    ${f.members.some((m) => !m.iqama) ? html`<p class="alert wr noprint">بعض الأعضاء بلا رقم إقامة. اربطهم بسجل الموظفين من صفحة الفرقة ثم اضغط «تحديث من الفرقة».</p>` : ''}
+    <table class="ftable"><tbody><tr><th>${B.secLabel}</th><td style="height:46px"></td><th>الختم والتوقيع</th><td></td></tr></tbody></table>`;
+  else if (d.type === 'اجتماع ما قبل العمل') body = html`<div class="kv"><span>تاريخ الاجتماع</span><b>${f.date || ''}</b></div><h3 style="font-size:15px">المواضيع والمخاطر التي نوقشت</h3><div class="chips">${(f.topics || []).map((x) => html`<span class="pill mutp">${x}</span>`)}</div>
+    <table class="ftable"><thead><tr><th>م</th><th>الحضور</th><th>رقم الإقامة</th><th>التوقيع</th></tr></thead><tbody>${(f.attendees || []).map((a, i) => { const e = DB.employees.find((x) => x.name === a); return html`<tr><td>${i + 1}</td><td>${a}</td><td class="ltr">${e ? e.iqama : ''}</td><td style="min-width:90px"></td></tr>`; })}</tbody></table>${f.note ? html`<p style="font-size:14px">ملاحظات: ${f.note}</p>` : ''}`;
+  else if (d.type === 'تقييم المخاطر') body = html`<div class="kv"><span>مستوى الخطورة العام</span><b>${f.level || ''}</b></div><h3 style="font-size:15px">المخاطر</h3><div class="chips">${(f.hazards || []).map((x) => html`<span class="pill warn">${x}</span>`)}</div><h3 style="font-size:15px">إجراءات التحكم</h3><p style="font-size:14px;line-height:1.9;white-space:pre-line">${f.controls || ''}</p>`;
+  const title = d.type === 'نموذج فريق العمل' ? B.teamTitle : d.type === 'اجتماع ما قبل العمل' ? B.meetingTitle : d.type;
+  return html`<div class="dlg printable" style="gap:10px">${formHeader(title, d)}${body}
+    <p class="t-mut" style="font-size:13px">اعتماد المهندس: ____________ · اعتماد المراقب: ____________</p><p class="t-mut" style="font-size:11px;border-top:1px solid var(--line2);padding-top:6px">${B.footer} · ${fmtT(d.tm)}</p>
+    <div class="row noprint">${d.type === 'نموذج فريق العمل' && d.taskId && can('request') ? html`<button class="btn" type="button" data-act="team-gen" data-id="${d.taskId}" data-view="1">تحديث من الفرقة</button>` : ''}<button class="btn pri" type="button" data-act="print">طباعة / حفظ PDF</button><button class="btn" type="button" data-act="dlg-close">إغلاق</button></div></div>`;
+}
+
+// ---------- users, requests & employees ----------
+function viewUsers3() {
+  const tab = UI.usersTab || 'users'; const pend = DB.reqs.filter((r) => r.st === 'pending').length;
+  return html`<div class="tabs" role="tablist"><button type="button" role="tab" aria-selected="${tab === 'users'}" data-act="users-tab" data-k="users">المستخدمون والطلبات${pend ? ' (' + pend + ')' : ''}</button><button type="button" role="tab" aria-selected="${tab === 'emps'}" data-act="users-tab" data-k="emps">سجل الموظفين · ${DB.employees.length}</button></div>
+  ${tab === 'emps' ? viewEmps() : viewUsers()}`;
+}
+function viewEmps() {
+  const q = (UI.empQ || '').trim(); const list = DB.employees.filter((e) => !q || (e.name + e.iqama + e.job + e.branch + e.empNo).toLowerCase().includes(q.toLowerCase()));
+  const linked = (e) => { for (const c of DB.crews) { if (c.eng && (c.eng.empId === e.id || (e.iqama && c.eng.iqama === e.iqama))) return c.id + ' · مهندس'; if (c.sup.empId === e.id || (e.iqama && c.sup.iqama === e.iqama)) return c.id + ' · مراقب'; for (const w of c.workers) { if (w.empId === e.id || (e.iqama && w.iqama === e.iqama)) return c.id + ' · ' + (w.role || 'عامل'); if (w.dyna && w.dyna.driver && (w.dyna.driver.empId === e.id || (e.iqama && w.dyna.driver.iqama === e.iqama))) return c.id + ' · سائق ديانة'; } for (const u of c.eq) if (u.driver && (u.driver.empId === e.id || (e.iqama && u.driver.iqama === e.iqama))) return c.id + ' · سائق ' + u.kind; } return ''; };
+  const hasUser = (e) => e.iqama && DB.users.some((u) => u.iqama === e.iqama);
+  return html`<div class="ph"><div><h1 style="font-size:28px">سجل الموظفين</h1><p>مستورد من Odoo (hr.employee) أو من Excel / CSV. منه تُسحب الأسماء وأرقام الإقامات والمهن إلى الفرق ونماذج فريق العمل، ومنه تُنشأ حسابات الدخول.</p></div>
+    <div class="row">${can('data') ? html`<label class="btn pri" for="empf">استيراد Excel / CSV</label><input id="empf" class="sr" type="file" accept=".xlsx,.csv" data-change="emp-import">` : ''}<button class="btn" type="button" data-act="emp-export" data-fmt="xlsx">تصدير بصيغة Odoo (xlsx)</button><button class="btn" type="button" data-act="emp-export" data-fmt="csv">CSV</button>${can('data') ? html`<button class="btn" type="button" data-act="emp-add">+ موظف</button>` : ''}</div></div>
+  ${UI.empReport ? html`<p class="alert okk" role="status">${UI.empReport}</p>` : ''}
+  <div class="card"><div class="row between"><input class="in" type="search" style="width:320px" placeholder="بحث بالاسم أو الإقامة أو المهنة" value="${UI.empQ || ''}" data-input="emp-q" aria-label="بحث في الموظفين"><span class="t-mut" style="font-size:13px">${list.length} موظف · ${DB.employees.filter((e) => !e.iqama).length} بلا رقم إقامة · ${DB.employees.filter((e) => !e.phone).length} بلا جوال</span></div>
+  ${list.length ? html`<div class="tblw"><table style="min-width:980px"><thead><tr><th scope="col">الاسم</th><th scope="col">الإقامة</th><th scope="col">المهنة</th><th scope="col">الفرع</th><th scope="col">الرقم الوظيفي</th><th scope="col">الجوال</th><th scope="col">مرتبط بـ</th><th scope="col">المرفقات</th><th scope="col">إجراء</th></tr></thead><tbody>
+  ${list.slice(0, 300).map((e) => html`<tr><td><b>${e.name}</b></td><td class="ltr">${e.iqama ? (can('users') ? e.iqama : maskIqama(e.iqama)) : html`<span class="pill warn">ناقص</span>`}</td><td>${e.job || '—'}</td><td>${e.branch || '—'}</td><td class="ltr">${e.empNo || '—'}</td><td class="ltr">${e.phone ? maskPhone(e.phone) : html`<span class="pill warn">ناقص</span>`}</td><td>${linked(e) || html`<span class="t-mut">—</span>`}</td><td style="min-width:230px"><div class="chips" style="gap:4px">${DB.lists.empDocs.map((t) => { const st = empDocState(e, t); if (st.lvl === 'na') return ''; const lbl = { 'صورة الإقامة': 'الإقامة', 'كارت الأمن الصناعي': 'الأمن الصناعي', 'رخصة القيادة': 'الرخصة', 'كارت التأمين الطبي': 'التأمين' }[t] || t; const cls = { ok: 'ok', warn: 'warn', bad: 'bad', miss: 'mutp' }[st.lvl]; const tip = st.d && st.d.exp ? ' — ' + st.d.exp : st.lvl === 'miss' ? ' — ناقص' : ''; return st.d && st.d.fileId ? html`<button type="button" class="pill ${cls}" style="border:0;cursor:pointer" data-act="emp-doc-file" data-id="${e.id}" data-k="${t}" title="تنزيل ${t}${tip}">${lbl}</button>` : html`<span class="pill ${cls}" title="${t}${tip}">${lbl}</span>`; })}${e.notes ? html`<span class="pill info" title="${e.notes}">ملاحظة</span>` : ''}</div></td>
+    <td><div class="row" style="gap:6px">${can('data') ? html`<button class="btn sm" type="button" data-act="emp-edit" data-id="${e.id}">الملف والمرفقات</button>` : ''}${can('users') && !hasUser(e) && e.iqama ? html`<button class="btn sm dark" type="button" data-act="emp-user" data-id="${e.id}">إنشاء حساب</button>` : hasUser(e) ? html`<span class="pill ok">له حساب</span>` : ''}</div></td></tr>`)}</tbody></table></div>` : html`<p class="empty">لا موظفين بعد. استورد ملف hr.employee من Odoo.</p>`}</div>`;
+}
+
+// ---------- performance (daily / weekly / monthly) ----------
+function perfData(period) {
+  const days = period === 'day' ? 1 : period === 'week' ? 7 : 30; const from = addDays(-(days - 1));
+  const inRange = (j) => j.date >= from && j.date <= today();
+  const crews = DB.crews.map((c) => { const T = DB.jobs.filter((j) => j.crewId === c.id && inRange(j)); const done = T.filter((j) => j.st === 'done'); const onT = done.filter((j) => j.doneAt && dstr(j.doneAt) <= j.date).length;
+    const ds = T.filter((j) => j.st !== 'done').flatMap((j) => docStatus(j)).filter((x) => x.need); const sN = T.filter((j) => j.st !== 'hold'); const sO = sN.filter((j) => { const r = j.reqs.find((x) => x.type === SAFE_IN); return r && r.st === 'done'; });
+    const score = T.length ? Math.round((done.length / T.length) * 50 + (done.length ? (onT / done.length) * 25 : 0) + (sN.length ? (sO.length / sN.length) * 15 : 15) + (ds.length ? (ds.filter((x) => x.ok).length / ds.length) * 10 : 10)) : null;
+    return { c, planned: T.length, done: done.length, onTime: done.length ? Math.round((onT / done.length) * 100) : null, holds: T.filter((j) => j.st === 'hold').length, safety: sN.length ? Math.round((sO.length / sN.length) * 100) : null, docs: ds.length ? Math.round((ds.filter((x) => x.ok).length / ds.length) * 100) : null, score }; });
+  const emp = {}; DB.jobs.filter((j) => inRange(j) && j.st === 'done').forEach((j) => { const team = DB.docs.find((d) => d.taskId === j.id && d.form && d.form.members); const mem = team ? team.form.members : crewMembers(crewById(j.crewId)); mem.forEach((m) => { const k = m.iqama || m.name; emp[k] = emp[k] || { name: m.name, role: m.role, job: m.job, crew: j.crewId, done: 0 }; emp[k].done++; }); });
+  return { from, crews, emps: Object.values(emp).sort((a, b) => b.done - a.done) };
+}
+function perfPanel() {
+  const per = UI.perf || 'week'; const P = perfData(per);
+  return html`<div class="card"><div class="row between"><h2 style="font-size:17px">تحليل أداء الفرق والموظفين</h2><div class="chips">${[['day', 'يومي'], ['week', 'أسبوعي'], ['month', 'شهري']].map((x) => html`<button type="button" class="chip" aria-pressed="${per === x[0]}" data-act="perf-period" data-k="${x[0]}">${x[1]}</button>`)}<button class="btn sm pri" type="button" data-act="perf-ai" ${UI.ai.busy ? new Safe('disabled') : ''}>تحليل بالذكاء الاصطناعي</button></div></div>
+    <span class="t-mut" style="font-size:12px">الفترة من ${P.from} إلى ${today()} · الدرجة = الإنجاز 50٪ + الالتزام بالموعد 25٪ + السلامة 15٪ + المستندات 10٪</span>
+    <div class="tblw"><table style="min-width:760px"><thead><tr><th scope="col">الفرقة</th><th scope="col">مخطط</th><th scope="col">منجز</th><th scope="col">في الموعد</th><th scope="col">متوقف</th><th scope="col">السلامة</th><th scope="col">المستندات</th><th scope="col">الدرجة</th></tr></thead><tbody>
+    ${P.crews.sort((a, b) => (b.score || -1) - (a.score || -1)).map((x) => html`<tr><td><b>${x.c.name}</b></td><td>${x.planned}</td><td>${x.done}</td><td>${x.onTime == null ? '—' : x.onTime + '%'}</td><td>${x.holds}</td><td>${x.safety == null ? '—' : x.safety + '%'}</td><td>${x.docs == null ? '—' : x.docs + '%'}</td><td>${x.score == null ? html`<span class="t-mut">لا مهام</span>` : html`<span class="pill ${x.score >= 80 ? 'ok' : x.score >= 55 ? 'warn' : 'bad'}">${x.score}</span>`}</td></tr>`)}</tbody></table></div>
+    ${P.emps.length ? html`<h3 style="font-size:15px">الموظفون الأكثر إنجازاً في الفترة</h3><div class="tblw"><table><thead><tr><th scope="col">الموظف</th><th scope="col">الدور</th><th scope="col">الفرقة</th><th scope="col">مهام منجزة</th></tr></thead><tbody>${P.emps.slice(0, 15).map((e) => html`<tr><td>${e.name}</td><td>${e.role}</td><td>${e.crew}</td><td><b>${e.done}</b></td></tr>`)}</tbody></table></div>` : html`<p class="t-mut" style="font-size:13px">لا مهام منجزة في هذه الفترة.</p>`}
+    ${UI.ai.perf ? html`<div class="msg a" style="max-width:100%">${UI.ai.busy ? 'جارٍ التحليل…' : UI.ai.a}</div>${UI.ai.busy ? '' : html`<span class="t-mut" style="font-size:12px">عبر: ${UI.ai.via}</span>`}` : ''}</div>`;
+}
+function localPerfReview(period) {
+  const P = perfData(period); const lines = [];
+  const ranked = P.crews.filter((x) => x.score != null).sort((a, b) => b.score - a.score);
+  if (ranked.length) { lines.push('الأفضل: ' + ranked[0].c.name + ' (' + ranked[0].score + ')'); if (ranked.length > 1) lines.push('الأضعف: ' + ranked[ranked.length - 1].c.name + ' (' + ranked[ranked.length - 1].score + ')'); }
+  P.crews.forEach((x) => { const f = []; if (x.holds) f.push(x.holds + ' مهمة متوقفة'); if (x.onTime != null && x.onTime < 80) f.push('الالتزام بالموعد ' + x.onTime + '%'); if (x.safety != null && x.safety < 100) f.push('السلامة ' + x.safety + '%'); if (x.docs != null && x.docs < 80) f.push('المستندات ' + x.docs + '%'); if (f.length) lines.push('• ' + x.c.name + ': ' + f.join('، ')); });
+  if (P.emps.length) lines.push('أكثر الموظفين إنجازاً: ' + P.emps.slice(0, 3).map((e) => e.name + ' (' + e.done + ')').join('، '));
+  return 'ملخص الأداء ' + ({ day: 'اليومي', week: 'الأسبوعي', month: 'الشهري' }[period]) + ':\n' + (lines.join('\n') || 'لا بيانات كافية في هذه الفترة.');
+}
+
+// ---------- settings (tabbed) ----------
+function viewSettings3() {
+  const tab = UI.setTab || 'general'; const s = cfg(); const B = s.brand;
+  const tabs = [['general', 'عام'], ['brand', 'الهوية والشعارات'], ['gauges', 'مؤشرات اللوحة'], ['maint', 'خطة الصيانة الدورية'], ['lists', 'القوائم'], ['data', 'البيانات والربط']];
+  let body;
+  if (tab === 'brand') body = html`<form class="card" data-form="brand"><h2 style="font-size:17px">الهوية</h2><div class="grid g2">${fieldHtml({ k: 'company', label: 'اسم الشركة', val: B.company })}${fieldHtml({ k: 'app', label: 'اسم المنصة', val: B.app })}${fieldHtml({ k: 'client', label: 'الجهة المالكة / العميل', val: B.client })}${fieldHtml({ k: 'secLabel', label: 'مسمى التعميد في النماذج', val: B.secLabel })}${fieldHtml({ k: 'teamTitle', label: 'عنوان نموذج فريق العمل', val: B.teamTitle })}${fieldHtml({ k: 'meetingTitle', label: 'عنوان محضر اجتماع ما قبل العمل', val: B.meetingTitle })}</div>${fieldHtml({ k: 'footer', label: 'نص تذييل النماذج', type: 'textarea', val: B.footer })}<div class="row"><button class="btn pri" type="submit">حفظ الهوية</button></div></form>
+    <div class="card"><div class="row between"><h2 style="font-size:17px">الشعارات · تظهر في الهيدر والنماذج المطبوعة</h2><div class="row"><label class="btn" for="logof">+ رفع شعار</label><input id="logof" class="sr" type="file" accept="image/png,image/jpeg,image/webp" data-change="logo-upload"><button class="btn sm" type="button" data-act="logo-reset">استعادة الافتراضية</button></div></div>
+    <div class="row" style="gap:14px">${(B.logos || []).filter((l) => imgOk(l.src)).map((l, i) => html`<div class="logo-item"><img src="${l.src}" alt="${l.name}" style="height:56px;width:auto"><span style="font-size:12px">${l.name}</span><div class="row" style="gap:4px"><button class="btn sm" type="button" data-act="logo-move" data-i="${i}" aria-label="تقديم ${l.name}">◀</button><button class="btn sm" type="button" data-act="logo-del" data-i="${i}" style="color:var(--red)">حذف</button></div></div>`)}</div>
+    </div><div class="card"><div class="row between"><h2 style="font-size:17px">صورة الهيدر</h2><div class="row"><label class="btn" for="coverf">رفع / تغيير الصورة</label><input id="coverf" class="sr" type="file" accept="image/png,image/jpeg,image/webp" data-change="cover-upload"><button class="btn sm" type="button" data-act="cover-reset">الصورة الافتراضية</button><button class="btn sm" type="button" data-act="cover-del">بدون صورة</button></div></div>${imgOk(B.cover) ? html`<img src="${B.cover}" alt="صورة الهيدر الحالية" style="width:100%;max-height:180px;object-fit:cover;border-radius:12px">` : html`<p class="t-mut">لا توجد صورة؛ يظهر الهيدر بلون الهوية.</p>`}<p class="t-mut" style="font-size:12px">صورة عريضة (يُفضّل 1600×400) حتى 4 ميجابايت؛ تُضغط داخل المتصفح. الصورة الافتراضية رسم أصلي لأعمال الشبكات والسلامة.</p>
+    <p class="t-mut" style="font-size:12px">الشعارات: PNG أو JPG أو WEBP حتى 2 ميجابايت. يُعاد رسم الشعار داخل المتصفح بارتفاع ثابت قبل حفظه. لا تُقبل صيغة SVG لأنها قد تحمل كوداً.</p></div>`;
+  else if (tab === 'gauges') body = html`<form class="card" data-form="gauges"><h2 style="font-size:17px">المؤشرات المعروضة في لوحة الأداء</h2><div class="chips">${Object.keys(GAUGES).map((k) => html`<label class="chip" style="display:inline-flex;gap:6px;align-items:center"><input type="checkbox" name="g" value="${k}" ${s.gauges.includes(k) ? new Safe('checked') : ''}>${GAUGES[k]}</label>`)}</div>
+    ${fieldHtml({ k: 'style', label: 'شكل المؤشرات', type: 'select', val: s.gaugeStyle, opts: [['ring', 'دوائر'], ['number', 'أرقام ونسب']] })}<div class="row"><button class="btn pri" type="submit">حفظ</button></div></form>`;
+  else if (tab === 'maint') body = html`<div class="card"><div class="row between"><h2 style="font-size:17px">خطة الصيانة الدورية</h2><button class="btn" type="button" data-act="maint-plan-add">+ بند صيانة</button></div><p class="t-mut" style="font-size:13px">تغيير الزيت كل ${OIL_INTERVAL.toLocaleString('en')} كم (يُتابع من عداد كل معدة). كل بند يُستحق بالمسافة أو بالأيام، أيهما أقرب.</p>
+    <div class="tblw"><table><thead><tr><th scope="col">البند</th><th scope="col">كل (كم)</th><th scope="col">كل (يوم)</th><th scope="col">إجراء</th></tr></thead><tbody>${s.maintPlan.map((p) => html`<tr><td>${p.label}</td><td>${p.km ? p.km.toLocaleString('en') : '—'}</td><td>${p.days || '—'}</td><td><div class="row" style="gap:6px"><button class="btn sm" type="button" data-act="maint-plan-edit" data-k="${p.key}">تعديل</button><button class="btn sm" type="button" data-act="maint-plan-del" data-k="${p.key}" style="color:var(--red)">حذف</button></div></td></tr>`)}</tbody></table></div></div>`;
+  else if (tab === 'lists') body = listsManager();
+  else if (tab === 'data') body = dataPanel();
+  else body = html`<form class="card" data-form="settings"><h2 style="font-size:17px">القواعد</h2><div class="grid g3">
+    ${fieldHtml({ k: 'radiusKm', label: 'نطاق البحث عن الفرقة القريبة (كم)', type: 'number', val: s.radiusKm })}${fieldHtml({ k: 'oilWarn', label: 'تنبيه غيار الزيت قبل (كم)', type: 'number', val: s.oilWarn })}${fieldHtml({ k: 'kmPerDay', label: 'متوسط السير اليومي (كم)', type: 'number', val: s.kmPerDay })}</div>
+    ${CLOUD ? html`<p class="alert note">يعمل الآن على الخادم: إرسال رمز التحقق يتم من الخادم عبر مزود الرسائل المضبوط في متغيرات البيئة.</p>` : fieldHtml({ k: 'otpGateway', label: 'بوابة إرسال رمز التحقق (https) — للنسخة المحلية فقط', ltr: true, val: s.otpGateway, ph: 'https://api.your-company.sa/otp', hint: 'في النشر على Google Cloud يُرسل الرمز من الخادم ولا حاجة لهذا الحقل.' })}
+    <div class="row"><button class="btn pri" type="submit">حفظ الإعدادات</button></div></form>`;
+  return html`<div class="ph"><div><h1 style="font-size:28px">الإعدادات</h1><p>الهوية والشعارات، المؤشرات، الصيانة الدورية، القوائم، والبيانات والربط مع Odoo وGoogle Cloud.</p></div></div>
+  <div class="tabs" role="tablist">${tabs.map((t) => html`<button type="button" role="tab" aria-selected="${tab === t[0]}" data-act="set-tab" data-k="${t[0]}">${t[1]}</button>`)}</div>${body}`;
+}
+function dataPanel() {
+  const o = cfg().odoo || {};
+  return html`<div class="card"><h2 style="font-size:17px">الاستيراد والتصدير</h2><div class="grid g2">
+      <div class="reqdoc"><b>الموظفون (Odoo hr.employee)</b><span class="t-mut" style="font-size:12px">آخر استيراد: ${o.lastImport ? fmtT(o.lastImport) : '—'}</span><div class="row" style="gap:6px"><label class="btn sm pri" for="empf2">استيراد xlsx / csv</label><input id="empf2" class="sr" type="file" accept=".xlsx,.csv" data-change="emp-import"><button class="btn sm" type="button" data-act="emp-export" data-fmt="xlsx">تصدير</button></div></div>
+      <div class="reqdoc"><b>المعاملات</b><span class="t-mut" style="font-size:12px">من ملف تصاريح: الوصف، رقم التصريح، الفرقة، التاريخ، الموقع</span><div class="row" style="gap:6px"><label class="btn sm pri" for="txf2">استيراد</label><input id="txf2" class="sr" type="file" accept=".xlsx,.csv" data-change="tx-import"><button class="btn sm" type="button" data-act="tx-export">تصدير</button></div></div>
+      <div class="reqdoc"><b>سجل المعدات والحصر</b><div class="row" style="gap:6px"><button class="btn sm" type="button" data-act="inv-export" data-fmt="xlsx">تصدير Excel</button><button class="btn sm" type="button" data-act="eq-export">سجل الصيانة</button></div></div>
+      <div class="reqdoc"><b>نسخة احتياطية كاملة</b><div class="row" style="gap:6px"><button class="btn sm" type="button" data-act="export">تصدير JSON</button><label class="btn sm" for="imp">استيراد بيانات الفرق</label><input id="imp" type="file" accept="application/json" class="sr" data-change="import"><button class="btn sm" type="button" data-act="reset-ops" style="color:var(--red)">إعادة البيانات التجريبية</button></div></div></div></div>
+  <div class="card"><h2 style="font-size:17px">الربط مع Odoo</h2>
+    ${CLOUD ? html`<p style="font-size:14px">الخادم ${CLOUD.odoo ? html`<span class="pill ok">مربوط بـ Odoo</span>` : html`<span class="pill warn">غير مربوط</span>`}. تُضبط بيانات الاتصال في متغيرات البيئة على الخادم فقط (ODOO_URL، ODOO_DB، ODOO_USER، ODOO_API_KEY)، ولا يصل المفتاح إلى المتصفح.</p>
+      <div class="row"><button class="btn pri" type="button" data-act="odoo-pull" ${CLOUD.odoo ? '' : new Safe('disabled')}>سحب الموظفين من Odoo الآن</button></div>`
+    : html`<p style="font-size:14px;line-height:1.8">في النسخة المحلية: صدّر الموظفين من Odoo (الموظفون ← تحديد ← إجراء ← تصدير) واستورد الملف هنا. بعد النشر على Google Cloud يُسحب ويُسقط تلقائياً عبر Odoo External API من الخادم.</p>`}
+    <p class="t-mut" style="font-size:12px">التفاصيل في docs/ODOO.md داخل المستودع: الحقول، والصلاحيات المطلوبة لمستخدم الربط، وخيار MCP.</p></div>
+  <div class="card"><h2 style="font-size:17px">وضع التشغيل</h2><p style="font-size:14px">${CLOUD ? html`<span class="pill ok">سحابي</span> البيانات على خادم الشركة (Firestore)، والدخول والرموز والذكاء الاصطناعي عبر الخادم.` : html`<span class="pill warn">محلي</span> البيانات على هذا الجهاز فقط. للتشغيل لعدة مستخدمين انشر المستودع على Google Cloud Run (docs/DEPLOY.md).`}</p></div>`;
+}
+
+// ================= v3: equipment register with periodic maintenance =================
+function viewEquip3() {
+  const f = UI.eqFilter, q = UI.eqQ.trim();
+  const rows = allEquipment().filter((x) => (f === 'all' || (f === 'care' ? needsCare(x.u) : f === 'maint' ? maintStatus(x.u).some((m) => m.lvl === 'bad' || m.lvl === 'warn') : f === 'nodrv' ? (x.where !== 'car' && !x.driver) : x.u.st === f)) && (!q || (x.u.kind + x.u.code + x.crew.id + x.crew.name + (x.driver ? x.driver.name : '')).includes(q)));
+  const chips = [['all', 'الكل'], ['care', 'تحتاج متابعة'], ['maint', 'صيانة دورية مستحقة'], ['nodrv', 'بدون سائق'], ['ok', 'تعمل'], ['due', 'تحتاج صيانة'], ['shop', 'في الورشة']];
+  return html`<div class="ph"><div><h1 style="font-size:28px">سجل المعدات والصيانة الدورية</h1><p>كل معدة وديانة وسيارة مراقب بسائقها وعدادها: الزيت، الفلاتر، الفرامل، الكفرات، البطارية، التشحيم، الصيانة الشاملة، والاستمارة.</p></div><div class="row"><button class="btn" type="button" data-act="eq-export">تصدير Excel</button></div></div>
+  ${movePanel()}
+  <div class="card"><div class="row between"><div class="chips">${chips.map((c) => html`<button type="button" class="chip" aria-pressed="${f === c[0]}" data-act="eq-filter" data-k="${c[0]}">${c[1]}</button>`)}</div>
+    <div class="fld" style="flex:0 1 280px"><label class="sr" for="eqq">بحث</label><input class="in" id="eqq" type="search" placeholder="بحث بالرقم أو الفرقة أو السائق" value="${UI.eqQ}" data-input="eq-q"></div></div>
+  ${rows.length ? html`<div class="tblw"><table style="min-width:1100px"><thead><tr><th scope="col">المعدة</th><th scope="col">الرقم / اللوحة</th><th scope="col">الفرقة</th><th scope="col">السائق</th><th scope="col">الحالة</th><th scope="col">العداد</th><th scope="col">الزيت</th><th scope="col">الصيانة الدورية</th><th scope="col">التجربة</th><th scope="col">إجراء</th></tr></thead>
+  <tbody>${rows.map((x) => { const o = oilInfo(x.u.oil), t = testInfo(x.u.tested); const ms = maintStatus(x.u); const bad = ms.filter((m) => m.lvl === 'bad'), warn = ms.filter((m) => m.lvl === 'warn');
+    return html`<tr><td><b>${x.where === 'car' ? 'سيارة مراقب' : x.u.kind}</b>${x.where === 'dyna' ? html`<div class="t-mut" style="font-size:12px">مع العامل ${x.worker.name}</div>` : ''}</td><td>${x.u.code}</td><td>${x.crew.id}</td><td>${x.driver ? x.driver.name : html`<span class="pill bad">بدون سائق</span>`}</td><td><span class="pill ${ST[x.u.st][1]}">${ST[x.u.st][0]}</span></td><td class="ltr">${(x.u.odo || 0).toLocaleString('en')} km</td><td><span class="${o[1]}">${o[0]}</span></td>
+      <td style="max-width:260px">${bad.length ? bad.map((m) => html`<span class="pill bad" style="margin:2px">${m.text}</span>`) : ''}${warn.length ? warn.map((m) => html`<span class="pill warn" style="margin:2px">${m.text}</span>`) : ''}${!bad.length && !warn.length ? html`<span class="t-ok">منتظمة</span>` : ''}</td><td><span class="${t[1]}">${t[0]}</span></td>
+      <td><div class="row" style="gap:6px">${can('request') ? html`<button class="btn sm dark" type="button" data-act="maint-log" data-id="${x.u.id}">تسجيل صيانة</button><button class="btn sm" type="button" data-act="odo-update" data-id="${x.u.id}">العداد</button>` : ''}${can('move') && x.where !== 'car' ? html`<button class="btn sm" type="button" data-act="${x.where === 'eq' ? 'move-eq' : 'move-dy'}" data-crew="${x.crew.id}" data-id="${x.where === 'eq' ? x.u.id : x.worker.id}">نقل</button>` : ''}</div></td></tr>`; })}</tbody></table></div>` : html`<p class="empty">لا نتائج مطابقة.</p>`}</div>`;
+}
+const eqRows = () => [['الفرقة', 'المعدة', 'الرقم', 'السائق', 'الحالة', 'العداد', 'الزيت', 'الاستمارة'].concat(cfg().maintPlan.map((p) => p.label))].concat(allEquipment().map((x) => [x.crew.id, x.where === 'car' ? 'سيارة مراقب' : x.u.kind, x.u.code, x.driver ? x.driver.name : '', ST[x.u.st][0], x.u.odo || 0, oilInfo(x.u.oil)[0], x.u.regExp || ''].concat(cfg().maintPlan.map((p) => { const m = maintStatus(x.u).find((s) => s.p.key === p.key); return m ? m.text.replace(p.label + ': ', '') : ''; }))));
+
+// ---------- employee pickers (link crew members to the employee register) ----------
+const empOpts = () => [['', '— إدخال يدوي —']].concat(DB.employees.slice().sort((a, b) => a.name.localeCompare(b.name)).map((e) => [e.id, e.name + (e.job ? ' — ' + e.job : '') + (e.iqama ? ' — ' + maskIqama(e.iqama) : '')]));
+function personFrom(v, keyName, keyPhone, keyEmp, keyIq, old) {
+  const e = v[keyEmp] && empById(v[keyEmp]);
+  const name = (e ? e.name : (v[keyName] || '').trim()).slice(0, 80); if (!name) return { p: null };
+  const ph = normPhone(v[keyPhone] || (e && e.phone) || (old && old.phone) || ''); if (ph && !validPhone(ph)) return { err: 'الجوال بصيغة 05xxxxxxxx.' };
+  const typed = (v[keyIq] || '').trim(); const iq = typed || (e && e.iqama) || (old && old.iqama) || ''; if (iq && !validIqama(iq)) return { err: 'رقم الإقامة: 10 أرقام يبدأ بـ 1 أو 2.' };
+  if (e && typed && typed !== e.iqama) { if (DB.employees.some((x) => x.iqama === typed && x.id !== e.id)) return { err: 'رقم الإقامة مسجل لموظف آخر في السجل.' }; e.iqama = typed; }
+  if (e && ph && !e.phone) e.phone = ph;
+  return { p: Object.assign({}, old || {}, { name, phone: ph, iqama: iq, empId: e ? e.id : (old && old.name === name ? old.empId : ''), job: e ? e.job : (old && old.job) || '' }) };
+}
+
+// ---------- cloud mode (Google Cloud Run + Firestore) — activated when served by the Maydan server ----------
+const api = async (path, opts) => { const r = await fetch('/api' + path, Object.assign({ credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'maydan' } }, opts || {})); let j = null; try { j = await r.json(); } catch (e) { /* empty */ } if (!r.ok) { const err = new Error((j && j.error) || ('HTTP ' + r.status)); err.status = r.status; throw err; } return j; };
+async function cloudDetect() { const m = document.querySelector('meta[name="maydan-server"]'); if (!m || m.content !== '1') return null; try { const h = await api('/health'); return h && h.app === 'maydan' ? h : null; } catch (e) { return null; } }
+let SAVE_T = null, CLOUD_VER = 0;
+function cloudSave() { if (!CLOUD || !CUR || DEMO) return; clearTimeout(SAVE_T); SAVE_T = setTimeout(async () => { const body = Object.assign({}, DB, { users: [], locks: {}, audit: [] }); try { const r = await api('/state', { method: 'PUT', body: JSON.stringify({ version: CLOUD_VER, state: body }) }); CLOUD_VER = r.version; } catch (e) { if (e.status === 409) { toast('عدّل مستخدم آخر البيانات؛ أُعيد تحميل أحدث نسخة.', 'err'); await cloudLoad(); render(); } else if (e.status === 401) logout('انتهاء الجلسة'); else toast('تعذّر الحفظ على الخادم.', 'err'); } }, 700); }
+async function cloudLoad() { const r = await api('/state'); if (r.state && r.state.crews) { DB = migrate3(migrate(r.state)); } CLOUD_VER = r.version || 0; try { const u = await api('/users'); DB.users = u.users || []; } catch (e) { DB.users = [CUR]; } try { const a = await api('/audit'); DB.audit = a.audit || []; } catch (e) { /* not allowed */ } try { const q = await api('/requests'); DB.reqs = q.requests || []; } catch (e) { DB.reqs = []; } ensureProviders(); }
+
+// ---------- render ----------
+function render() {
+  applyPrefs();
+  const app = $('#app');
+  if (!CUR) { if (MAP) { MAP.remove(); MAP = null; } app.innerHTML = viewAuth().s; translateUI(app); const f = app.querySelector('input'); if (f) f.focus(); return; }
+  if (!can('users') && UI.view === 'users') UI.view = 'ops';
+  const v = { dash: viewDash, tasks: viewTasks, docs: viewDocs3, inv: viewInv, ops: viewOps, crews: viewCrews, equip: viewEquip3, ai: viewAI, users: viewUsers3, security: viewSecurity, settings: viewSettings3 }[UI.view] || viewDash;
+  if (MAP) { MAP.remove(); MAP = null; }
+  app.innerHTML = shell(v()).s;
+  if (UI.view === 'ops') mountMap();
+  translateUI(app);
+  document.querySelectorAll('a.wa:not(.txt),a.tg:not(.txt),a.lnk.w,a.lnk.t').forEach((x) => { const t = (x.getAttribute('aria-label') || x.textContent).trim(); x.title = t; if (!x.getAttribute('aria-label')) x.setAttribute('aria-label', t); });
+  pushBrowserAlerts();
+}
+
+// ---------- actions ----------
+const need = (p) => { if (!can(p)) { toast('لا تملك صلاحية لهذا الإجراء.', 'err'); return false; } return true; };
+const curCrew = () => crewById(UI.sel) || DB.crews[0];
+const stOpts = Object.keys(ST).map((k) => [k, ST[k][0]]);
+const unitFields = (u, withKind) => [].concat(withKind ? [{ k: 'kind', label: 'نوع المعدة', type: 'select', val: u.kind, list: 'eqKinds' }] : [])
+  .concat([{ k: 'code', label: 'الرقم / اللوحة', val: u.code, req: true }, { k: 'st', label: 'الحالة', type: 'select', val: u.st, opts: stOpts }, { k: 'odo', label: 'العداد (كم)', type: 'number', val: u.odo || 0 }, { k: 'oil', label: 'المتبقي لغيار الزيت (كم، بالسالب إن تأخر)', type: 'number', val: u.oil },
+    { k: 'drvEmp', label: 'السائق من سجل الموظفين (إلزامي)', type: 'select', val: u.driver ? u.driver.empId || '' : '', opts: empOpts(), wide: true }, { k: 'drv', label: 'أو اسم السائق يدوياً', val: u.driver ? u.driver.name : '' }, { k: 'drvPhone', label: 'جوال السائق', ltr: true, val: u.driver ? u.driver.phone : '', ph: '05xxxxxxxx' }, { k: 'drvIq', label: 'إقامة السائق', ltr: true, val: u.driver ? u.driver.iqama || '' : '' },
+    { k: 'regExp', label: 'انتهاء الاستمارة / الفحص الفني', type: 'date', val: u.regExp || '', ltr: true }, { k: 'tested', label: 'تمت تجربة التشغيل', type: 'check', val: u.tested }]);
+function applyUnit(u, v) {
+  if (v.kind) u.kind = DB.lists.eqKinds.includes(v.kind) ? v.kind : u.kind;
+  u.code = v.code.trim().slice(0, 40); u.st = ST[v.st] ? v.st : 'ok'; u.oil = Math.round(Number(v.oil) || 0); u.tested = !!v.tested;
+  const o = Math.round(Number(v.odo) || 0); if (o < 0) return 'قراءة العداد غير صالحة.'; u.odo = o; if (v.regExp && !validDate(v.regExp)) return 'تاريخ الاستمارة غير صالح.'; u.regExp = v.regExp || ''; u.maint = u.maint || {};
+  const r = personFrom(v, 'drv', 'drvPhone', 'drvEmp', 'drvIq', u.driver && u.driver.name === v.drv ? u.driver : null); if (r.err) return 'السائق: ' + r.err; u.driver = r.p;
+  if (!u.code) return 'أدخل رقم المعدة.';
+  if (!u.driver && u.st !== 'shop') return 'الربط إلزامي: أسند سائقاً للمعدة، أو اجعل حالتها «في الورشة».';
+  return '';
+}
+const editUnit = (u) => (v) => { const t = Object.assign({}, u); const e = applyUnit(t, v); if (e) return e; Object.assign(u, t); audit(CUR.name, 'تعديل معدة', u.kind + ' ' + u.code); };
+function openMove(kind, crewId, id, label) { UI.move = { kind, from: crewId, id, label, target: null, withDriver: true }; if (UI.view !== 'equip') UI.view = 'crews'; render(); }
+
+const ACT = {
+  nav: (d) => { UI.view = d.v; UI.move = null; render(); $('#main') && $('#main').focus(); },
+  logout: () => logout('خروج'),
+  demo: () => startDemo(),
+  'auth-to': (d) => { Object.assign(AUTH, { step: d.step, err: '', note: '' }); render(); },
+  'otp-ch': (d) => { AUTH.channel = d.ch; render(); },
+  'otp-resend': () => { if (Date.now() < AUTH.resendAt) return authErr('يمكن إعادة الإرسال بعد ' + Math.ceil((AUTH.resendAt - Date.now()) / 1000) + ' ثانية.'); AUTH.err = ''; sendOtp(); },
+  'dlg-close': () => $('#dlg').close(),
+  'nav-crew': (d) => { UI.sel = d.id; UI.view = 'crews'; render(); },
+  'live-start': (d) => { if (need('request')) startLive(d.id); },
+  'live-stop': () => { stopLive(); toast('توقف البث المباشر.', 'info'); render(); },
+  'n-assign': (d) => {
+    if (!need('move')) return; const n = DB.notifs.find((x) => x.id === d.id); if (!n || n.st !== 'open') return;
+    const from = crewById(n.from), to = crewById(n.to); n.st = 'assigned';
+    const nt = newTask({ workType: classifyWork(SERVICES[n.svc][0]) || (to.type === 'excav' ? 'excav' : ''), title: SERVICES[n.svc][0] + ' لصالح ' + from.id + ' — ' + from.site, crewId: to.id, site: from.site, date: today(), st: 'new', link: from.id, dept: REQ_DEPT[SERVICES[n.svc][0]] || 'التنفيذ' }); DB.jobs.unshift(nt); ensureTeamForm(nt);
+    audit(CUR.name, 'إسناد تنسيق', to.id + ' → ' + from.id); save(); toast('أُسندت ' + to.id + ' وأُضيف العمل لأول ترتيب الأعمال.'); render();
+  },
+  'n-dismiss': (d) => { const n = DB.notifs.find((x) => x.id === d.id); if (!n) return; n.st = 'dismissed'; audit(CUR.name, 'تجاهل تنسيق', n.title); save(); render(); },
+  layer: (d) => { UI.layers[d.k] = !UI.layers[d.k]; render(); },
+  'crew-sel': (d) => { UI.sel = d.id; UI.move = null; render(); },
+  'crew-add': () => { if (!need('edit')) return; openForm('فرقة جديدة', [{ k: 'id', label: 'رمز الفرقة', ltr: true, req: true, ph: 'X-07' }, { k: 'name', label: 'اسم الفرقة', req: true }, { k: 'type', label: 'النوع', type: 'select', val: 'excav', list: 'crewTypes' }, { k: 'projectId', label: 'المشروع (إلزامي)', type: 'select', val: (DB.projects[0] || {}).id, list: 'projects', hint: 'مشروع جديد يُنشأ على الفرع الأول؛ عدّل فرعه من «الحصر والهيكل»' }, { k: 'site', label: 'الموقع / الحي', req: true },
+      { k: 'engEmp', label: 'المهندس المسؤول (إلزامي) من سجل الموظفين', type: 'select', val: '', opts: empOpts() }, { k: 'eng', label: 'أو اسم المهندس يدوياً' }, { k: 'engPhone', label: 'جوال المهندس', ltr: true, ph: '05xxxxxxxx' },
+      { k: 'supEmp', label: 'المراقب (إلزامي) من سجل الموظفين', type: 'select', val: '', opts: empOpts() }, { k: 'sup', label: 'أو اسم المراقب يدوياً' }, { k: 'supPhone', label: 'جوال المراقب', ltr: true, ph: '05xxxxxxxx' }, { k: 'car', label: 'سيارة المراقب (الموديل)' }, { k: 'plate', label: 'لوحة سيارة المراقب (إلزامي)', req: true }],
+    (v) => { const id = v.id.trim().toUpperCase().slice(0, 12); if (!/^[A-Z0-9-]{2,12}$/.test(id) || crewById(id)) return 'رمز الفرقة غير صالح أو مستخدم.'; const pr = projById(v.projectId); if (!pr) return 'اختر المشروع.';
+      const E = personFrom(v, 'eng', 'engPhone', 'engEmp', 'x'); if (E.err) return E.err; if (!E.p) return 'الربط إلزامي: حدد المهندس المسؤول.';
+      const S = personFrom(v, 'sup', 'supPhone', 'supEmp', 'x'); if (S.err) return S.err; if (!S.p) return 'الربط إلزامي: حدد المراقب.'; if (!S.p.phone) return 'أدخل جوال المراقب (للتواصل والتنبيهات).';
+      const base = crewById(UI.sel) || DB.crews[0] || { lat: 24.7136, lng: 46.6753 };
+      DB.crews.push({ id, name: v.name.trim().slice(0, 60), type: TYPES[v.type] ? v.type : 'excav', branch: pr.branch, projectId: pr.id, site: v.site.trim().slice(0, 60), lat: base.lat + 0.01, lng: base.lng + 0.01, seen: nowIso(), eng: E.p, hold: null, sup: Object.assign(S.p, { car: { id: uid('car'), kind: 'سيارة', model: v.car.trim().slice(0, 40) || '—', code: v.plate.trim().slice(0, 20), st: 'ok', oil: OIL_INTERVAL, tested: false, odo: 0, maint: {}, regExp: '' } }), workers: [], eq: [] });
+      UI.sel = id; audit(CUR.name, 'إضافة فرقة', id); toast('أُضيفت الفرقة. أسند لها معدات بسائقيها لتصبح جاهزة.'); }, { note: 'السلسلة الإلزامية: المعدة بسائقها ← المراقب ← المهندس ← المشروع ← الفرع.' }); },
+  'crew-edit': () => { if (!need('edit')) return; const c = curCrew(); openForm('تعديل ' + c.name, [{ k: 'name', label: 'اسم الفرقة', val: c.name, req: true }, { k: 'type', label: 'النوع', type: 'select', val: c.type, list: 'crewTypes' }, { k: 'projectId', label: 'المشروع (إلزامي)', type: 'select', val: c.projectId, list: 'projects' }, { k: 'site', label: 'الموقع / الحي', val: c.site, req: true },
+      { k: 'engEmp', label: 'المهندس من سجل الموظفين', type: 'select', val: c.eng ? c.eng.empId || '' : '', opts: empOpts() }, { k: 'eng', label: 'أو اسم المهندس يدوياً', val: c.eng ? c.eng.name : '' }, { k: 'engPhone', label: 'جوال المهندس', ltr: true, val: c.eng ? c.eng.phone : '', ph: '05xxxxxxxx' },
+      { k: 'lat', label: 'خط العرض', type: 'number', val: c.lat, ltr: true }, { k: 'lng', label: 'خط الطول', type: 'number', val: c.lng, ltr: true }, { k: 'del', label: 'حذف هذه الفرقة نهائياً مع عمالها ومعداتها', type: 'check', val: false, wide: true }],
+    (v) => { if (v.del) { DB.crews = DB.crews.filter((x) => x.id !== c.id); DB.jobs.forEach((j) => { if (j.crewId === c.id) j.crewId = ''; }); UI.sel = DB.crews[0] ? DB.crews[0].id : null; audit(CUR.name, 'حذف فرقة', c.id); return; }
+      const pr = projById(v.projectId); if (!pr) return 'اختر المشروع.'; const E = personFrom(v, 'eng', 'engPhone', 'engEmp', 'x', c.eng && c.eng.name === v.eng ? c.eng : null); if (E.err) return E.err; if (!E.p) return 'الربط إلزامي: حدد المهندس المسؤول.';
+      const la = Number(v.lat), lo = Number(v.lng); if (!(la > 15 && la < 33 && lo > 34 && lo < 56)) return 'إحداثيات خارج المملكة.';
+      Object.assign(c, { name: v.name.trim().slice(0, 60), type: TYPES[v.type] ? v.type : c.type, site: v.site.trim().slice(0, 60), lat: la, lng: lo, projectId: pr.id, branch: pr.branch, eng: E.p }); audit(CUR.name, 'تعديل فرقة', c.id); }); },
+  'sup-edit': () => { if (!need('edit')) return; const c = curCrew(); const car = c.sup.car; openForm('المراقب وسيارته', [{ k: 'supEmp', label: 'المراقب من سجل الموظفين', type: 'select', val: c.sup.empId || '', opts: empOpts() }, { k: 'name', label: 'أو اسم المراقب يدوياً', val: c.sup.name }, { k: 'phone', label: 'الجوال', ltr: true, val: c.sup.phone }, { k: 'iqama', label: 'رقم الإقامة', ltr: true, val: c.sup.iqama || '' }, { k: 'model', label: 'موديل السيارة', val: car.model }, { k: 'code', label: 'اللوحة / رقم المعدة', val: car.code, req: true }, { k: 'st', label: 'حالة السيارة', type: 'select', val: car.st, opts: stOpts }, { k: 'regExp', label: 'انتهاء الاستمارة', type: 'date', val: car.regExp, ltr: true }, { k: 'tested', label: 'تمت تجربة التشغيل', type: 'check', val: car.tested }],
+    (v) => { const S = personFrom(v, 'name', 'phone', 'supEmp', 'iqama', c.sup.name === v.name ? c.sup : null); if (S.err) return S.err; if (!S.p) return 'الربط إلزامي: حدد المراقب.'; if (!S.p.phone) return 'أدخل جوال المراقب.'; if (v.regExp && !validDate(v.regExp)) return 'تاريخ غير صالح.';
+      c.sup = Object.assign(S.p, { car }); Object.assign(car, { model: v.model.trim().slice(0, 40), code: v.code.trim().slice(0, 20), st: ST[v.st] ? v.st : 'ok', regExp: v.regExp, tested: !!v.tested }); audit(CUR.name, 'تعديل مراقب', c.id); }); },
+  'w-add': () => { if (!need('edit')) return; const c = curCrew(); openForm('إضافة عامل / فني إلى ' + c.id, [{ k: 'emp', label: 'من سجل الموظفين', type: 'select', val: '', opts: empOpts(), wide: true }, { k: 'name', label: 'أو الاسم يدوياً' }, { k: 'iqama', label: 'رقم الإقامة', ltr: true }, { k: 'role', label: 'الدور في الفرقة', type: 'select', val: 'عامل حفر', list: 'workerRoles' }, { k: 'phone', label: 'الجوال', ltr: true, ph: '05xxxxxxxx' }],
+    (v) => { const r = personFrom(v, 'name', 'phone', 'emp', 'iqama'); if (r.err) return r.err; if (!r.p) return 'اختر الموظف أو اكتب الاسم.'; c.workers.push(Object.assign({ id: uid('w'), role: v.role.trim().slice(0, 40), dyna: null }, r.p)); audit(CUR.name, 'إضافة عامل', c.id + ': ' + r.p.name); }); },
+  'w-edit': (d) => { if (!need('edit')) return; const c = curCrew(); const w = c.workers.find((x) => x.id === d.id); if (!w) return; openForm('تعديل ' + w.name, [{ k: 'emp', label: 'ربط بسجل الموظفين', type: 'select', val: w.empId || '', opts: empOpts(), wide: true }, { k: 'name', label: 'الاسم', val: w.name }, { k: 'iqama', label: 'رقم الإقامة', ltr: true, val: w.iqama || '' }, { k: 'role', label: 'الدور', type: 'select', val: w.role, list: 'workerRoles' }, { k: 'phone', label: 'الجوال', ltr: true, val: w.phone }, { k: 'del', label: 'حذف هذا العامل من الفرقة', type: 'check', val: false }],
+    (v) => { if (v.del) { c.workers = c.workers.filter((x) => x.id !== w.id); audit(CUR.name, 'حذف عامل', w.name); return; } const r = personFrom(v, 'name', 'phone', 'emp', 'iqama', w.name === v.name ? w : null); if (r.err) return r.err; if (!r.p) return 'الاسم مطلوب.'; Object.assign(w, r.p, { role: v.role.trim().slice(0, 40) }); }); },
+  'dy-add': (d) => { if (!need('edit')) return; const c = curCrew(); const w = c.workers.find((x) => x.id === d.id); if (!w) return; const u = { id: uid('dy'), kind: 'ديانة', code: '', driver: null, st: 'ok', oil: OIL_INTERVAL, tested: false, odo: 0, maint: {}, regExp: '' };
+    openForm('إسناد ديانة لـ ' + w.name, unitFields(u, false), (v) => { const e = applyUnit(u, v); if (e) return e; w.dyna = u; audit(CUR.name, 'إسناد ديانة', w.name + ' ← ' + u.code); }); },
+  'dy-edit': (d) => { if (!need('edit')) return; const c = curCrew(); const w = c.workers.find((x) => x.id === d.id); if (!w || !w.dyna) return; const u = w.dyna; openForm('ديانة ' + u.code, unitFields(u, false).concat([{ k: 'del', label: 'فك الديانة عن العامل وحذفها', type: 'check', val: false }]), (v) => { if (v.del) { w.dyna = null; audit(CUR.name, 'حذف ديانة', u.code); return; } return editUnit(u)(v); }); },
+  'eq-add': () => { if (!need('edit')) return; const c = curCrew(); const u = { id: uid('eq'), kind: 'حفار JCB', code: '', driver: null, st: 'ok', oil: OIL_INTERVAL, tested: false, odo: 0, maint: {}, regExp: '' };
+    openForm('إضافة معدة إلى ' + c.id, unitFields(u, true), (v) => { const e = applyUnit(u, v); if (e) return e; c.eq.push(u); audit(CUR.name, 'إضافة معدة', c.id + ': ' + u.kind + ' ' + u.code); }); },
+  'eq-edit': (d) => { if (!need('edit')) return; const c = curCrew(); const u = c.eq.find((x) => x.id === d.id); if (!u) return; openForm(u.kind + ' ' + u.code, unitFields(u, true).concat([{ k: 'del', label: 'حذف هذه المعدة من الفرقة', type: 'check', val: false }]), (v) => { if (v.del) { c.eq = c.eq.filter((x) => x.id !== u.id); audit(CUR.name, 'حذف معدة', u.kind + ' ' + u.code); return; } return editUnit(u)(v); }); },
+  'move-crew': () => { if (need('move')) openMove('crew', curCrew().id, curCrew().id, curCrew().name); },
+  'move-eq': (d) => { if (!need('move')) return; const c = crewById(d.crew || UI.sel); const e = c.eq.find((x) => x.id === d.id); if (e) openMove('eq', c.id, e.id, e.kind + ' ' + e.code); },
+  'move-w': (d) => { if (!need('move')) return; const c = curCrew(); const w = c.workers.find((x) => x.id === d.id); if (w) openMove('worker', c.id, w.id, w.name + (w.dyna ? ' (مع ديانته ' + w.dyna.code + ')' : '')); },
+  'move-dy': (d) => { if (!need('move')) return; const c = crewById(d.crew || UI.sel); const w = c.workers.find((x) => x.id === d.id); if (w && w.dyna) openMove('dyna', c.id, w.id, 'ديانة ' + w.dyna.code + (w.dyna.driver ? ' — ' + w.dyna.driver.name : '')); },
+  'move-target': (d) => { UI.move.target = d.id; render(); },
+  'move-go': () => { if (need('move')) doMove(); },
+  'move-cancel': () => { UI.move = null; render(); },
+  'eq-filter': (d) => { UI.eqFilter = d.k; render(); },
+  theme: () => { THEME = THEME === 'dark' ? 'light' : 'dark'; setPref('maydan_theme', THEME); render(); },
+  lang: () => { LANG = LANG === 'en' ? 'ar' : 'en'; setPref('maydan_lang', LANG); render(); },
+  'cover-reset': () => { if (!need('settings')) return; cfg().brand.cover = DEFAULT_COVER; save(); render(); },
+  'cover-del': () => { if (!need('settings')) return; cfg().brand.cover = ''; save(); render(); },
+  'set-tab': (d) => { UI.setTab = d.k; render(); },
+  'docs-tab': (d) => { UI.docsTab = d.k; render(); },
+  'users-tab': (d) => { UI.usersTab = d.k; UI.empReport = ''; render(); },
+  'tx-sel': (d) => { UI.tx = d.id; render(); },
+  'tx-wt': (d) => { UI.txWT = d.k; render(); },
+  'tx-export': () => { exportRows([['المعاملة', 'رقم التصريح', 'انتهاء التصريح', 'نوع العمل', 'الفرقة', 'الموقع', 'تاريخ التنفيذ', 'رقم التعميد', 'الحالة', 'اكتمال المستندات %', 'المستندات الناقصة']].concat(DB.jobs.map((j) => [j.title, j.permit, j.permitExp, wtName(j.workType), j.crewId, j.site, j.date, (j.sec && j.sec.no) || '', JOB_ST[j.st][0], txProgress(j), docStatus(j).filter((x) => x.need && !x.ok).map((x) => x.type).join('، ')])), 'maydan-transactions-' + today(), 'xlsx'); },
+  'tx-import-cancel': () => { UI.txPreview = null; render(); },
+  'tx-import-go': () => { if (!need('edit') || !UI.txPreview) return; let n = 0;
+    UI.txPreview.rows.forEach((r) => { if (r.permit && DB.jobs.some((j) => j.permit === r.permit && j.title === r.title)) return; const t = newTask({ title: r.title, permit: r.permit, permitExp: r.permitExp, crewId: r.crewId, date: r.date, site: r.site, workType: r.workType, dept: 'التنفيذ', sec: { no: r.secNo || '', date: '', by: '' }, data: {} }); DB.jobs.push(t); ensureTeamForm(t); n++; });
+    audit(CUR.name, 'استيراد معاملات', n + ' معاملة'); UI.txPreview = null; save(); toast('أُنشئت ' + n + ' معاملة وربطت بإجراءات نوع العمل.'); render(); },
+  'tx-ai-classify': async () => { const P = UI.txPreview; if (!P) return; const todo = P.rows.map((r, i) => ({ i, t: r.title + ' ' + (r.source || '') })).filter((x) => !P.rows[x.i].workType); if (!todo.length) return toast('كل المعاملات مصنّفة.');
+    const keys = Object.keys(DB.lists.workTypes); const prompt = 'صنّف كل وصف عمل إلى واحد من هذه المفاتيح فقط: ' + keys.map((k) => k + '=' + wtName(k)).join('، ') + '. أعد JSON فقط بالشكل {"i":"key"}. الأوصاف: ' + JSON.stringify(Object.fromEntries(todo.slice(0, 80).map((x) => [x.i, x.t])));
+    UI.ai.busy = true; render(); const a = await aiChat([{ role: 'user', content: prompt }]); UI.ai.busy = false; let n = 0;
+    if (a && a.text) { try { const m = JSON.parse((a.text.match(/\{[\s\S]*\}/) || ['{}'])[0]); Object.keys(m).forEach((i) => { if (P.rows[+i] && keys.includes(m[i])) { P.rows[+i].workType = m[i]; n++; } }); } catch (e) { /* ignore */ } }
+    toast(a ? 'صنّف الذكاء الاصطناعي ' + n + ' معاملة عبر ' + a.via + '.' : 'لا يوجد مزود ذكاء اصطناعي متاح؛ صنّفها يدوياً من القائمة.', a ? 'ok' : 'err'); render(); },
+  'task-data': (d) => { const t = taskById(d.id); if (!t || !need('edit')) return; const extra = Object.keys(t.data || {}).map((k) => k + ': ' + t.data[k]).join('\n');
+    openForm('بيانات المعاملة والتعميد', [{ k: 'workType', label: 'نوع العمل', type: 'select', val: t.workType, opts: [['', 'غير مصنّف']].concat(Object.keys(DB.lists.workTypes).map((k) => [k, wtName(k)])) }, { k: 'permit', label: 'رقم التصريح', val: t.permit, ltr: true }, { k: 'permitExp', label: 'انتهاء التصريح', type: 'date', val: t.permitExp, ltr: true }, { k: 'secNo', label: 'رقم ' + cfg().brand.secLabel, val: t.sec.no, ltr: true }, { k: 'secDate', label: 'تاريخ التعميد', type: 'date', val: t.sec.date, ltr: true }, { k: 'secBy', label: 'المعتمِد', val: t.sec.by }, { k: 'extra', label: 'بيانات إضافية (سطر لكل بند: الاسم: القيمة)', type: 'textarea', val: extra }],
+      (v) => { if (v.permitExp && !validDate(v.permitExp)) return 'تاريخ غير صالح.'; if (v.secDate && !validDate(v.secDate)) return 'تاريخ غير صالح.'; t.workType = v.workType; t.permit = v.permit.trim().slice(0, 30); t.permitExp = v.permitExp; t.sec = { no: v.secNo.trim().slice(0, 40), date: v.secDate, by: v.secBy.trim().slice(0, 80) };
+        const data = {}; v.extra.split('\n').slice(0, 30).forEach((l) => { const i = l.indexOf(':'); if (i > 0) data[l.slice(0, i).trim().slice(0, 40)] = l.slice(i + 1).trim().slice(0, 200); }); t.data = data; audit(CUR.name, 'تحديث بيانات معاملة', t.title); }); },
+  'team-gen': (d) => { const t = taskById(d.id); if (!t || !need('request')) return; if (!t.crewId) return toast('أسند المعاملة لفرقة أولاً.', 'err'); const doc = ensureTeamForm(t, true); audit(CUR.name, 'توليد نموذج فريق العمل', t.title); save(); if (d.view) { $('#dlg').innerHTML = docViewHtml3(doc).s; } else render(); toast('عُبّئ نموذج فريق العمل من الفرقة: ' + doc.form.members.length + ' عضواً.'); },
+  'wt-add': () => { if (!need('settings')) return; openForm('نوع عمل جديد', [{ k: 'name', label: 'اسم نوع العمل', req: true }, { k: 'procs', label: 'الإجراءات والمستندات المطلوبة', type: 'checks', list: 'docTypes', val: ['تقييم المخاطر', 'إجراءات العمل الآمن'] }, { k: 'kw', label: 'كلمات التصنيف (افصل بفاصلة)', ph: 'مثال: إنارة، أعمدة' }],
+    (v) => { const key = 'wt' + Date.now().toString(36); DB.lists.workTypes[key] = [v.name.trim().slice(0, 50), v.procs, v.kw.split(/[،,]/).map((x) => x.trim()).filter(Boolean).slice(0, 20)]; audit(CUR.name, 'إضافة نوع عمل', v.name); }); },
+  'wt-edit': (d) => { if (!need('settings')) return; const W = DB.lists.workTypes[d.k]; if (!W) return; openForm('نوع العمل: ' + W[0], [{ k: 'name', label: 'الاسم', val: W[0], req: true }, { k: 'procs', label: 'الإجراءات والمستندات المطلوبة', type: 'checks', list: 'docTypes', val: W[1] }, { k: 'kw', label: 'كلمات التصنيف', val: (W[2] || []).join('، ') }, { k: 'del', label: 'حذف نوع العمل', type: 'check', val: false }],
+    (v) => { if (v.del) { if (DB.jobs.some((j) => j.workType === d.k && j.st !== 'done')) return 'يوجد معاملات مفتوحة من هذا النوع.'; delete DB.lists.workTypes[d.k]; return; } DB.lists.workTypes[d.k] = [v.name.trim().slice(0, 50), v.procs, v.kw.split(/[،,]/).map((x) => x.trim()).filter(Boolean).slice(0, 20)]; }); },
+  'person-edit': (d) => { if (!need('edit')) return; const role = d.role === 'eng' ? 'eng' : 'sup'; const crews = DB.crews.filter((c) => c[role] && c[role].name === d.name); if (!crews.length) return; const cur = crews[0][role];
+    openForm((role === 'eng' ? 'المهندس: ' : 'المراقب: ') + cur.name, [{ k: 'emp', label: 'ربط بسجل الموظفين', type: 'select', val: cur.empId || '', opts: empOpts(), wide: true }, { k: 'name', label: 'الاسم', val: cur.name, req: true }, { k: 'phone', label: 'الجوال', val: cur.phone, ltr: true, ph: '05xxxxxxxx' }, { k: 'iqama', label: 'رقم الإقامة', val: cur.iqama || '', ltr: true }, { k: 'job', label: 'المهنة', val: cur.job || '' }],
+      (v) => { const r = personFrom(v, 'name', 'phone', 'emp', 'iqama', v.name === cur.name ? cur : null); if (r.err) return r.err; if (!r.p) return 'الاسم مطلوب.'; if (role === 'sup' && !r.p.phone) return 'جوال المراقب مطلوب.'; if (v.job.trim()) r.p.job = v.job.trim().slice(0, 60);
+        crews.forEach((c) => { c[role] = role === 'sup' ? Object.assign({}, r.p, { car: c.sup.car }) : Object.assign({}, r.p); }); audit(CUR.name, role === 'eng' ? 'تعديل مهندس' : 'تعديل مراقب', r.p.name + ' — ' + crews.map((c) => c.id).join('، ')); }, { note: 'يُطبّق التعديل على كل الفرق المرتبطة: ' + crews.map((c) => c.id).join('، ') }); },
+  'assign-person': (d) => { if (!need('edit')) return; const role = d.role === 'eng' ? 'eng' : 'sup';
+    openForm(role === 'eng' ? 'تعيين مهندس مسؤول' : 'تعيين مراقب', [{ k: 'emp', label: 'من سجل الموظفين', type: 'select', val: '', opts: empOpts(), wide: true }, { k: 'name', label: 'أو الاسم يدوياً' }, { k: 'phone', label: 'الجوال', ltr: true, ph: '05xxxxxxxx' }, { k: 'iqama', label: 'رقم الإقامة', ltr: true }, { k: 'crews', label: role === 'eng' ? 'الفرق التي يتولاها' : 'الفرقة (مراقب واحد لكل فرقة)', type: 'checks', opts: DB.crews.map((c) => [c.id, c.name + ' — ' + (role === 'eng' ? (c.eng ? c.eng.name : 'بلا مهندس') : c.sup.name)]), val: [] }],
+      (v) => { const r = personFrom(v, 'name', 'phone', 'emp', 'iqama'); if (r.err) return r.err; if (!r.p) return 'اختر الموظف أو اكتب الاسم.'; if (!v.crews.length) return 'اختر فرقة واحدة على الأقل.'; if (role === 'sup' && !r.p.phone) return 'جوال المراقب مطلوب.';
+        v.crews.forEach((id) => { const c = crewById(id); if (!c) return; c[role] = role === 'sup' ? Object.assign({}, r.p, { car: c.sup.car }) : Object.assign({}, r.p); }); audit(CUR.name, role === 'eng' ? 'تعيين مهندس' : 'تعيين مراقب', r.p.name + ' ← ' + v.crews.join('، ')); }); },
+  'proj-add': () => { if (!need('edit')) return; openForm('مشروع جديد', [{ k: 'name', label: 'اسم المشروع', req: true }, { k: 'code', label: 'رمز / رقم العقد', ltr: true }, { k: 'branch', label: 'الفرع', type: 'select', val: DB.branches[0], list: 'branches' }, { k: 'manager', label: 'مدير المشروع' }],
+    (v) => { DB.projects.push({ id: uid('P'), name: v.name.trim().slice(0, 80), code: v.code.trim().slice(0, 30), branch: v.branch, manager: v.manager.trim().slice(0, 60) }); audit(CUR.name, 'إضافة مشروع', v.name); }); },
+  'proj-edit': (d) => { if (!need('edit')) return; const p = projById(d.id); if (!p) return; openForm('المشروع: ' + p.name, [{ k: 'name', label: 'اسم المشروع', val: p.name, req: true }, { k: 'code', label: 'رمز / رقم العقد', val: p.code, ltr: true }, { k: 'branch', label: 'الفرع', type: 'select', val: p.branch, list: 'branches' }, { k: 'manager', label: 'مدير المشروع', val: p.manager }, { k: 'del', label: 'حذف المشروع', type: 'check', val: false }],
+    (v) => { if (v.del) { if (DB.crews.some((c) => c.projectId === p.id)) return 'انقل فرق المشروع لمشروع آخر أولاً.'; DB.projects = DB.projects.filter((x) => x.id !== p.id); return; } Object.assign(p, { name: v.name.trim().slice(0, 80), code: v.code.trim().slice(0, 30), branch: v.branch, manager: v.manager.trim().slice(0, 60) }); }); },
+  'inv-export': (d) => exportRows(invRows(), 'maydan-inventory-' + today(), d.fmt),
+  'eq-export': () => exportRows(eqRows(), 'maydan-equipment-' + today(), 'xlsx'),
+  'maint-log': (d) => { const x = findUnit(d.id); if (!x || !need('request')) return; const u = x.u;
+    openForm('تسجيل صيانة — ' + (x.where === 'car' ? 'سيارة المراقب' : u.kind) + ' ' + u.code, [{ k: 'odo', label: 'قراءة العداد الآن (كم)', type: 'number', val: u.odo || 0, req: true }, { k: 'items', label: 'البنود التي نُفذت', type: 'checks', opts: [['oil', 'تغيير الزيت']].concat(cfg().maintPlan.map((p) => [p.key, p.label])), val: [] }, { k: 'regExp', label: 'انتهاء الاستمارة / الفحص الفني', type: 'date', val: u.regExp, ltr: true }, { k: 'st', label: 'الحالة بعد الصيانة', type: 'select', val: u.st, opts: stOpts }, { k: 'tested', label: 'تمت تجربة التشغيل بعد الصيانة', type: 'check', val: u.tested }],
+      (v) => { const o = Math.round(Number(v.odo)); if (!(o >= 0) || o < (u.odo || 0)) return 'العداد لا يمكن أن يقل عن القراءة السابقة (' + (u.odo || 0) + ').'; if (v.regExp && !validDate(v.regExp)) return 'تاريخ غير صالح.';
+        const delta = o - (u.odo || 0); u.odo = o; u.oil = (u.oil || 0) - delta; u.maint = u.maint || {}; v.items.forEach((k) => { if (k === 'oil') u.oil = OIL_INTERVAL; else u.maint[k] = { km: o, date: today() }; });
+        u.regExp = v.regExp; u.st = ST[v.st] ? v.st : u.st; u.tested = !!v.tested; u.maintLog = (u.maintLog || []).concat([{ date: today(), odo: o, items: v.items, by: CUR.name }]).slice(-50); audit(CUR.name, 'تسجيل صيانة', u.code + ': ' + v.items.join('، ')); }, { ok: 'حفظ الصيانة' }); },
+  'odo-update': (d) => { const x = findUnit(d.id); if (!x || !need('request')) return; const u = x.u; openForm('تحديث العداد — ' + u.code, [{ k: 'odo', label: 'قراءة العداد (كم)', type: 'number', val: u.odo || 0, req: true }], (v) => { const o = Math.round(Number(v.odo)); if (!(o >= (u.odo || 0))) return 'العداد لا يمكن أن يقل عن القراءة السابقة.'; u.oil = (u.oil || 0) - (o - (u.odo || 0)); u.odo = o; }); },
+  'maint-plan-add': () => { if (!need('settings')) return; openForm('بند صيانة دورية', [{ k: 'label', label: 'البند', req: true }, { k: 'km', label: 'كل (كم) — 0 إن لم ينطبق', type: 'number', val: 0 }, { k: 'days', label: 'كل (يوم) — 0 إن لم ينطبق', type: 'number', val: 180 }], (v) => { const km = Math.max(0, Math.round(+v.km || 0)), days = Math.max(0, Math.round(+v.days || 0)); if (!km && !days) return 'حدد المسافة أو المدة.'; cfg().maintPlan.push({ key: 'm' + Date.now().toString(36), label: v.label.trim().slice(0, 50), km, days }); }); },
+  'maint-plan-edit': (d) => { if (!need('settings')) return; const p = cfg().maintPlan.find((x) => x.key === d.k); if (!p) return; openForm('بند الصيانة', [{ k: 'label', label: 'البند', val: p.label, req: true }, { k: 'km', label: 'كل (كم)', type: 'number', val: p.km }, { k: 'days', label: 'كل (يوم)', type: 'number', val: p.days }], (v) => { const km = Math.max(0, Math.round(+v.km || 0)), days = Math.max(0, Math.round(+v.days || 0)); if (!km && !days) return 'حدد المسافة أو المدة.'; Object.assign(p, { label: v.label.trim().slice(0, 50), km, days }); }); },
+  'maint-plan-del': (d) => { if (!need('settings')) return; cfg().maintPlan = cfg().maintPlan.filter((x) => x.key !== d.k); save(); render(); },
+  'emp-export': (d) => exportRows(empRows(), 'hr.employee-maydan-' + today(), d.fmt),
+  'emp-add': () => ACT['emp-edit']({}),
+  'emp-edit': (d) => { if (!need('data')) return; const e = d.id ? empById(d.id) : { name: '', iqama: '', job: '', branch: '', phone: '', email: '', empNo: '', notes: '', docs: {} }; if (!e) return;
+    const types = DB.lists.empDocs; const docFields = []; types.forEach((t, i) => { const x = (e.docs || {})[t] || {}; docFields.push({ k: 'dx' + i, label: t + ' — تاريخ الانتهاء', type: 'date', val: x.exp || '', ltr: true }, { k: 'df' + i, label: t + (x.fileName ? ' — مرفق: ' + x.fileName + ' (اختر ملفاً لاستبداله)' : ' — صورة أو PDF'), type: 'file' }); });
+    openForm(d.id ? 'ملف الموظف: ' + e.name : 'موظف جديد', [{ k: 'name', label: 'الاسم', val: e.name, req: true }, { k: 'iqama', label: 'رقم الإقامة / الهوية', val: e.iqama, ltr: true }, { k: 'job', label: 'المهنة', val: e.job }, { k: 'branch', label: 'الفرع', type: 'select', val: e.branch || DB.branches[0], list: 'branches' }, { k: 'phone', label: 'الجوال', val: e.phone, ltr: true, ph: '05xxxxxxxx' }, { k: 'email', label: 'البريد', val: e.email, ltr: true }, { k: 'empNo', label: 'الرقم الوظيفي', val: e.empNo, ltr: true }, { k: 'notes', label: 'ملاحظات', type: 'textarea', val: e.notes || '' }].concat(docFields, d.id ? [{ k: 'del', label: 'حذف الموظف من السجل', type: 'check', val: false, wide: true }] : []),
+      async (v) => { if (v.del) { DB.employees = DB.employees.filter((x) => x.id !== e.id); Object.values(e.docs || {}).forEach((x) => { if (x.fileId) fileDel(x.fileId); }); audit(CUR.name, 'حذف موظف', e.name); return; }
+        const iq = v.iqama.trim(), ph = normPhone(v.phone); if (iq && !validIqama(iq)) return 'رقم الإقامة: 10 أرقام يبدأ بـ 1 أو 2.'; if (v.phone && !validPhone(ph)) return 'الجوال بصيغة 05xxxxxxxx.'; if (iq && DB.employees.some((x) => x.iqama === iq && x.id !== e.id)) return 'رقم الإقامة مسجل لموظف آخر.';
+        for (let i = 0; i < types.length; i++) { const f = v['df' + i]; if (v['dx' + i] && !validDate(v['dx' + i])) return 'تاريخ غير صالح في ' + types[i] + '.'; if (f) { if (f.size > 10 * 1024 * 1024) return types[i] + ': الملف أكبر من 10 ميجابايت.'; if (!ALLOWED_FILES[f.type] || /word|sheet/.test(f.type)) return types[i] + ': المسموح صورة أو PDF فقط.'; } }
+        const docs = Object.assign({}, e.docs || {});
+        for (let i = 0; i < types.length; i++) { const t = types[i]; const f = v['df' + i]; const cur = Object.assign({}, docs[t] || {}); cur.exp = v['dx' + i] || '';
+          if (f) { const id = uid('f'); try { await filePut(id, f); } catch (err) { return 'تعذّر حفظ ' + t + '.'; } if (cur.fileId) fileDel(cur.fileId); Object.assign(cur, { fileId: id, fileName: safeName(f.name), size: f.size, tm: nowIso(), by: CUR.name }); }
+          if (cur.exp || cur.fileId) docs[t] = cur; else delete docs[t]; }
+        Object.assign(e, { name: v.name.trim().slice(0, 100), iqama: iq, job: v.job.trim().slice(0, 60), branch: v.branch, phone: ph, email: v.email.trim().slice(0, 120), empNo: v.empNo.trim().slice(0, 30), notes: v.notes.trim().slice(0, 1000), docs });
+        if (!d.id) DB.employees.push(Object.assign({ id: uid('emp'), odooId: '', managerIqama: '' }, e)); audit(CUR.name, d.id ? 'تحديث ملف موظف' : 'إضافة موظف', e.name); }, { ok: 'حفظ ملف الموظف' }); },
+  'emp-doc-file': async (d) => { const e = empById(d.id); const x = e && e.docs && e.docs[d.k]; if (!x || !x.fileId) return; try { const b = await fileGet(x.fileId); if (!b) return toast('الملف غير موجود على هذا الجهاز.', 'err'); download(b, e.name + ' - ' + d.k + ' - ' + x.fileName); } catch (err) { toast('تعذّر قراءة الملف.', 'err'); } },
+  'emp-user': (d) => { if (!need('users')) return; const e = empById(d.id); if (!e) return; ACT['u-add']({ prefill: e }); },
+  'perf-period': (d) => { UI.perf = d.k; UI.ai.perf = false; render(); },
+  'perf-ai': () => { UI.ai.perf = true; const per = UI.perf || 'week'; const P = perfData(per); askAI('حلّل أداء الفرق والموظفين للفترة (' + ({ day: 'يومي', week: 'أسبوعي', month: 'شهري' }[per]) + ') واذكر: الأفضل والأضعف وأسباب الضعف، والمخاطر، وثلاث توصيات عملية للمدير التنفيذي. البيانات: ' + JSON.stringify({ crews: P.crews.map((x) => ({ crew: x.c.id, type: TYPES[x.c.type] ? TYPES[x.c.type][0] : '', planned: x.planned, done: x.done, onTimePct: x.onTime, holds: x.holds, safetyPct: x.safety, docsPct: x.docs, score: x.score })), topEmployees: P.emps.slice(0, 20).map((e) => ({ name: e.name, role: e.role, crew: e.crew, done: e.done })) }), 'perf'); },
+  'logo-del': (d) => { if (!need('settings')) return; cfg().brand.logos.splice(+d.i, 1); save(); render(); },
+  'logo-move': (d) => { if (!need('settings')) return; const L = cfg().brand.logos; const i = +d.i; if (i > 0) { [L[i - 1], L[i]] = [L[i], L[i - 1]]; save(); render(); } },
+  'logo-reset': () => { if (!need('settings')) return; cfg().brand.logos = DEFAULT_BRAND().logos; save(); render(); },
+  'odoo-pull': async () => { if (!CLOUD || !need('data')) return; try { const r = await api('/odoo/employees', { method: 'POST', body: '{}' }); const rep = importEmployees([EMP_EXPORT_HEAD].concat(r.rows || [])); cfg().odoo.lastImport = nowIso(); save(); toast('Odoo: أُضيف ' + rep.added + ' وحُدّث ' + rep.updated + '.'); render(); } catch (e) { toast('تعذّر السحب من Odoo: ' + e.message, 'err'); } },
+  'gauge-cfg': () => { UI.view = 'settings'; UI.setTab = 'gauges'; render(); },
+  'alerts-all': () => { UI.allAlerts = !UI.allAlerts; render(); },
+  'docs-crew': (d) => { const c = crewById(d.id); UI.person = c && c.eng ? c.eng.name : c ? c.sup.name : null; UI.view = 'docs'; render(); },
+  'task-filter': (d) => { UI.tf = d.k; UI.task = null; render(); },
+  'task-sel': (d) => { UI.task = d.id; render(); },
+  'task-open': (d) => { const t = taskById(d.id); if (!t) return; UI.task = t.id; UI.tf = t.st === 'done' ? 'all' : 'open'; UI.view = 'tasks'; render(); },
+  'task-add': () => { if (!need('edit')) return; openForm('مهمة جديدة', taskFields(null), (v) => { const e = taskValidate(v); if (e) return e; const t = newTask(Object.assign(taskFromForm(v), { workType: classifyWork(v.title) })); DB.jobs.unshift(t); ensureTeamForm(t); UI.task = t.id; UI.tf = 'open'; audit(CUR.name, 'إضافة مهمة', t.title); toast('أُضيفت المهمة، وأُنشئ طلب تأمين السلامة والإنارة تلقائياً قبل التنفيذ بيوم.'); }, { note: 'سيُنشأ تلقائياً طلب لقسم السلامة والإنارة لتأمين الموقع قبل يوم التنفيذ.' }); },
+  'task-edit': (d) => { if (!need('edit')) return; const t = taskById(d.id); if (!t) return; openForm('تعديل المهمة', taskFields(t).concat([{ k: 'del', label: 'حذف هذه المهمة', type: 'check', val: false, wide: true }]), (v) => {
+    if (v.del) { DB.jobs = DB.jobs.filter((x) => x.id !== t.id); DB.docs.forEach((x) => { if (x.taskId === t.id) x.taskId = ''; }); UI.task = null; audit(CUR.name, 'حذف مهمة', t.title); return; }
+    const e = taskValidate(v); if (e) return e; const o = taskFromForm(v); const moved = o.date !== t.date; const crewChanged = o.crewId !== t.crewId; Object.assign(t, o); if (!t.workType) t.workType = classifyWork(t.title); if (crewChanged) ensureTeamForm(t, true);
+    const sin = t.reqs.find((r) => r.type === SAFE_IN && r.auto); if (moved && sin && sin.st === 'open') sin.due = addDays(-1, t.date); audit(CUR.name, 'تعديل مهمة', t.title); }); },
+  'task-start': (d) => { const t = taskById(d.id); if (!t || !need('request')) return; const sin = t.reqs.find((r) => r.type === SAFE_IN);
+    if (sin && sin.st !== 'done') toast('تنبيه: لم يُؤكَّد تأمين السلامة والإنارة لهذا الموقع بعد.', 'err');
+    t.st = 'prog'; audit(CUR.name, 'بدء مهمة', t.title); save(); render(); },
+  'task-hold': (d) => { const t = taskById(d.id); if (!t || !need('request')) return; openForm('إيقاف المهمة', [{ k: 'reason', label: 'سبب التوقف', type: 'select', val: DB.lists.holdReasons[0], list: 'holdReasons' }, { k: 'note', label: 'تفاصيل', type: 'textarea' }, { k: 'crew', label: 'إيقاف الفرقة كاملة أيضاً', type: 'check', val: false }],
+    (v) => { t.st = 'hold'; t.hold = { reason: v.reason, note: v.note.trim().slice(0, 300), since: nowIso() }; const c = crewById(t.crewId); if (v.crew && c) c.hold = { reason: v.reason, note: t.title + (v.note ? ' — ' + v.note.trim().slice(0, 200) : ''), since: nowIso() }; audit(CUR.name, 'إيقاف مهمة', t.title + ': ' + v.reason); }); },
+  'task-resume': (d) => { const t = taskById(d.id); if (!t || !need('request')) return; t.st = 'prog'; t.hold = null; audit(CUR.name, 'استئناف مهمة', t.title); save(); render(); },
+  'task-close': (d) => { const t = taskById(d.id); if (!t || !need('request')) return;
+    openForm('تحديث حالة الموقع قبل المغادرة', [{ k: 'finished', label: 'تم الانتهاء من جميع الأعمال في هذا الموقع', type: 'check', val: false, wide: true }, { k: 'remaining', label: 'المتبقي في الموقع (إن لم يكتمل)', type: 'checks', list: 'remaining', val: t.close && !t.close.finished ? t.close.remaining : [] }, { k: 'note', label: 'ملاحظات', type: 'textarea' }],
+      (v) => { if (!v.finished && !v.remaining.length) return 'حدّد ما تبقّى في الموقع، أو أكّد الانتهاء من الأعمال.'; if (v.finished && v.remaining.length) return 'لا يمكن تأكيد الانتهاء مع وجود بنود متبقية.';
+        t.close = { tm: nowIso(), finished: v.finished, remaining: v.remaining, note: v.note.trim().slice(0, 400), by: CUR.name };
+        if (v.finished) { t.st = 'done'; t.doneAt = nowIso(); if (!t.reqs.some((r) => r.type === SAFE_OUT)) t.reqs.push({ id: uid('rq'), type: SAFE_OUT, dept: REQ_DEPT[SAFE_OUT], due: today(), st: 'open', auto: true, tm: nowIso() }); toast('أُغلقت المهمة، وأُرسل طلب إزالة السلامة والإنارة لقسم السلامة.'); }
+        else { if (t.st === 'new') t.st = 'prog'; toast('حُفظت حالة الموقع: متبقٍ ' + v.remaining.join('، ') + '.'); }
+        audit(CUR.name, 'تحديث حالة الموقع', t.title + ': ' + (v.finished ? 'منتهٍ' : 'متبقٍ ' + v.remaining.join('، '))); }, { ok: 'حفظ حالة الموقع' }); },
+  'req-add': (d) => { const t = taskById(d.id); if (!t || !need('request')) return; openForm('طلب لقسم', [{ k: 'type', label: 'نوع الطلب', type: 'select', val: 'توريد مواد', list: 'reqTypes' }, { k: 'dept', label: 'القسم', type: 'select', val: '', list: 'depts', hint: 'يُختار تلقائياً حسب نوع الطلب إن تُرك على الأول' }, { k: 'due', label: 'مطلوب بتاريخ', type: 'date', val: t.date, ltr: true }, { k: 'note', label: 'تفاصيل', type: 'textarea' }],
+    (v) => { if (v.due && !validDate(v.due)) return 'تاريخ غير صالح.'; const dept = REQ_DEPT[v.type] && v.dept === DB.lists.depts[0] ? REQ_DEPT[v.type] : v.dept; t.reqs.push({ id: uid('rq'), type: v.type, dept, due: v.due, st: 'open', note: v.note.trim().slice(0, 300), tm: nowIso(), by: CUR.name }); audit(CUR.name, 'طلب لقسم', dept + ': ' + v.type); }); },
+  'req-toggle': (d) => { const t = taskById(d.task); if (!t || !need('request')) return; const r = t.reqs.find((x) => x.id === d.id); if (!r) return; r.st = r.st === 'done' ? 'open' : 'done'; r.doneAt = r.st === 'done' ? nowIso() : null; audit(CUR.name, r.st === 'done' ? 'تنفيذ طلب' : 'إعادة فتح طلب', r.type); save(); render(); },
+  'crew-hold': () => { if (!need('request')) return; const c = curCrew(); openForm('إيقاف ' + c.name, [{ k: 'reason', label: 'سبب التوقف', type: 'select', val: DB.lists.holdReasons[0], list: 'holdReasons' }, { k: 'note', label: 'تفاصيل', type: 'textarea' }], (v) => { c.hold = { reason: v.reason, note: v.note.trim().slice(0, 300), since: nowIso() }; audit(CUR.name, 'إيقاف فرقة', c.id + ': ' + v.reason); }); },
+  'crew-resume': () => { if (!need('request')) return; const c = curCrew(); c.hold = null; audit(CUR.name, 'استئناف فرقة', c.id); save(); render(); },
+  'svc-add': () => { if (!need('settings')) return; openForm('خدمة تنسيق جديدة', [{ k: 'label', label: 'اسم الخدمة', req: true }, { k: 'needs', label: 'نوع الفرقة المطلوبة', type: 'select', val: Object.keys(DB.lists.crewTypes)[0], list: 'crewTypes' }], (v) => { const key = addToList('services', v.label, v.needs); DB.lists.services[key][1] = v.needs; UI.reqSvc = key; }); },
+  'doc-add': (d) => { if (!need('request')) return; const t = d.task && taskById(d.task); const P = people(); const wtLib = d.wt || '';
+    openForm('مستند جديد', [{ k: 'type', label: 'نوع المستند', type: 'select', val: d.type || 'تصريح', list: 'docTypes' }, { k: 'title', label: 'عنوان / رقم المستند' },
+      { k: 'crewId', label: wtLib ? 'الفرقة (لا ينطبق على مستند المكتبة)' : 'الفرقة', type: 'select', val: wtLib ? '' : t ? t.crewId : (UI.sel || ''), opts: [['', '—']].concat(DB.crews.map((c) => [c.id, c.name])) },
+      { k: 'taskId', label: 'المهمة', type: 'select', val: t ? t.id : '', opts: [['', '— مستند عام للفرقة أو الشخص']].concat(DB.jobs.filter((j) => j.st !== 'done').map((j) => [j.id, j.title])) },
+      { k: 'person', label: 'المهندس / المراقب المسؤول', type: 'select', val: UI.person || (P[0] ? P[0].name : ''), opts: [['', '—']].concat(P.map((p) => [p.name, p.name + ' — ' + p.role])) },
+      { k: 'exp', label: 'تاريخ الانتهاء (إن وُجد)', type: 'date', ltr: true }, { k: 'url', label: 'رابط (Google Drive أو غيره)', ltr: true, ph: 'https://' },
+      { k: 'file', label: d.scan ? 'التقط صورة المستند' : 'أو ارفع ملفاً', type: 'file', capture: !!d.scan, hint: 'PDF أو صورة أو Word/Excel — حتى 10 ميجابايت' }],
+      async (v) => { if (v.url && !/^https:\/\//.test(v.url.trim())) return 'الرابط يجب أن يبدأ بـ https://'; if (v.exp && !validDate(v.exp)) return 'تاريخ غير صالح.';
+        const doc = { id: uid('d'), type: v.type, title: v.title.trim().slice(0, 120) || v.type, crewId: wtLib ? '' : v.crewId, taskId: wtLib ? '' : v.taskId, workType: wtLib, person: v.person, exp: v.exp, url: v.url.trim().slice(0, 500), fileId: '', fileName: '', size: 0, form: null, tm: nowIso(), by: CUR.name };
+        if (v.file) { if (v.file.size > 10 * 1024 * 1024) return 'الملف أكبر من 10 ميجابايت.'; if (!ALLOWED_FILES[v.file.type]) return 'نوع الملف غير مسموح. المسموح: PDF، صور، Word، Excel.'; doc.fileId = uid('f'); doc.fileName = safeName(v.file.name); doc.size = v.file.size; try { await filePut(doc.fileId, v.file); } catch (e) { return 'تعذّر حفظ الملف على هذا الجهاز.'; } }
+        DB.docs.unshift(doc); audit(CUR.name, 'إضافة مستند', doc.type + (doc.crewId ? ' · ' + doc.crewId : '')); }); },
+  'doc-del': (d) => { if (!need('edit')) return; const doc = DB.docs.find((x) => x.id === d.id); if (!doc) return; openForm('حذف المستند', [{ k: 'ok', label: 'أؤكد حذف «' + doc.type + '»', type: 'check', val: false }], (v) => { if (!v.ok) return 'ضع علامة التأكيد.'; DB.docs = DB.docs.filter((x) => x.id !== doc.id); if (doc.fileId) fileDel(doc.fileId); audit(CUR.name, 'حذف مستند', doc.type); }, { ok: 'حذف' }); },
+  'doc-file': async (d) => { const doc = DB.docs.find((x) => x.id === d.id); if (!doc || !doc.fileId) return; try { const b = await fileGet(doc.fileId); if (!b) return toast('الملف غير موجود على هذا الجهاز.', 'err'); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = safeName(doc.fileName); a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 3000); } catch (e) { toast('تعذّر قراءة الملف.', 'err'); } },
+  'doc-view': (d) => { const doc = DB.docs.find((x) => x.id === d.id); if (!doc) return; FORM = null; const dl = $('#dlg'); dl.innerHTML = docViewHtml3(doc).s; translateUI(dl); dl.showModal(); },
+  print: () => window.print(),
+  'doc-type': (d) => { UI.docType = d.k; render(); },
+  'person-sel': (d) => { UI.person = d.id || null; render(); },
+  'form-meeting': (d) => { const t = taskById(d.id); if (!t || !need('request')) return; const c = crewById(t.crewId); const ppl = c ? [c.sup.name].concat(c.eng ? [c.eng.name] : [], c.workers.map((w) => w.name), c.eq.filter((e) => e.driver).map((e) => e.driver.name), c.workers.filter((w) => w.dyna && w.dyna.driver).map((w) => w.dyna.driver.name)) : [];
+    openForm('اجتماع ما قبل العمل — ' + t.title, [{ k: 'date', label: 'التاريخ', type: 'date', val: today(), ltr: true }, { k: 'attendees', label: 'الحضور', type: 'checks', opts: [...new Set(ppl)].map((n) => [n, n]), val: [...new Set(ppl)] }, { k: 'topics', label: 'المخاطر والمواضيع التي نوقشت', type: 'checks', list: 'hazards', val: WT_HAZARDS[t.workType] || [] }, { k: 'note', label: 'ملاحظات', type: 'textarea' }],
+      (v) => { if (!v.attendees.length) return 'حدّد الحضور.'; if (!validDate(v.date)) return 'تاريخ غير صالح.'; DB.docs.unshift({ id: uid('d'), type: 'اجتماع ما قبل العمل', title: 'اجتماع ما قبل العمل — ' + v.date, crewId: t.crewId, taskId: t.id, person: c ? c.sup.name : '', exp: '', url: '', fileId: '', fileName: '', size: 0, form: { date: v.date, attendees: v.attendees, topics: v.topics, note: v.note.trim().slice(0, 600) }, tm: nowIso(), by: CUR.name }); audit(CUR.name, 'اجتماع ما قبل العمل', t.title); }, { ok: 'حفظ المحضر' }); },
+  'form-risk': (d) => { const t = taskById(d.id); if (!t || !need('request')) return; const c = crewById(t.crewId);
+    openForm('تقييم المخاطر — ' + t.title, [{ k: 'hazards', label: 'المخاطر في هذه المهمة (' + wtName(t.workType) + ')', type: 'checks', list: 'hazards', val: WT_HAZARDS[t.workType] || [] }, { k: 'level', label: 'مستوى الخطورة العام', type: 'select', val: 'متوسط', opts: [['منخفض', 'منخفض'], ['متوسط', 'متوسط'], ['عالٍ', 'عالٍ']] }, { k: 'controls', label: 'إجراءات التحكم والوقاية', type: 'textarea' }],
+      (v) => { if (!v.hazards.length) return 'حدّد مخاطرة واحدة على الأقل.'; if (!v.controls.trim()) return 'اكتب إجراءات التحكم.'; DB.docs.unshift({ id: uid('d'), type: 'تقييم المخاطر', title: 'تقييم المخاطر — ' + t.title, crewId: t.crewId, taskId: t.id, person: c && c.eng ? c.eng.name : '', exp: '', url: '', fileId: '', fileName: '', size: 0, form: { level: v.level, hazards: v.hazards, controls: v.controls.trim().slice(0, 1500) }, tm: nowIso(), by: CUR.name }); audit(CUR.name, 'تقييم مخاطر', t.title); }, { ok: 'حفظ التقييم' }); },
+  'ai-review': () => { UI.ai.review = true; askAI('راجع المهام والتنبيهات التالية لمنصة ميدان، ورتّب الأولويات لليوم وغداً: ما الأوراق الناقصة (تصاريح، تقييم مخاطر، اجتماع ما قبل العمل، نموذج فريق العمل، إجراءات العمل الآمن)، وما الترتيبات المطلوبة من كل قسم (السلامة والإنارة، توريد المواد، الحفر، الفنيين، إزالة المخالفات)، ومن المسؤول عن كل بند. التنبيهات الحالية: ' + JSON.stringify(smartAlerts().slice(0, 25).map((a) => a.title + ' — ' + a.body)), 'review'); },
+  'ai-review-hide': () => { UI.ai.review = false; render(); },
+  'notif-enable': async () => { if (!('Notification' in window)) return; const p = await Notification.requestPermission(); toast(p === 'granted' ? 'ستصلك تنبيهات المتصفح للبنود العاجلة.' : 'لم يُمنح إذن الإشعارات.', p === 'granted' ? 'ok' : 'err'); pushBrowserAlerts(); render(); },
+  'list-add': (d) => { if (!need('settings')) return; if (d.k === 'services') return ACT['svc-add'](); openForm('إضافة خيار', [{ k: 'val', label: 'الخيار الجديد', req: true }], (v) => { addToList(d.k, v.val); audit(CUR.name, 'إضافة خيار', d.k + ': ' + v.val); }); },
+  'list-del': (d) => { if (!need('settings')) return; const k = d.k;
+    if (k === 'branches') { if (DB.branches.length <= 1) return toast('يلزم فرع واحد على الأقل.', 'err'); DB.branches = DB.branches.filter((x) => x !== d.id); }
+    else if (k === 'crewTypes') { if (DB.crews.some((c) => c.type === d.id)) return toast('النوع مستخدم في فرق قائمة؛ غيّر نوعها أولاً.', 'err'); if (Object.keys(DB.lists.crewTypes).length <= 1) return; delete DB.lists.crewTypes[d.id]; Object.keys(DB.lists.services).forEach((s) => { if (DB.lists.services[s][1] === d.id) delete DB.lists.services[s]; }); }
+    else if (k === 'services') { if (Object.keys(DB.lists.services).length <= 1) return toast('يلزم خيار واحد على الأقل.', 'err'); delete DB.lists.services[d.id]; if (UI.reqSvc === d.id) UI.reqSvc = Object.keys(DB.lists.services)[0]; }
+    else { const L = DB.lists[k]; if (!L || L.length <= 1) return toast('يلزم خيار واحد على الأقل.', 'err'); DB.lists[k] = L.filter((x) => x !== d.id); }
+    audit(CUR.name, 'حذف خيار', k + ': ' + d.id); save(); render(); },
+  'job-up': (d) => moveJob(d.id, -1), 'job-down': (d) => moveJob(d.id, 1),
+  'ai-quick': (d) => askAI(d.q),
+  'prov-models': (d) => fetchModels(d.id),
+  'prov-up': (d) => { const P = cfg().providers; const i = P.findIndex((p) => p.id === d.id); if (i > 0) { [P[i - 1], P[i]] = [P[i], P[i - 1]]; save(); render(); } },
+  'u-add': (d) => { if (!need('users')) return; const e = (d && d.prefill) || {}; openForm('إضافة مستخدم', [{ k: 'name', label: 'الاسم', req: true, val: e.name || '' }, { k: 'iqama', label: 'رقم الإقامة / الهوية (اسم الدخول)', ltr: true, req: true, val: e.iqama || '' }, { k: 'phone', label: 'الجوال (لرمز التحقق)', ltr: true, req: true, ph: '05xxxxxxxx', val: e.phone || '' }, { k: 'email', label: 'البريد', ltr: true, val: e.email || '' }, { k: 'role', label: 'الصلاحية', type: 'select', val: /مهندس/.test(e.job || '') ? 'eng' : /supervisor|مراقب|مشرف/i.test(e.job || '') ? 'sup' : 'viewer', opts: Object.keys(ROLES).map((k) => [k, ROLES[k]]) }],
+    async (v) => { const iq = v.iqama.trim(), p = normPhone(v.phone); if (!validIqama(iq) || !validPhone(p)) return 'تحقق من رقم الإقامة والجوال.';
+      const body = { name: v.name.trim().slice(0, 80), iqama: iq, phone: p, email: v.email.trim().slice(0, 120), role: ROLES[v.role] ? v.role : 'viewer' };
+      if (CLOUD) { try { const r = await api('/users', { method: 'POST', body: JSON.stringify(body) }); UI.lastCode = { name: body.name, phone: p, code: r.code }; await cloudLoad(); } catch (err) { return err.message; } return; }
+      if (DB.users.some((u) => u.iqama === iq)) return 'يوجد مستخدم بهذا الرقم.'; const u = Object.assign({ id: uid('u'), active: false, created: nowIso() }, body); DB.users.push(u); UI.lastCode = { name: u.name, phone: u.phone, code: await issueActivation(u) }; audit(CUR.name, 'إضافة مستخدم', u.name); }); },
+  'r-ok': async (d) => { if (!need('users')) return; const r = DB.reqs.find((x) => x.id === d.id); if (!r) return;
+    if (CLOUD) { try { const x = await api('/requests/' + encodeURIComponent(r.id) + '/approve', { method: 'POST', body: '{}' }); UI.lastCode = { name: r.name, phone: r.phone, code: x.code }; await cloudLoad(); } catch (err) { toast(err.message, 'err'); } return render(); }
+    r.st = 'approved'; const u = { id: uid('u'), name: r.name, iqama: r.iqama, phone: r.phone, email: r.email, role: r.role, active: false, created: nowIso() }; DB.users.push(u); UI.lastCode = { name: u.name, phone: u.phone, code: await issueActivation(u) }; audit(CUR.name, 'اعتماد طلب حساب', u.name); save(); render(); },
+  'r-no': async (d) => { if (!need('users')) return; const r = DB.reqs.find((x) => x.id === d.id); if (!r) return; if (CLOUD) { try { await api('/requests/' + encodeURIComponent(r.id) + '/reject', { method: 'POST', body: '{}' }); await cloudLoad(); } catch (err) { toast(err.message, 'err'); } return render(); } r.st = 'rejected'; audit(CUR.name, 'رفض طلب حساب', r.name); save(); render(); },
+  'u-role': (d) => { if (!need('users')) return; const u = DB.users.find((x) => x.id === d.id); if (!u) return; openForm('صلاحية ' + u.name, [{ k: 'role', label: 'الصلاحية', type: 'select', val: u.role, opts: Object.keys(ROLES).map((k) => [k, ROLES[k]]) }], async (v) => { if (!ROLES[v.role]) return 'صلاحية غير صالحة.'; if (CLOUD) { try { await api('/users/' + encodeURIComponent(u.id), { method: 'PATCH', body: JSON.stringify({ role: v.role }) }); await cloudLoad(); } catch (err) { return err.message; } return; } u.role = v.role; audit(CUR.name, 'تغيير صلاحية', u.name + ' → ' + ROLES[v.role]); }); },
+  'u-reset': async (d) => { if (!need('users')) return; const u = DB.users.find((x) => x.id === d.id); if (!u) return; if (CLOUD) { try { const r = await api('/users/' + encodeURIComponent(u.id) + '/activation', { method: 'POST', body: '{}' }); UI.lastCode = { name: u.name, phone: u.phone, code: r.code }; await cloudLoad(); } catch (err) { toast(err.message, 'err'); } return render(); } UI.lastCode = { name: u.name, phone: u.phone, code: await issueActivation(u) }; audit(CUR.name, 'إصدار رمز تفعيل', u.name); save(); render(); },
+  'u-toggle': async (d) => { if (!need('users')) return; const u = DB.users.find((x) => x.id === d.id); if (!u || u.activation || u.pending) return; if (CLOUD) { try { await api('/users/' + encodeURIComponent(u.id), { method: 'PATCH', body: JSON.stringify({ active: !u.active }) }); await cloudLoad(); } catch (err) { toast(err.message, 'err'); } return render(); } u.active = !u.active; audit(CUR.name, u.active ? 'تفعيل مستخدم' : 'إيقاف مستخدم', u.name); save(); render(); },
+  'code-hide': () => { UI.lastCode = null; render(); },
+  unlock: (d) => { if (!need('users')) return; delete DB.locks[d.id]; audit(CUR.name, 'فك قفل', maskIqama(d.id)); save(); render(); },
+  'br-add': () => need('settings') && openForm('فرع جديد', [{ k: 'name', label: 'اسم الفرع', req: true }], (v) => { const n = v.name.trim().slice(0, 50); if (!n || DB.branches.includes(n)) return 'اسم غير صالح أو مكرر.'; DB.branches.push(n); }),
+  export: () => { if (!need('data')) return; const data = { ...DB, users: DB.users.map((u) => ({ id: u.id, name: u.name, iqama: u.iqama, phone: u.phone, email: u.email, role: u.role, active: u.active })) }; const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })); a.download = 'maydan-export-' + new Date().toISOString().slice(0, 10) + '.json'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); audit(CUR.name, 'تصدير البيانات'); toast('صُدّرت البيانات بدون كلمات المرور.'); },
+  'reset-ops': () => { if (!need('data')) return; openForm('إعادة بيانات الفرق التجريبية', [{ k: 'ok', label: 'أؤكد استبدال الفرق والمعدات والأعمال الحالية', type: 'check', val: false }], (v) => { if (!v.ok) return 'ضع علامة التأكيد للمتابعة.'; const s = freshDB(); DB.crews = s.crews; DB.jobs = s.jobs; DB.branches = s.branches; DB.projects = s.projects; DB.notifs = []; UI.sel = 'X-03'; audit(CUR.name, 'إعادة البيانات التجريبية'); }, { ok: 'استبدال' }); }
+};
+function moveJob(id, dlt) { if (!need('edit')) return; const f = UI.tf || 'open'; const vis = DB.jobs.filter((j) => f === 'all' || (f === 'open' ? j.st !== 'done' : j.st === f)); const vi = vis.findIndex((j) => j.id === id); const other = vis[vi + dlt]; if (vi < 0 || !other) return; const i = DB.jobs.findIndex((j) => j.id === id), k = DB.jobs.findIndex((j) => j.id === other.id); [DB.jobs[i], DB.jobs[k]] = [DB.jobs[k], DB.jobs[i]]; UI.task = id; save(); render(); }
+
+const FORMS = {
+  setup: doSetup, login: doLogin, otp: doOtp, activate: doActivate, request: doRequest,
+  svc: (f) => { if (!need('request')) return; UI.reqFrom = f.from; UI.reqSvc = f.svc; requestService(f.from, f.svc); },
+  brand: (f) => { if (!need('settings')) return; const B = cfg().brand; ['company', 'app', 'client', 'secLabel', 'teamTitle', 'meetingTitle'].forEach((k) => { B[k] = String(f[k] || '').trim().slice(0, 120) || B[k]; }); B.footer = String(f.footer || '').trim().slice(0, 400); audit(CUR.name, 'تعديل الهوية'); save(); toast('حُفظت الهوية.'); render(); },
+  gauges: (f, form) => { if (!need('settings')) return; const g = Array.from(form.querySelectorAll('input[name=g]:checked')).map((i) => i.value).filter((k) => GAUGES[k]); if (!g.length) return toast('اختر مؤشراً واحداً على الأقل.', 'err'); cfg().gauges = g; cfg().gaugeStyle = f.style === 'number' ? 'number' : 'ring'; save(); toast('حُفظت المؤشرات.'); render(); },
+  ai: (f) => { const q = String(f.q || '').trim(); if (q) askAI(q); },
+  settings: (f) => { if (!need('settings')) return; const r = Number(f.radiusKm), o = Number(f.oilWarn), k = Number(f.kmPerDay); if (!(r > 0 && r <= 50 && o >= 0 && k > 0)) return toast('قيم غير صالحة.', 'err'); const g = String(f.otpGateway || '').trim(); if (g && !/^https:\/\//.test(g)) return toast('بوابة الرسائل يجب أن تبدأ بـ https://', 'err'); Object.assign(cfg(), { radiusKm: r, oilWarn: Math.round(o), kmPerDay: Math.round(k), otpGateway: g }); audit(CUR.name, 'تعديل الإعدادات'); save(); toast('حُفظت الإعدادات.'); render(); },
+  dlg: async (f, form) => {
+    if (!FORM) return; const v = {}; const errEl = $('#dlgErr'); let bad = '';
+    FORM.fields.forEach((x) => {
+      if (x.type === 'check') v[x.k] = !!form.elements[x.k].checked;
+      else if (x.type === 'checks') { v[x.k] = Array.from(form.querySelectorAll('input[type=checkbox]')).filter((i) => i.name === x.k && i.checked).map((i) => i.value); const nn = form.elements[x.k + '__new']; if (nn && nn.value.trim()) nn.value.split(/[،,]/).map((q) => q.trim()).filter(Boolean).slice(0, 10).forEach((q) => { const val = x.list ? addToList(x.list, q) : q.slice(0, 60); if (!v[x.k].includes(val)) v[x.k].push(val); }); }
+      else if (x.type === 'file') v[x.k] = form.elements[x.k].files[0] || null;
+      else { v[x.k] = String(form.elements[x.k].value); if (v[x.k] === '__new__') { const nv = String((form.elements[x.k + '__new'] || {}).value || '').trim(); if (!nv) bad = 'اكتب الخيار الجديد في «' + x.label + '».'; else v[x.k] = addToList(x.list, nv, x.listExtra); } }
+    });
+    if (bad) { errEl.hidden = false; errEl.textContent = bad; return; }
+    const missing = FORM.fields.find((x) => x.req && !String(v[x.k] || '').trim()); 
+    if (missing) { errEl.hidden = false; errEl.textContent = 'الحقل «' + missing.label + '» مطلوب.'; return; }
+    const e = await FORM.submit(v); if (e) { errEl.hidden = false; errEl.textContent = e; return; }
+    FORM = null; $('#dlg').close(); save(); render();
+  }
+};
+
+// ---------- event delegation (no inline handlers) ----------
+document.addEventListener('click', (e) => { const el = e.target.closest('[data-act]'); if (!el) return; const fn = ACT[el.dataset.act]; if (fn) { e.preventDefault(); fn(el.dataset, el, e); } });
+document.addEventListener('submit', (e) => { const form = e.target.closest('[data-form]'); if (!form) return; e.preventDefault(); const fn = FORMS[form.dataset.form]; if (!fn) return; const f = Object.fromEntries(new FormData(form).entries()); Promise.resolve(fn(f, form)).catch(() => toast('حدث خطأ غير متوقع.', 'err')); });
+document.addEventListener('change', (e) => {
+  const el = e.target.closest('[data-change]'); if (!el) return; const k = el.dataset.change; const P = cfg().providers; const p = P && P.find((x) => x.id === el.dataset.id);
+  if (k === 'emp-import' && el.files && el.files[0]) { if (!need('data')) return; const file = el.files[0]; el.value = ''; readSheetFile(file).then((rows) => { const r = importEmployees(rows); cfg().odoo.lastImport = nowIso(); audit(CUR.name, 'استيراد الموظفين', file.name + ': +' + r.added + ' / ' + r.updated); UI.empReport = 'استيراد ' + file.name + ': ' + r.total + ' سجل — أُضيف ' + r.added + '، حُدّث ' + r.updated + '. بلا رقم إقامة: ' + r.noIqama + '، بلا جوال: ' + r.noPhone + ' (الجوال مطلوب لإنشاء حساب دخول).'; UI.view = 'users'; UI.usersTab = 'emps'; save(); render(); }).catch((err) => toast('تعذّر قراءة الملف: ' + err.message, 'err')); return; }
+  if (k === 'tx-import' && el.files && el.files[0]) { if (!need('edit')) return; const file = el.files[0]; el.value = ''; readSheetFile(file).then((rows) => { const r = rowsToTasks(rows); if (!r.length) throw new Error('لا صفوف'); UI.txPreview = { rows: r, name: file.name }; UI.view = 'docs'; UI.docsTab = 'tx'; render(); }).catch((err) => toast('تعذّر قراءة الملف: ' + err.message, 'err')); return; }
+  if (k === 'logo-upload' && el.files && el.files[0]) { if (!need('settings')) return; const file = el.files[0]; el.value = ''; if (!/^image\/(png|jpeg|webp)$/.test(file.type) || file.size > 2 * 1024 * 1024) return toast('PNG أو JPG أو WEBP حتى 2 ميجابايت.', 'err'); if ((cfg().brand.logos || []).length >= 6) return toast('الحد الأقصى 6 شعارات.', 'err');
+    const fr = new FileReader(); fr.onload = () => { const url = String(fr.result); if (!/^data:image\/(png|jpeg|webp);base64,/.test(url)) return toast('صورة غير صالحة.', 'err'); const img = new Image(); img.onload = () => { const h = 96, w = Math.min(600, Math.round(img.width * (h / img.height))); const cv = document.createElement('canvas'); cv.width = w; cv.height = h; cv.getContext('2d').drawImage(img, 0, 0, w, h); const src = cv.toDataURL('image/png'); if (!imgOk(src)) return toast('تعذّر معالجة الصورة.', 'err'); cfg().brand.logos.push({ id: uid('lg'), name: file.name.replace(/\.[a-z]+$/i, '').slice(0, 40), src }); audit(CUR.name, 'إضافة شعار', file.name); save(); render(); }; img.onerror = () => toast('صورة غير صالحة.', 'err'); img.src = url; }; fr.readAsDataURL(file); return; }
+  if (k === 'cover-upload' && el.files && el.files[0]) { if (!need('settings')) return; const file = el.files[0]; el.value = ''; if (!/^image\/(png|jpeg|webp)$/.test(file.type) || file.size > 4 * 1024 * 1024) return toast('PNG أو JPG أو WEBP حتى 4 ميجابايت.', 'err');
+    const fr = new FileReader(); fr.onload = () => { const url = String(fr.result); if (!/^data:image\/(png|jpeg|webp);base64,/.test(url)) return toast('صورة غير صالحة.', 'err'); const img = new Image(); img.onload = () => { const w = Math.min(1600, img.width), h = Math.round(img.height * (w / img.width)); const cv = document.createElement('canvas'); cv.width = w; cv.height = Math.min(h, 700); cv.getContext('2d').drawImage(img, 0, 0, w, h); let src = cv.toDataURL('image/webp', 0.72); if (!/^data:image\/webp/.test(src)) src = cv.toDataURL('image/jpeg', 0.75); if (!imgOk(src)) return toast('تعذّر معالجة الصورة.', 'err'); cfg().brand.cover = src; audit(CUR.name, 'تغيير صورة الهيدر', file.name); save(); render(); }; img.onerror = () => toast('صورة غير صالحة.', 'err'); img.src = url; }; fr.readAsDataURL(file); return; }
+  if (k === 'inv-branch') { UI.invBranch = el.value; UI.invProj = ''; return render(); }
+  if (k === 'inv-proj') { UI.invProj = el.value; return render(); }
+  if (k === 'tx-done') { UI.txDone = el.checked; return render(); }
+  if (k === 'tx-prev-wt' && UI.txPreview) { const r = UI.txPreview.rows[+el.dataset.i]; if (r) r.workType = el.value; return; }
+  if (k === 'addable') { const n = el.form && el.form.elements[el.name + '__new']; if (n) { n.hidden = el.value !== '__new__'; if (!n.hidden) n.focus(); } }
+  else if (k === 'move-driver' && UI.move) UI.move.withDriver = el.checked;
+  else if (k === 'prov-on' && p) { p.on = el.checked; save(); }
+  else if (k === 'prov-base' && p && can('settings')) { const v = el.value.trim(); if (/^https:\/\//.test(v) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//.test(v)) { p.base = v; save(); } else { toast('العنوان يجب أن يبدأ بـ https:// أو http://localhost', 'err'); el.value = p.base; } }
+  else if (k === 'prov-model' && p) { p.model = el.value.trim().slice(0, 200); save(); }
+  else if (k === 'prov-key' && p) { AI_KEYS[p.id] = el.value.trim(); }
+  else if (k === 'import' && el.files && el.files[0]) {
+    if (!need('data')) return; const fr = new FileReader();
+    fr.onload = () => { try { const d = JSON.parse(fr.result); if (!Array.isArray(d.crews) || !d.crews.every((c) => c && typeof c.id === 'string' && c.sup && c.sup.car && Array.isArray(c.eq) && Array.isArray(c.workers) && isFinite(c.lat) && isFinite(c.lng) && TYPES[c.type])) throw new Error('shape');
+      DB.crews = d.crews; if (Array.isArray(d.jobs)) DB.jobs = d.jobs.filter((j) => j && typeof j.title === 'string' && JOB_ST[j.st]); if (Array.isArray(d.branches)) DB.branches = d.branches.filter((b) => typeof b === 'string'); audit(CUR.name, 'استيراد بيانات'); save(); toast('اُستوردت بيانات الفرق.'); render(); } catch (err) { toast('ملف غير صالح لبيانات ميدان.', 'err'); } };
+    fr.readAsText(el.files[0].size > 5e6 ? new Blob() : el.files[0]);
+  }
+});
+const INPUTS = { 'eq-q': 'eqQ', 'tx-q': 'txQ', 'emp-q': 'empQ' };
+document.addEventListener('input', (e) => { const el = e.target.closest('[data-input]'); if (!el || !INPUTS[el.dataset.input]) return; UI[INPUTS[el.dataset.input]] = el.value; const pos = el.selectionStart; const sel = '[data-input="' + el.dataset.input + '"]'; render(); const n = $(sel); if (n) { n.focus(); n.setSelectionRange(pos, pos); } });
+// drag & drop ordering for jobs
+document.addEventListener('dragstart', (e) => { const li = e.target.closest && e.target.closest('[data-job]'); if (!li) return; UI.dragId = li.dataset.job; li.classList.add('drag'); e.dataTransfer.effectAllowed = 'move'; });
+document.addEventListener('dragover', (e) => { if (UI.dragId && e.target.closest && e.target.closest('[data-job]')) e.preventDefault(); });
+document.addEventListener('drop', (e) => { const li = e.target.closest && e.target.closest('[data-job]'); if (!li || !UI.dragId) return; e.preventDefault(); const from = DB.jobs.findIndex((j) => j.id === UI.dragId), to = DB.jobs.findIndex((j) => j.id === li.dataset.job); if (from > -1 && to > -1 && from !== to) { const [it] = DB.jobs.splice(from, 1); DB.jobs.splice(to, 0, it); save(); } UI.dragId = null; render(); });
+document.addEventListener('dragend', () => { UI.dragId = null; document.querySelectorAll('.drag').forEach((x) => x.classList.remove('drag')); });
+
+const lf = document.getElementById('lf');
+if (lf && !window.L) lf.addEventListener('load', () => { if (CUR && UI.view === 'ops') mountMap(); });
+(async () => {
+  const h = await cloudDetect();
+  if (h) { CLOUD = h; DB = freshDB(); DB.users = []; AUTH.step = h.needsSetup ? 'setup' : 'creds'; try { const me = await api('/auth/me'); if (me && me.user) { CUR = me.user; await cloudLoad(); UI.view = 'dash'; } } catch (e) { /* not signed in */ } }
+  else { restore(); seedForms(); }
+  if (!CUR && location.hash === '#demo') startDemo(); else render();
+})();
+window.addEventListener('hashchange', () => { if (!CUR && location.hash === '#demo') startDemo(); });
+})();

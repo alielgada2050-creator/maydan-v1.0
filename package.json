@@ -1,18 +1,19 @@
 {
   "name": "maydan",
-  "version": "1.0.0",
+  "version": "3.0.0",
   "private": true,
-  "description": "ميدان — إدارة الفرق والمعدات والخدمات اللوجستية على Google Apps Script",
-  "type": "module",
+  "description": "ميدان — منصة إدارة الفرق والمعدات والخدمات اللوجستية لمشاريع البنية التحتية",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
-    "check": "node scripts/check.mjs",
-    "test": "node scripts/check.mjs && node tests/scenario.cjs && CODE_GS=paste/clean/Code.gs node tests/scenario.cjs && node tests/ui.cjs",
-    "build": "node scripts/build.mjs",
-    "push": "clasp push --force",
-    "deploy": "clasp deploy"
+    "build": "python3 scripts/build.py",
+    "start": "node server/index.js",
+    "dev": "NODE_ENV=development STORE=file OTP_PROVIDER=console SETUP_TOKEN=local-setup-token-123 node server/index.js",
+    "test": "node --test server/test/*.test.js"
   },
-  "devDependencies": {
-    "jsdom": "^24.1.0"
-  },
-  "engines": { "node": ">=20" }
+  "dependencies": {
+    "@google-cloud/firestore": "^9.4.1",
+    "@google-cloud/storage": "^9.0.0"
+  }
 }

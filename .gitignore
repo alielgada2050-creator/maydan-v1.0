@@ -1,5 +1,13 @@
 node_modules/
-.clasp.json
-.clasprc.json
-*.zip
+data/
+private/
+.env
+.env.*
+!.env.example
+*.xlsx
+*.csv
+*.log
 .DS_Store
+# employee data and generated private builds must never be committed
+hr.employee*
+maydan-*-private.html

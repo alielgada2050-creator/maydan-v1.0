@@ -1,25 +1,23 @@
-name: CI — فحص ميدان
-
+name: CI
 on:
-  push:
+  push: { branches: [main] }
   pull_request:
-
-permissions:
-  contents: read
-
+permissions: { contents: read }
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
-      - name: Build paste versions
-        run: npm run build
-      - name: Paste files must be committed up to date
-        run: git diff --exit-code -- paste/
-      - name: Tests (syntax, server scenario, merged Code.gs, UI)
-        run: npm test
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-fund
+      - run: npm audit --omit=dev --audit-level=moderate
+      - name: Build public/index.html and make sure it is committed up to date
+        run: |
+          python3 scripts/build.py /tmp/index.html
+          diff -q /tmp/index.html public/index.html
+      - run: node --check src/app.js && node --check server/index.js
+      - run: npm test
+      - name: Secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env: { GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }

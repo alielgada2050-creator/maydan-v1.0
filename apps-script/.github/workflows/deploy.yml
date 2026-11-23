@@ -1,0 +1,56 @@
+name: Deploy — نشر إلى Google Apps Script
+
+# يعمل فقط بعد ضبط المتغير GAS_DEPLOY_ENABLED=true والأسرار (راجع docs/GOOGLE_SETUP.md)
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['src/**']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gas-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: ${{ vars.GAS_DEPLOY_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build && npm test
+
+      - name: Write clasp credentials (from secrets)
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+          SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
+        run: |
+          test -n "$CLASPRC_JSON" || { echo "::error::Missing secret CLASPRC_JSON"; exit 1; }
+          test -n "$SCRIPT_ID" || { echo "::error::Missing secret SCRIPT_ID"; exit 1; }
+          umask 077
+          printf '%s' "$CLASPRC_JSON" > ~/.clasprc.json
+          printf '{"scriptId":"%s","rootDir":"src"}' "$SCRIPT_ID" > .clasp.json
+
+      - name: Push code to Apps Script
+        run: npx -y @google/clasp@2.4.2 push --force
+
+      - name: Update the existing web-app deployment (same /exec URL)
+        env:
+          DEPLOYMENT_ID: ${{ secrets.DEPLOYMENT_ID }}
+        run: |
+          if [ -n "$DEPLOYMENT_ID" ]; then
+            npx -y @google/clasp@2.4.2 deploy --deploymentId "$DEPLOYMENT_ID" --description "GitHub ${GITHUB_SHA::7}"
+          else
+            echo "::warning::DEPLOYMENT_ID not set — code pushed; publish a new version from the Apps Script editor."
+          fi
+
+      - name: Remove credentials
+        if: always()
+        run: rm -f ~/.clasprc.json .clasp.json
