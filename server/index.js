@@ -15,8 +15,36 @@ const X = require('./integrations');
 const PORT = +process.env.PORT || 8080;
 const PROD = process.env.NODE_ENV === 'production';
 const IDLE = 30 * 60e3, ABS = 12 * 3600e3, OTP_TTL = 5 * 60e3, LOCK = 15 * 60e3, MAX_FAILS = 5;
-const ROLES = ['admin', 'pm', 'eng', 'sup', 'viewer'];
-const PERMS = { admin: ['users', 'write', 'audit', 'data'], pm: ['write', 'audit'], eng: ['write'], sup: ['write'], viewer: [] };
+const ROLES = ['ops', 'admin', 'pm', 'eng', 'sup', 'viewer'];
+const PERMS = { ops: ['write', 'audit'], admin: ['users', 'write', 'audit', 'data'], pm: ['write', 'audit'], eng: ['write'], sup: ['write'], viewer: [] };
+
+// ---------- role tree on the server: which parts of the shared state each role may change ----------
+const normDigits = (p) => { const d = String(p || '').replace(/\D/g, ''); return d.startsWith('05') ? '966' + d.slice(1) : d; };
+const nameKey = (n) => String(n || '').replace(/^\s*م\s*[./]?\s*/, '').replace(/\s+/g, ' ').trim();
+function isPerson(p, u) { if (!p) return false; if (p.iqama && p.iqama === u.iqama) return true; if (p.phone && u.phone && normDigits(p.phone) === normDigits(u.phone)) return true; return !!(p.name && nameKey(p.name).length > 3 && nameKey(p.name) === nameKey(u.name)); }
+function crewAllowed(c, u) {
+  if (!c) return false; const s = u.scope || {};
+  if ((s.crews || []).includes(c.id)) return true;
+  if (u.role === 'eng') return isPerson(c.eng, u) || (s.projects || []).includes(c.projectId);
+  if (u.role === 'sup') return isPerson(c.sup, u);
+  return false;
+}
+const J = (x) => JSON.stringify(x === undefined ? null : x);
+function guardState(me, oldS, newS) {
+  if (me.role === 'admin') return;
+  const pmScoped = me.role === 'pm' && ((me.scope || {}).offices || []).length + ((me.scope || {}).projects || []).length + ((me.scope || {}).crews || []).length > 0;
+  if (me.role === 'pm' && !pmScoped) { if (J(oldS.settings) !== J(newS.settings)) E(403, 'تعديل الإعدادات لمدير المنصة فقط.'); return; }
+  if (me.role === 'ops') { const free = new Set(['inbox', 'notifs', 'audit', 'version', 'v']); for (const k of new Set(Object.keys(oldS).concat(Object.keys(newS)))) if (!free.has(k) && J(oldS[k]) !== J(newS[k])) E(403, 'مدير العمليات يرسل التنبيهات فقط ولا يعدّل البيانات.'); return; }
+  const locked = me.role === 'pm' ? ['settings', 'users', 'roster'] : ['settings', 'users', 'roster', 'branches', 'projects', 'lists'];
+  for (const k of locked) if (J(oldS[k]) !== J(newS[k])) E(403, 'لا تملك صلاحية تعديل الإعدادات أو هيكل المنصة.');
+  const allowed = (c) => (me.role === 'pm' ? (((me.scope || {}).offices || []).includes(c.branch) || ((me.scope || {}).projects || []).includes(c.projectId) || ((me.scope || {}).crews || []).includes(c.id)) : crewAllowed(c, me));
+  const om = new Map((oldS.crews || []).map((c) => [c.id, c])), nm = new Map((newS.crews || []).map((c) => [c.id, c]));
+  for (const id of new Set([...om.keys(), ...nm.keys()])) {
+    const a = om.get(id), b = nm.get(id); if (J(a) === J(b)) continue;
+    if (!a && me.role !== 'pm') E(403, 'إضافة الفرق لمدير المشروع.');
+    if (!(a ? allowed(a) : allowed(b)) || (b && !allowed(b))) E(403, 'تعديل فرقة خارج نطاق صلاحيتك (' + id + ').');
+  }
+}
 const store = makeStore();
 const blobs = makeBlobs();
 const SECRET = process.env.SESSION_SECRET || (PROD ? null : 'dev-only-secret-change-me');
@@ -36,7 +64,7 @@ const strong = (p) => typeof p === 'string' && p.length >= 10 && p.length <= 200
 const maskPhone = (p) => (p ? '+' + p.slice(0, 4) + '•• ••• ' + p.slice(-3) : '');
 const maskMail = (m) => { if (!m || !m.includes('@')) return ''; const [a, b] = m.split('@'); return a[0] + '•••••' + a.slice(-1) + '@' + b; };
 const clean = (s, n) => String(s == null ? '' : s).replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, n || 200);
-const pub = (u) => ({ id: u.id, name: u.name, iqama: u.iqama, phone: u.phone, email: u.email, role: u.role, active: !!u.active, pending: !!u.activation, created: u.created });
+const pub = (u) => ({ id: u.id, name: u.name, iqama: u.iqama, phone: u.phone, email: u.email, role: u.role, scope: u.scope || {}, active: !!u.active, pending: !!u.activation, created: u.created });
 class HttpErr extends Error { constructor(status, msg) { super(msg); this.status = status; } }
 const E = (s, m) => { throw new HttpErr(s, m); };
 
@@ -172,7 +200,8 @@ route('POST', '/api/users', async (req, res, b, ip) => {
 });
 route('PATCH', '/api/users/:id', async (req, res, b, ip, prm) => {
   const me = await requireUser(req, 'users'); const u = await store.get('users', prm.id); if (!u) E(404, 'المستخدم غير موجود.'); if (u.id === me.id) E(400, 'لا يمكنك تعديل صلاحيتك أو إيقاف حسابك.');
-  if (b.role != null) { if (!ROLES.includes(b.role)) E(400, 'صلاحية غير صالحة.'); u.role = b.role; } if (b.active != null && !u.activation) u.active = !!b.active;
+  if (b.role != null) { if (!ROLES.includes(b.role)) E(400, 'صلاحية غير صالحة.'); u.role = b.role; }
+  if (b.scope != null) { const arr = (x, n) => (Array.isArray(x) ? x : []).map((v) => clean(String(v), 80)).filter(Boolean).slice(0, n); u.scope = { offices: arr(b.scope.offices, 50), projects: arr(b.scope.projects, 50), crews: arr(b.scope.crews, 200) }; } if (b.active != null && !u.activation) u.active = !!b.active;
   await store.set('users', u.id, u); /* a deactivated user is rejected on the next request: currentUser() checks u.active */ await audit(me.name, 'تعديل مستخدم', u.name + ' ' + u.role + (u.active ? '' : ' (موقوف)'), ip); return { user: pub(u) };
 });
 route('POST', '/api/users/:id/activation', async (req, res, b, ip, prm) => { const me = await requireUser(req, 'users'); const u = await store.get('users', prm.id); if (!u) E(404, 'المستخدم غير موجود.'); if (u.id === me.id) E(400, 'لا يمكن إعادة تعيين حسابك من هنا.'); const code = await issueActivation(u); await audit(me.name, 'إصدار رمز تفعيل', u.name, ip); return { code }; });
@@ -181,7 +210,7 @@ route('GET', '/api/state', async (req) => { await requireUser(req); const s = aw
 route('PUT', '/api/state', async (req, res, b, ip) => {
   const me = await requireUser(req, 'write'); if (!b || typeof b.state !== 'object' || !Array.isArray(b.state.crews)) E(400, 'بيانات غير صالحة.');
   const st = Object.assign({}, b.state, { users: [], locks: {}, audit: [] }); const json = JSON.stringify(st); if (json.length > 4.5 * 1024 * 1024) E(413, 'حجم البيانات كبير. أرسل الملفات عبر التخزين وليس داخل البيانات.');
-  const out = await store.tx('state', 'main', (cur) => { const v = cur ? cur.version : 0; if (+b.version !== v) E(409, 'تم تعديل البيانات من مستخدم آخر.'); return { version: v + 1, json, by: me.id, tm: iso() }; });
+  const out = await store.tx('state', 'main', (cur) => { const v = cur ? cur.version : 0; if (+b.version !== v) E(409, 'تم تعديل البيانات من مستخدم آخر.'); if (cur && cur.json) guardState(me, JSON.parse(cur.json), st); return { version: v + 1, json, by: me.id, tm: iso() }; });
   X.pushErp({ event: 'state.updated', version: out.version, by: me.name, tm: iso(), state: st });
   return { version: out.version };
 });
@@ -257,4 +286,4 @@ const server = http.createServer(async (req, res) => {
 });
 server.headersTimeout = 20000; server.requestTimeout = 60000;
 if (require.main === module) server.listen(PORT, () => console.log('maydan listening on :' + PORT + (PROD ? ' (production)' : ' (development)')));
-module.exports = { server, store };
+module.exports = { server, store, guardState };

@@ -9,7 +9,7 @@ const FL_KIND_ICON = { coord: 'تنسيق', safety: 'سلامة', hse: 'HSE', el
 let CMAP = null;
 
 function flKpis() {
-  const J = flJobs().filter(flActive); const tm = addDays(1);
+  const J = flJobs().filter(jobInScope).filter(flActive); const tm = addDays(1);
   return [['معاملات نشطة', J.length, 'info'], ['أعمال الغد', J.filter((j) => j.date === tm).length, 'warn'], ['بانتظار الرخصة', J.filter((j) => flIdx(j) <= flPath(j).indexOf('gate') && !flGateOk(j) && daysTo(j.date) <= 2).length, 'bad'],
     ['رخص ≤ 3 أيام', J.filter((j) => j.permit && flPermitDays(j) !== null && flPermitDays(j) <= 3).length, 'bad'], ['تنبيهات جديدة', DB.inbox.filter((i) => i.st === 'new').length, 'warn'], ['بلاغات مفتوحة', DB.reports.filter((r) => r.st !== 'resolved').length, 'warn']];
 }
@@ -23,7 +23,7 @@ function flTicket(j) {
     <span class="row" style="gap:6px"><span class="pill ${g[1]}">${g[0]}</span>${j.lengthM ? html`<span class="pill mutp">${j.lengthM} م</span>` : ''}</span></button>`;
 }
 function viewFlow() {
-  const off = UI.flOff || ''; const J = flJobs().filter((j) => !off || j.office === off).sort((a, b) => a.date.localeCompare(b.date));
+  const off = UI.flOff || ''; const J = flJobs().filter(jobInScope).filter((j) => !off || j.office === off).sort((a, b) => a.date.localeCompare(b.date));
   const sel = UI.flSel && DB.jobs.find((x) => x.id === UI.flSel);
   return html`<div class="ph"><div><h1 style="font-size:28px">دورة المعاملات الميدانية</h1><p>كل معاملة سجل واحد يتحرك بين المراحل: الرخصة ← السلامة ← الحفر ← الكهرباء ← الأسفلت ← المختبر ← الاستشاري ← المركز. كل انتقال يرسل تنبيهاً للمسؤول التالي برقم الرخصة وتاريخ انتهائها.</p></div>
     <div class="row">${can('edit') ? html`<button class="btn pri" type="button" data-act="fl-add">+ معاملة ميدانية</button>` : ''}<button class="btn" type="button" data-act="nav" data-v="cluster">خريطة الكلاستر</button></div></div>
@@ -37,7 +37,7 @@ function flStepper(j) {
   return html`<ol class="stepper">${P.map((s, k) => html`<li class="${k < i ? 'done' : k === i ? 'cur' : ''}" style="--sc:${FL_COLORS[s]}"><b>${FL_STAGES[s][0]}</b><span>${FL_STAGES[s][1]}</span></li>`)}</ol>`;
 }
 function flStageActions(j) {
-  const E = can('edit'); const s = j.stage; const nx = flNext(j); const nxN = nx ? FL_STAGES[nx][0] : '';
+  const E = can('edit') && jobInScope(j); const s = j.stage; const nx = flNext(j); const nxN = nx ? FL_STAGES[nx][0] : '';
   if (!E) return html`<p class="t-mut">عرض فقط.</p>`;
   if (s === 'plan') return html`<div class="row"><button class="btn" type="button" data-act="fl-coord" data-id="${j.id}">إرسال تنبيه التنسيق الآن</button><button class="btn pri" type="button" data-act="fl-adv" data-id="${j.id}">الانتقال إلى ${nxN}</button></div>`;
   if (s === 'gate') {
@@ -81,7 +81,7 @@ function flDetail(j) {
 // ---------- cluster map ----------
 function flClusterList() {
   const d = UI.flDay || 'week'; const off = UI.flOff || ''; const tm = addDays(1);
-  const J = flJobs().filter((j) => flActive(j) && (!off || j.office === off) && (d === 'all' || (d === 'tomorrow' ? j.date === tm : daysTo(j.date) >= -1 && daysTo(j.date) <= 7)));
+  const J = flJobs().filter(jobInScope).filter((j) => flActive(j) && (!off || j.office === off) && (d === 'all' || (d === 'tomorrow' ? j.date === tm : daysTo(j.date) >= -1 && daysTo(j.date) <= 7)));
   return { J, C: flClusters(J, UI.flRad || cfg().flow.clusterKm) };
 }
 function viewCluster() {
@@ -96,7 +96,7 @@ function viewCluster() {
     <div class="cllist">${C.map((c, i) => html`<article class="card clcard ${c.jobs.length > 1 ? 'multi' : ''}"><div class="row between"><b>كلاستر ${i + 1} — ${c.district}</b><span class="pill ${c.jobs.length > 1 ? 'warn' : 'mutp'}">${c.jobs.length} معاملة</span></div>
       <span class="t-mut" style="font-size:12px">${c.offices.join('، ')} · ${c.meters} م حفر · نصف قطر ${c.rad.toFixed(1)} كم</span>
       <ul class="nb">${c.jobs.map((j) => html`<li><button type="button" class="lnk" data-act="fl-open" data-id="${j.id}">${j.baseNo || j.id} — ${j.kind}</button><span class="t-mut">${j.date} · ${FL_STAGES[j.stage][0]}</span></li>`)}</ul>
-      ${c.jobs.length > 1 && can('edit') ? html`<button class="btn sm pri" type="button" data-act="fl-cl-coord" data-i="${i}">إرسال تنسيق موحّد للمهندسين</button>` : ''}</article>`)}${C.length ? '' : html`<p class="t-mut">لا توجد معاملات في هذه الفترة.</p>`}</div></div>
+      ${c.jobs.length > 1 && can('notify') ? html`<button class="btn sm pri" type="button" data-act="fl-cl-coord" data-i="${i}">إرسال تنسيق موحّد للمهندسين</button>` : ''}</article>`)}${C.length ? '' : html`<p class="t-mut">لا توجد معاملات في هذه الفترة.</p>`}</div></div>
   <div class="card"><div class="row between"><h2 style="font-size:17px">التحليل الذكي للتنسيق</h2><button class="btn pri" type="button" data-act="fl-ai" ${UI.flAi && UI.flAi.busy ? new Safe('disabled') : ''}>${UI.flAi && UI.flAi.busy ? 'جارٍ التحليل…' : 'حلّل خطة الأسبوع'}</button></div>
     ${UI.flAi && UI.flAi.text ? html`<div class="aiout">${UI.flAi.text}</div><p class="t-mut" style="font-size:12px">المصدر: ${UI.flAi.via}</p>` : html`<p class="t-mut">يقترح ترتيب التنفيذ لكل كلاستر، وتوحيد توريد السلامة والإنارة، وتسلسل الكهرباء ثم السفلتة قبل انتهاء الرخص. يعمل بمزودي الذكاء الاصطناعي المجانيين (OpenRouter وGroq وGemini) أو بتحليل محلي.</p>`}</div>`;
 }
@@ -130,7 +130,7 @@ async function flAi() {
 // ---------- coordination inbox ----------
 function viewInbox() {
   const rf = UI.inRole || ''; const sf = UI.inSt || 'open';
-  const L = DB.inbox.filter((i) => (!rf || i.roles.includes(rf) || (rf.startsWith('sup') && i.kind === 'fwd')) && (sf === 'all' || (sf === 'open' ? i.st !== 'done' : i.st === sf)));
+  const L = DB.inbox.filter(inboxInScope).filter((i) => (!rf || i.roles.includes(rf) || (rf.startsWith('sup') && i.kind === 'fwd')) && (sf === 'all' || (sf === 'open' ? i.st !== 'done' : i.st === sf)));
   const cnt = (r) => DB.inbox.filter((i) => i.st !== 'done' && (i.roles.includes(r) || (r.startsWith('sup') && i.kind === 'fwd'))).length;
   return html`<div class="ph"><div><h1 style="font-size:28px">مركز التنسيق والتنبيهات</h1><p>توجيه آلي لكل تنبيه إلى المسؤول بالاسم والجوال: قسم الرخص، مهندسو المدني والكهرباء، الأسفلت، السلامة، HSE، والمختبر. المهندس يحوّل التنبيه للمراقبين بضغطة.</p></div><div class="row"><button class="btn" type="button" data-act="fl-tick">تشغيل الفحص المجدول الآن</button></div></div>
   <div class="chips" role="group" aria-label="المستلم"><button type="button" class="chip" data-act="in-role" data-k="" aria-pressed="${!rf}">الكل</button>${Object.keys(FL_ROLES).map((r) => html`<button type="button" class="chip" data-act="in-role" data-k="${r}" aria-pressed="${rf === r}">${FL_ROLES[r]}${cnt(r) ? ' (' + cnt(r) + ')' : ''}</button>`)}</div>
@@ -138,14 +138,14 @@ function viewInbox() {
   <div class="inbox">${L.slice(0, 120).map((i) => html`<article class="card initem ${i.st}"><div class="row between"><div class="row" style="gap:8px"><span class="pill ${i.kind === 'coord' ? 'warn' : i.kind === 'permit' || i.kind === 'gate' || i.kind === 'report' ? 'bad' : 'info'}">${FL_KIND_ICON[i.kind] || i.kind}</span><b>${i.title}</b></div><span class="t-mut" style="font-size:12px">${fmtT(i.tm)}</span></div>
     <p class="inbody">${i.body}</p>
     <div class="row" style="gap:6px">${i.to.map((p) => html`<span class="who-chip">${p.name}<a class="lnk w" href="${wa(p.phone, flWaText(i))}" target="_blank" rel="noopener noreferrer" aria-label="واتساب ${p.name}">واتساب ${p.name}</a></span>`)}${i.to.length ? '' : html`<span class="t-mut">لم يُحدَّد مسؤول لهذا الدور — أضفه في جدول المسؤوليات.</span>`}</div>
-    <div class="row">${i.fwdRole && i.st === 'new' && can('edit') ? html`<button class="btn sm pri" type="button" data-act="fl-fwd" data-id="${i.id}">تحويل للمراقبين</button>` : ''}${i.st === 'fwd' ? html`<span class="pill ok">حُوِّل إلى: ${i.fwd.join('، ')}</span>` : ''}${i.jobIds.length ? html`<button class="btn sm" type="button" data-act="fl-goto" data-id="${i.jobIds[0]}">فتح المعاملة</button>` : ''}${i.nav ? html`<a class="btn sm" href="${i.nav}" target="_blank" rel="noopener noreferrer">الملاحة</a>` : ''}${i.st !== 'done' ? html`<button class="btn sm" type="button" data-act="fl-done" data-id="${i.id}">تمت المعالجة</button>` : ''}</div></article>`)}${L.length ? '' : html`<p class="t-mut">لا تنبيهات.</p>`}</div>
+    <div class="row">${i.fwdRole && i.st === 'new' && can('notify') ? html`<button class="btn sm pri" type="button" data-act="fl-fwd" data-id="${i.id}">تحويل للمراقبين</button>` : ''}${i.st === 'fwd' ? html`<span class="pill ok">حُوِّل إلى: ${i.fwd.join('، ')}</span>` : ''}${i.jobIds.length ? html`<button class="btn sm" type="button" data-act="fl-goto" data-id="${i.jobIds[0]}">فتح المعاملة</button>` : ''}${i.nav ? html`<a class="btn sm" href="${i.nav}" target="_blank" rel="noopener noreferrer">الملاحة</a>` : ''}${i.st !== 'done' ? html`<button class="btn sm" type="button" data-act="fl-done" data-id="${i.id}">تمت المعالجة</button>` : ''}</div></article>`)}${L.length ? '' : html`<p class="t-mut">لا تنبيهات.</p>`}</div>
   <div class="card"><div class="row between"><h2 style="font-size:17px">جدول المسؤوليات والتوجيه</h2>${can('settings') ? html`<button class="btn sm" type="button" data-act="fl-ro" data-id="">+ مسؤول</button>` : ''}</div>
     <div class="tblw"><table><thead><tr><th scope="col">الدور</th><th scope="col">الاسم</th><th scope="col">المكاتب</th><th scope="col">الجوال</th><th scope="col">إجراء</th></tr></thead><tbody>${DB.roster.map((p) => html`<tr><td>${FL_ROLES[p.role] || p.role}</td><td>${p.name}</td><td>${p.offices.length ? p.offices.join('، ') : 'كل المكاتب'}</td><td class="ltr">${p.phone || '—'}</td><td>${can('settings') ? html`<button class="btn sm" type="button" data-act="fl-ro" data-id="${p.id}">تعديل</button>` : ''}</td></tr>`)}</tbody></table></div></div>`;
 }
 
 // ---------- reports & returns ----------
 function viewReports() {
-  const kf = UI.repK || ''; const L = DB.reports.filter((r) => !kf || r.kind === kf).sort((a, b) => (a.st === 'resolved') - (b.st === 'resolved') || a.due.localeCompare(b.due));
+  const kf = UI.repK || ''; const L = DB.reports.filter((r) => scopeAll() || (r.jobId ? jobInScope(DB.jobs.find((j) => j.id === r.jobId) || {}) : can('notify'))).filter((r) => !kf || r.kind === kf).sort((a, b) => (a.st === 'resolved') - (b.st === 'resolved') || a.due.localeCompare(b.due));
   return html`<div class="ph"><div><h1 style="font-size:28px">البلاغات والمعادات</h1><p>معالجة المعاد من المختبر URS والاستشاري PDC ومركز المشاريع RIPC، وبلاغات البلدية 940 ومخالفات المركز، مع عدّاد المهلة والتوجيه للأسفلت أو المختبر أو التنفيذ المدني.</p></div>${can('edit') ? html`<button class="btn pri" type="button" data-act="fl-rep" data-id="">+ بلاغ / معاد</button>` : ''}</div>
   <div class="flkpi">${Object.keys(FL_REPORT_KINDS).map((k) => html`<button type="button" class="flk ${kf === k ? 'on' : ''}" data-act="rep-k" data-k="${kf === k ? '' : k}"><span>${FL_REPORT_KINDS[k][0]}</span><b>${DB.reports.filter((r) => r.kind === k && r.st !== 'resolved').length}</b></button>`)}</div>
   <div class="tblw"><table><thead><tr><th scope="col">النوع</th><th scope="col">الأساس / الرخصة</th><th scope="col">الحي</th><th scope="col">الملاحظة</th><th scope="col">المهلة</th><th scope="col">الحالة</th><th scope="col">توجيه</th></tr></thead><tbody>
@@ -158,7 +158,7 @@ function viewReports() {
 // ---------- team cards (slider) ----------
 const FL_CARD_DOCS = ['صورة الإقامة', 'كارت الأمن الصناعي', 'شهادة TUV', 'رخصة القيادة', 'كارت التأمين الطبي'];
 function viewCards() {
-  const q = (UI.cardQ || '').trim(); const E = (DB.employees || []).filter((e) => !q || (e.name + ' ' + e.iqama + ' ' + (e.job || '')).includes(q));
+  const q = (UI.cardQ || '').trim(); const E = (DB.employees || []).filter(empInScope).filter((e) => !q || (e.name + ' ' + e.iqama + ' ' + (e.job || '')).includes(q));
   const grp = { 'المهندسون والمراقبون': [], 'السائقون والمشغلون': [], 'العمال والفنيون': [], 'غير مربوطين بفرقة': [] };
   E.forEach((e) => { const l = empLink(e); if (l && (l.role === 'مهندس' || l.role === 'مراقب')) grp['المهندسون والمراقبون'].push(e); else if (isDriverEmp(e) || /مشغل|operator/i.test(e.job || '')) grp['السائقون والمشغلون'].push(e); else if (l) grp['العمال والفنيون'].push(e); else grp['غير مربوطين بفرقة'].push(e); });
   return html`<div class="ph"><div><h1 style="font-size:28px">بطاقات الفريق</h1><p>بطاقة لكل عامل ومراقب وسائق: صورة الإقامة، كارت الأمن الصناعي، شهادة TUV للمشغلين والسائقين، الرخصة، والتأمين — بتواريخ الانتهاء. تُحفظ الصور في Google Drive عند الربط.</p></div>
@@ -167,12 +167,17 @@ function viewCards() {
   ${E.length ? '' : html`<p class="t-mut">لا موظفين. استورد سجل الموظفين من الإعدادات.</p>`}`;
 }
 function flPersonCard(e) {
-  const l = empLink(e); const iq = (e.docs || {})['صورة الإقامة']; const ini = String(e.name || '؟').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('');
-  return html`<article class="pcard"><div class="pc-top">${iq && iq.fileId && /image\//.test(iq.type || 'image/') ? html`<img alt="" data-thumb="${iq.fileId}" class="pc-img">` : ''}<span class="pc-ini" aria-hidden="true">${ini}</span>
-    <div><b>${e.name}</b><span>${e.job || '—'}</span></div></div>
-    <div class="pc-meta"><span>الإقامة</span><b class="ltr">${e.iqama || '—'}</b><span>الفرقة</span><b>${l ? l.crew.id + ' · ' + l.role : '—'}</b></div>
-    <ul class="pc-docs">${FL_CARD_DOCS.map((t) => { const s = empDocState(e, t); return html`<li class="${s.lvl}"><span>${t}</span><span>${s.lvl === 'na' ? 'غير مطلوب' : s.lvl === 'miss' ? 'ناقص' : s.d && s.d.exp ? s.d.exp : 'مرفق'}</span></li>`; })}</ul>
-    ${can('data') ? html`<button class="btn sm" type="button" data-act="emp-edit" data-id="${e.id}">رفع / تحديث المرفقات</button>` : ''}</article>`;
+  const l = empLink(e); const iq = (e.docs || {})['صورة الإقامة']; const E = can('cards') && empInScope(e);
+  const ini = String(e.name || '؟').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('');
+  const st = FL_CARD_DOCS.map((t) => empDocState(e, t)); const bad = st.filter((x) => x.lvl === 'bad' || x.lvl === 'miss').length;
+  return html`<article class="pcard" aria-label="${e.name}">
+    <header class="pc-head"><span class="pc-av">${iq && iq.fileId ? html`<img alt="" data-thumb="${iq.fileId}" class="pc-img">` : ''}<span class="pc-ini" aria-hidden="true">${ini}</span></span>
+      <div class="pc-id"><b>${e.name}</b><span>${e.job || '—'}</span></div><span class="pc-st ${bad ? 'bad' : 'ok'}">${bad ? bad + ' يحتاج إجراء' : 'مكتمل'}</span></header>
+    <dl class="pc-meta"><div><dt>الإقامة</dt><dd class="ltr">${e.iqama || '—'}</dd></div><div><dt>الفرقة</dt><dd>${l ? l.crew.id + ' · ' + l.role : '—'}</dd></div></dl>
+    <ul class="pc-docs">${FL_CARD_DOCS.map((t, k) => { const s = st[k]; const d = s.d || {};
+      return html`<li class="${s.lvl}"><i class="pc-dot" aria-hidden="true"></i><span class="pc-t">${t}</span><span class="pc-v">${s.lvl === 'na' ? 'غير مطلوب' : s.lvl === 'miss' ? 'غير مرفق' : d.exp ? (s.lvl === 'bad' ? 'منتهية ' : '') + d.exp : 'مرفق'}</span>
+        <span class="pc-a">${d.fileId ? html`<button type="button" class="ib" data-act="emp-doc-file" data-id="${e.id}" data-k="${t}" aria-label="تنزيل ${t}" title="تنزيل">${new Safe('<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 4v11m0 0l-4-4m4 4l4-4M5 20h14"/></svg>')}</button>` : ''}${E && s.lvl !== 'na' ? html`<button type="button" class="ib" data-act="card-doc" data-id="${e.id}" data-k="${t}" aria-label="${d.fileId || d.exp ? 'تحديث' : 'رفع'} ${t}" title="${d.fileId || d.exp ? 'تحديث' : 'رفع'}">${new Safe('<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 20V9m0 0l-4 4m4-4l4 4M5 4h14"/></svg>')}</button>` : ''}</span></li>`; })}</ul>
+    ${E ? html`<button class="btn sm pc-edit" type="button" data-act="emp-edit" data-id="${e.id}">تعديل البيانات والملاحظات</button>` : ''}</article>`;
 }
 async function flThumbs() {
   for (const img of document.querySelectorAll('img[data-thumb]')) {
@@ -223,6 +228,17 @@ async function flAttach(j, kind, file) {
 }
 
 const FL_ACT = {
+  'card-doc': (d) => {
+    const e = empById(d.id); if (!e || !need('cards')) return; if (!empInScope(e)) return toast('هذا الموظف خارج نطاق فرقك.', 'err');
+    const cur = (e.docs || {})[d.k] || {};
+    openForm(d.k + ' — ' + e.name, [{ k: 'exp', label: 'تاريخ الانتهاء', type: 'date', val: cur.exp || '' }, { k: 'file', label: 'صورة أو PDF (حتى 10 ميجابايت)', type: 'file', capture: true, wide: true }], async (v) => {
+      const f = v.file && v.file.size ? v.file : null; if (!f && !v.exp) return 'أرفق الملف أو أدخل تاريخ الانتهاء.';
+      if (v.exp && !/^\d{4}-\d{2}-\d{2}$/.test(v.exp)) return 'تاريخ غير صالح.';
+      const x = Object.assign({}, cur, { exp: v.exp || '', tm: nowIso(), by: CUR.name });
+      if (f) { if (f.size > 10 * 1024 * 1024) return 'الملف أكبر من 10 ميجابايت.'; if (!ALLOWED_FILES[f.type] || /officedocument/.test(f.type)) return 'المسموح: صورة أو PDF.'; const old = cur.fileId; x.fileId = uid('f'); x.fileName = safeName(f.name); x.size = f.size; x.type = f.type; try { await filePut(x.fileId, f); } catch (err) { return 'تعذّر حفظ الملف.'; } if (old) fileDel(old); }
+      e.docs = e.docs || {}; e.docs[d.k] = x; audit(CUR.name, 'تحديث ' + d.k, e.name); toast('حُفظ «' + d.k + '» لـ ' + e.name + '.');
+    }, { ok: 'حفظ' });
+  },
   'fl-add': () => { if (!need('edit')) return; openForm('معاملة ميدانية جديدة', flJobFields(), (v) => { const e = flValidate(v); if (e) return e; const j = newTask({ flow: true, stage: 'plan', dept: 'التنفيذ', workType: 'excav', sec: { no: '', date: '', by: '' }, data: {}, alerts: {}, log: [], gate: null, safety: {} }); flApply(j, v); DB.jobs.push(j); flLog(j, 'plan', 'إنشاء المعاملة');
     const nb = flNeighbors(j, cfg().flow.r2).length; if (j.date === addDays(1) || j.date === today()) flCoordinate(j, 'd1'); audit(CUR.name, 'إنشاء معاملة ميدانية', flFolderName(j)); UI.view = 'flow'; UI.flSel = j.id; toast(nb ? 'أُنشئت المعاملة — يوجد ' + nb + ' معاملات في نفس النطاق.' : 'أُنشئت المعاملة.'); }, { ok: 'إنشاء' }); },
   'fl-edit': (d) => { const j = DB.jobs.find((x) => x.id === d.id); if (!j || !need('edit')) return; openForm('تعديل المعاملة', flJobFields(j), (v) => { const e = flValidate(v); if (e) return e; flApply(j, v); flLog(j, j.stage, 'تعديل البيانات'); audit(CUR.name, 'تعديل معاملة ميدانية', flFolderName(j)); }); },
@@ -231,7 +247,7 @@ const FL_ACT = {
   'fl-close-detail': () => { UI.flSel = null; render(); },
   'fl-off': (d) => { UI.flOff = d.k; render(); }, 'fl-rad': (d) => { UI.flRad = +d.k; render(); }, 'fl-day': (d) => { UI.flDay = d.k; render(); },
   'in-role': (d) => { UI.inRole = d.k; render(); }, 'in-st': (d) => { UI.inSt = d.k; render(); }, 'rep-k': (d) => { UI.repK = d.k; render(); },
-  'fl-coord': (d) => { const j = DB.jobs.find((x) => x.id === d.id); if (!j || !need('edit')) return; const n = flCoordinate(j, 'manual'); save(); toast('أُرسل تنبيه التنسيق لقسم الرخص' + (n ? ' والمهندسين (' + n + ' معاملات قريبة)' : '') + '.'); render(); },
+  'fl-coord': (d) => { const j = DB.jobs.find((x) => x.id === d.id); if (!j || !need('notify')) return; const n = flCoordinate(j, 'manual'); save(); toast('أُرسل تنبيه التنسيق لقسم الرخص' + (n ? ' والمهندسين (' + n + ' معاملات قريبة)' : '') + '.'); render(); },
   'fl-adv': (d) => {
     const j = DB.jobs.find((x) => x.id === d.id); if (!j || !need('edit')) return; const nx = flNext(j); if (!nx) return;
     if (j.stage === 'gate' && !flGateOk(j)) return toast('لا يمكن بدء التنفيذ: أرفق صورة الرخصة أو التعهد، أو سجّل تجاوز المهندس.', 'err');
@@ -263,13 +279,13 @@ const FL_ACT = {
   },
   'fl-ret': (d) => { const j = DB.jobs.find((x) => x.id === d.id); if (!j || !need('edit')) return; FL_ACT['fl-rep']({ id: '', job: j.id, k: d.k }); },
   'fl-folder': async (d) => { const j = DB.jobs.find((x) => x.id === d.id); if (!j) return; try { await gwToken(false).catch(() => gwToken(true)); await gwJobFolder(j); toast('أُنشئ مجلد «' + flFolderName(j) + '» في Drive.'); } catch (e) { toast(e.message, 'err'); } render(); },
-  'fl-cl-coord': (d) => { if (!need('edit')) return; const c = flClusterList().C[+d.i]; if (!c) return; const head = c.jobs[0]; const list = c.jobs.map((j) => '• ' + (j.baseNo || j.id) + ' — ' + j.kind + ' — ' + j.district + ' · ' + j.date + ' · ' + flPermitLine(j)).join('\n');
+  'fl-cl-coord': (d) => { if (!need('notify')) return; const c = flClusterList().C[+d.i]; if (!c) return; const head = c.jobs[0]; const list = c.jobs.map((j) => '• ' + (j.baseNo || j.id) + ' — ' + j.kind + ' — ' + j.district + ' · ' + j.date + ' · ' + flPermitLine(j)).join('\n');
     flNotify('coord', ['civil', 'elec', 'permits_eng', 'permits_sup'], 'تنسيق موحّد لكلاستر ' + c.district + ' (' + c.jobs.length + ' معاملات)', 'نطاق ' + c.rad.toFixed(1) + ' كم · ' + c.meters + ' م حفر\n' + list + '\nنسّقوا مرة واحدة: توريد سلامة وإنارة، المعدات، المراقبين، والسفلتة بالتوالي.', c.jobs, { fwdRole: 'sup_civil+sup_elec', nav: flNav(head) });
     c.jobs.forEach((j) => flLog(j, j.stage, 'تنسيق كلاستر ' + c.district)); audit(CUR.name, 'تنسيق كلاستر', c.district + ' · ' + c.jobs.length); save(); toast('أُرسل التنسيق الموحّد للمهندسين وقسم الرخص.'); render(); },
   'fl-ai': () => flAi(),
   'fl-tick': () => { FL_TICKED = ''; const n = flTick(); FL_TICKED = today(); toast(n ? 'أُنشئ ' + n + ' تنبيهات جديدة.' : 'لا تنبيهات جديدة — كل شيء محدّث.'); render(); },
   'fl-fwd': (d) => {
-    const it = DB.inbox.find((x) => x.id === d.id); if (!it || !need('edit')) return; const jobs = it.jobIds.map((id) => DB.jobs.find((j) => j.id === id)).filter(Boolean);
+    const it = DB.inbox.find((x) => x.id === d.id); if (!it || !need('notify')) return; const jobs = it.jobIds.map((id) => DB.jobs.find((j) => j.id === id)).filter(Boolean);
     const roles = String(it.fwdRole || 'sup_civil').split('+'); const sups = []; roles.forEach((r) => flWho(r, jobs.map((j) => j.office)).forEach((p) => sups.push({ id: p.id, role: r, name: p.name, phone: p.phone })));
     jobs.forEach((j) => { const c = crewById(j.crewId); if (c && !sups.some((s) => s.name === c.sup.name)) sups.push({ id: 'crew-' + c.id, role: 'sup', name: c.sup.name, phone: c.sup.phone }); });
     const f = flNotify('fwd', roles, 'تحويل من ' + CUR.name + ': ' + it.title, it.body, jobs, { nav: it.nav, parent: it.id }); f.to = sups;
@@ -292,7 +308,7 @@ const FL_ACT = {
       flNotify('report', ['permits_sup', 'civil'], K[0] + (r.baseNo ? ' — ' + r.baseNo : ''), (j ? flJobText(j) + '\n' : '') + r.note + '\nالمهلة حتى ' + r.due, j ? [j] : []); audit(CUR.name, 'تسجيل ' + K[0], r.baseNo || r.permit); UI.view = 'reports';
     }, { ok: 'تسجيل' });
   },
-  'fl-rep-to': (d) => { const r = DB.reports.find((x) => x.id === d.id); if (!r || !need('edit')) return; const j = DB.jobs.find((x) => x.id === r.jobId); r.st = 'routed'; r.to = d.k;
+  'fl-rep-to': (d) => { const r = DB.reports.find((x) => x.id === d.id); if (!r || !need('notify')) return; const j = DB.jobs.find((x) => x.id === r.jobId); r.st = 'routed'; r.to = d.k;
     flNotify('report', [d.k], r.kindName + ' — مطلوب المعالجة', (j ? flJobText(j) + '\n' : 'الأساس ' + (r.baseNo || '—') + ' · الرخصة ' + (r.permit || '—') + '\n') + r.note + '\nالمهلة حتى ' + r.due, j ? [j] : [], { nav: j ? flNav(j) : '' }); save(); toast('وُجّه البلاغ إلى ' + FL_ROLES[d.k] + '.'); render(); },
   'fl-rep-done': (d) => { const r = DB.reports.find((x) => x.id === d.id); if (!r || !need('edit')) return; r.st = 'resolved'; r.doneAt = nowIso(); r.doneBy = CUR.name; audit(CUR.name, 'معالجة بلاغ', r.kindName); save(); render(); }
 };

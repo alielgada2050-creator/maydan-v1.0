@@ -142,3 +142,19 @@ test('company system (ERP) webhook receives each data update, HMAC-signed, witho
   assert.strictEqual(h['x-maydan-signature'], 'sha256=' + crypto.createHmac('sha256', 'erp-secret').update(b).digest('hex'));
   const p = JSON.parse(b); assert.strictEqual(p.event, 'state.updated'); assert.strictEqual(p.state.crews[0].id, 'X-01'); assert.deepStrictEqual(p.state.users, []);
 });
+test('role tree: supervisors and engineers can only change their own crews; ops only sends alerts', () => {
+  const { guardState } = require('../index.js');
+  const crew = (id, sup, eng) => ({ id, branch: 'مكتب الشمال', projectId: 'p1', sup: { name: sup.name, iqama: sup.iqama, phone: sup.phone }, eng, workers: [{ name: 'w' }] });
+  const S = { crews: [crew('X-1', { name: 'أحمد', iqama: '2111111111' }, { name: 'م. سامي', phone: '966500000001' }), crew('X-2', { name: 'سعيد', iqama: '2222222222' }, { name: 'م. ناصر' })], settings: { a: 1 }, inbox: [] };
+  const clone = () => JSON.parse(JSON.stringify(S));
+  const sup = { role: 'sup', name: 'أحمد', iqama: '2111111111', phone: '' }, eng = { role: 'eng', name: 'سامي', iqama: '9', phone: '0500000001' }, ops = { role: 'ops', name: 'o', iqama: '8' };
+  let n = clone(); n.crews[0].workers.push({ name: 'new' }); guardState(sup, S, n);
+  n = clone(); n.crews[1].workers.push({ name: 'x' }); assert.throws(() => guardState(sup, S, n), /خارج نطاق/);
+  n = clone(); n.settings.a = 2; assert.throws(() => guardState(sup, S, n), /الإعدادات/);
+  n = clone(); n.crews[0].workers = []; guardState(eng, S, n);
+  n = clone(); n.crews.push(crew('X-9', { name: 'z' }, {})); assert.throws(() => guardState(eng, S, n), /مدير المشروع/);
+  n = clone(); n.inbox.push({ id: 1 }); guardState(ops, S, n);
+  n = clone(); n.crews[0].workers = []; assert.throws(() => guardState(ops, S, n), /التنبيهات فقط/);
+  const pm = { role: 'pm', scope: { offices: ['مكتب الشرق'] } }; n = clone(); n.crews[0].workers = []; assert.throws(() => guardState(pm, S, n), /خارج نطاق/);
+  guardState({ role: 'admin' }, S, Object.assign(clone(), { settings: {} }));
+});

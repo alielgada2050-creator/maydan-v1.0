@@ -38,16 +38,16 @@ const validIqama = (s) => /^[12]\d{9}$/.test(s);
 const maskIqama = (s) => s ? s[0] + '•••••••' + s.slice(-2) : '';
 const maskPhone = (p) => p ? '+' + p.slice(0, 4) + '•• ••• ' + p.slice(-3) : '';
 const maskMail = (m) => { if (!m || !m.includes('@')) return ''; const [a, b] = m.split('@'); return a[0] + '•••••' + a.slice(-1) + '@' + b; };
-const wa = (phone, text) => 'https://wa.me/' + (phone || '') + (text ? '?text=' + encodeURIComponent(text) : '');
-const tg = (phone) => 'https://t.me/+' + phone;
+const wa = (phone, text) => 'https://wa.me/' + String(phone || '').replace(/\D/g, '').slice(0, 15) + (text ? '?text=' + encodeURIComponent(String(text).slice(0, 3000)) : '');
+const tg = (phone) => 'https://t.me/+' + String(phone || '').replace(/\D/g, '').slice(0, 15);
 const tgShare = (text) => 'https://t.me/share/url?url=' + encodeURIComponent('https://maps.google.com') + '&text=' + encodeURIComponent(text);
 const gmap = (c) => 'https://www.google.com/maps?q=' + c.lat + ',' + c.lng;
 const gdir = (a, b) => 'https://www.google.com/maps/dir/?api=1&origin=' + a.lat + ',' + a.lng + '&destination=' + b.lat + ',' + b.lng;
 const km = (a, b) => { const R = 6371, t = Math.PI / 180; const dLa = (b.lat - a.lat) * t, dLo = (b.lng - a.lng) * t; const x = Math.sin(dLa / 2) ** 2 + Math.cos(a.lat * t) * Math.cos(b.lat * t) * Math.sin(dLo / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(x)); };
 
 // ---------- constants ----------
-const ROLES = { admin: 'مشرف المنصة', pm: 'مدير مشروع', eng: 'مهندس تنفيذ', sup: 'مراقب', viewer: 'مشاهد' };
-const PERMS = { admin: ['users', 'edit', 'move', 'request', 'ai', 'audit', 'settings', 'data'], pm: ['edit', 'move', 'request', 'ai', 'audit'], eng: ['edit', 'move', 'request', 'ai'], sup: ['request', 'ai'], viewer: [] };
+const ROLES = { ops: 'مدير العمليات', admin: 'مدير المنصة', pm: 'مدير المشروع', eng: 'المهندس المسؤول', sup: 'المراقب', viewer: 'مشاهد' };
+const PERMS = { ops: ['request', 'ai', 'audit', 'notify'], admin: ['users', 'settings', 'data', 'org', 'moveorg', 'crewcfg', 'tasks', 'permits', 'cards', 'edit', 'move', 'request', 'ai', 'audit', 'notify'], pm: ['org', 'moveorg', 'crewcfg', 'tasks', 'permits', 'cards', 'edit', 'move', 'request', 'ai', 'audit', 'notify', 'data'], eng: ['crewcfg', 'tasks', 'permits', 'cards', 'edit', 'move', 'request', 'ai', 'notify'], sup: ['cards', 'edit', 'request', 'ai'], viewer: [] }; // mirrored in modules/05-roles.js
 // ---------- editable lists (every dropdown can grow) ----------
 const LIST_DEFAULTS = () => ({
   crewTypes: { excav: ['حفريات', '#1D4ED8'], elec: ['كهرباء', '#C2410C'], safety: ['سلامة', '#15803D'], supply: ['إمداد', '#6D28D9'] },
@@ -681,7 +681,7 @@ const notifText = (n) => 'ميدان | ' + n.title + '\n' + n.body;
 
 // ---------- moves ----------
 function doMove() {
-  const m = UI.move; if (!m || !m.target) return;
+  const m = UI.move; if (!m || !m.target) return; if (!moveTargetOk(m)) { toast('الفرقة المستلمة خارج نطاق صلاحيتك.', 'err'); return; }
   if (m.kind === 'crew') { const c = crewById(m.from); const old = c.branch; c.branch = m.target; audit(CUR.name, 'نقل فرقة', c.id + ': ' + old + ' → ' + m.target); toast('نُقلت ' + c.name + ' بكامل أفرادها ومعداتها إلى ' + m.target + '.'); UI.move = null; save(); return render(); }
   const src = crewById(m.from), dst = crewById(m.target); let msg = '';
   if (m.kind === 'eq') {
@@ -713,8 +713,9 @@ function startLive(crewId) {
   audit(CUR.name, 'بدء البث المباشر للموقع', crewId); toast('بدأ بث الموقع المباشر لـ ' + crewId + '.'); render();
 }
 
-// ---------- AI (OpenAI-compatible: 9Router / OpenRouter / DeepSeek / Groq / Gemini) ----------
+// ---------- AI (OpenAI-compatible: OmniRoute / 9Router / OpenRouter / DeepSeek / Groq / Gemini) ----------
 const PROVIDERS_DEFAULT = [
+  { id: 'omniroute', name: 'OmniRoute — بوابة مجانية محلية', base: 'http://localhost:20128/v1', model: '', on: true, note: 'شغّل OmniRoute على جهازك ثم اكتب اسم الـ Combo في خانة النموذج (مثل free-forever)' },
   { id: '9router', name: '9Router — بوابة محلية', base: 'http://localhost:20128/v1', model: '', on: true, note: 'موصى به: المفاتيح تبقى داخل البوابة' },
   { id: 'openai', name: 'OpenAI', base: 'https://api.openai.com/v1', model: '', on: false, note: 'نموذج من حسابك في OpenAI' },
   { id: 'openrouter', name: 'OpenRouter', base: 'https://openrouter.ai/api/v1', model: '', on: true, note: 'اختر نموذجاً ينتهي بـ :free' },
@@ -725,10 +726,10 @@ const PROVIDERS_DEFAULT = [
 const ensureProviders = () => { if (!Array.isArray(DB.settings.providers)) DB.settings.providers = []; PROVIDERS_DEFAULT.forEach((p) => { if (!DB.settings.providers.some((x) => x.id === p.id)) DB.settings.providers.push({ ...p }); }); };
 ensureProviders();
 function aiContext() {
-  return JSON.stringify({ radiusKm: cfg().radiusKm, crews: DB.crews.map((c) => ({ id: c.id, type: TYPES[c.type][0], branch: c.branch, site: c.site, lat: c.lat, lng: c.lng, readiness: readiness(c).label,
+  return JSON.stringify({ radiusKm: cfg().radiusKm, crews: crewsV().map((c) => ({ id: c.id, type: TYPES[c.type][0], branch: c.branch, site: c.site, lat: c.lat, lng: c.lng, readiness: readiness(c).label,
     supCar: { code: c.sup.car.code, st: ST[c.sup.car.st][0], oilKm: c.sup.car.oil, tested: c.sup.car.tested },
     workers: c.workers.length, units: allUnits(c).map((e) => ({ kind: e.kind, code: e.code, hasDriver: !!e.driver, st: ST[e.st][0], oilKm: e.oil, tested: e.tested })) })),
-    jobs: DB.jobs.filter((j) => j.st !== 'done').map((j, i) => ({ order: i + 1, title: j.title, crew: j.crewId, dept: j.dept, date: j.date, permit: j.permit, permitExp: j.permitExp, st: JOB_ST[j.st][0], hold: j.hold ? j.hold.reason : '', openRequests: j.reqs.filter((r) => r.st === 'open').map((r) => r.dept + ': ' + r.type + ' (' + (r.due || '') + ')'), missingDocs: docStatus(j).filter((x) => x.need && !x.ok).map((x) => x.type), remaining: j.close && !j.close.finished ? j.close.remaining : [] })), crewStates: DB.crews.map((c) => ({ id: c.id, state: crewState(c).label, reason: crewState(c).reason })) });
+    jobs: DB.jobs.filter((j) => j.st !== 'done').map((j, i) => ({ order: i + 1, title: j.title, crew: j.crewId, dept: j.dept, date: j.date, permit: j.permit, permitExp: j.permitExp, st: JOB_ST[j.st][0], hold: j.hold ? j.hold.reason : '', openRequests: j.reqs.filter((r) => r.st === 'open').map((r) => r.dept + ': ' + r.type + ' (' + (r.due || '') + ')'), missingDocs: docStatus(j).filter((x) => x.need && !x.ok).map((x) => x.type), remaining: j.close && !j.close.finished ? j.close.remaining : [] })), crewStates: crewsV().map((c) => ({ id: c.id, state: crewState(c).label, reason: crewState(c).reason })) });
 }
 function localAnswer(q) {
   const lines = [];
@@ -857,7 +858,8 @@ function translateUI(root) {
   root.querySelectorAll('[placeholder],[aria-label],[title]').forEach((el) => ['placeholder', 'aria-label', 'title'].forEach((a) => { const v = el.getAttribute(a); if (v) { const t2 = tr(v); if (t2 !== v) el.setAttribute(a, t2); } }));
 }
 // ================= VIEWS =================
-const svgLogo = (s) => new Safe('<svg width="' + s + '" height="' + s + '" viewBox="0 0 44 44" fill="none" aria-hidden="true"><rect x="1" y="1" width="42" height="42" rx="11" stroke="#F97316" stroke-width="2.5"/><path d="M22 10c-5 0-9 4-9 9 0 7 9 15 9 15s9-8 9-15c0-5-4-9-9-9z" stroke="#F8FAFC" stroke-width="2.5"/><circle cx="22" cy="19" r="3" fill="#F97316"/></svg>');
+// logo: solid badge with a field pin standing on a ground line — readable at 20px, single colour on white
+const svgLogo = (s) => new Safe('<svg width="' + s + '" height="' + s + '" viewBox="0 0 48 48" aria-hidden="true" class="logo"><rect width="48" height="48" rx="12" fill="var(--acc)"/><path d="M24 10.5c-5.6 0-10.1 4.4-10.1 9.9 0 7.2 10.1 16.6 10.1 16.6s10.1-9.4 10.1-16.6c0-5.5-4.5-9.9-10.1-9.9z" fill="none" stroke="#fff" stroke-width="2.6" stroke-linejoin="round"/><circle cx="24" cy="20.4" r="3.5" fill="#fff"/><path d="M12 39h24" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/></svg>');
 
 function viewAuth() {
   const a = AUTH; const u = DB.users.find((x) => x.id === a.uid);
@@ -899,9 +901,10 @@ function viewAuth() {
       ${googleLoginId() ? html`<div class="gsep"><span>أو</span></div><div id="gbtn" class="gbtn" aria-label="الدخول بحساب Google"></div><span class="hint" style="text-align:center">${CLOUD ? 'بعد التحقق من حساب Google يُطلب رمز التحقق أيضاً.' : 'يُقبل فقط بريد Google مسجّل لمستخدم فعّال في المنصة.'}</span>` : ''}
       <p style="font-size:14px;text-align:center" class="t-mut">لا تملك حساباً؟ <button type="button" class="btn ghost sm" data-act="auth-to" data-step="request" style="color:var(--acc)">اطلب اعتماد حساب</button></p></form><div class="alert note" style="display:flex;flex-direction:column;gap:10px"><span><b>تجربة المنصة بدون حساب</b> — يفتح ميدان بحساب مشرف تجريبي وبيانات نموذجية. لا يُحفظ شيء، ولا تُمس بياناتك.</span><button class="btn dark" type="button" data-act="demo">فتح الوضع التجريبي</button></div>`;
   return html`<div class="auth">
-    <section class="hero"${imgOk(cfg().brand.cover) ? new Safe(' style="background-image:linear-gradient(180deg,rgba(11,22,38,.82),rgba(11,22,38,.94)),url(&quot;' + cfg().brand.cover + '&quot;)"') : ''}><div class="row between" style="gap:8px"><div class="brand">${svgLogo(44)}<div><b style="font-size:30px">ميدان</b><div style="font-size:13px;color:#CBD5E1">MAYDAN · Field Operations</div></div></div><div class="row" style="gap:6px"><button class="hh-btn" type="button" data-act="lang">${LANG === 'en' ? 'عربي' : 'EN'}</button><button class="hh-btn" type="button" data-act="theme" aria-label="الوضع المظلم">${THEME === 'dark' ? '☀' : '☾'}</button></div></div>
-      <div class="authlogos">${brandLogos(44)}</div><div><h1>كل فرقة، كل معدة، كل موقع — في ميدان واحد.</h1><p>منصة إدارة الفرق والمعدات والخدمات اللوجستية لمشاريع البنية التحتية: مواقع حية، تنسيق تلقائي بين الفرق القريبة، واعتمادات موثّقة.</p></div>
-      <ul><li>${new Safe('<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F97316" stroke-width="2" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>')}دخول برقم الإقامة + رمز تحقق لمرة واحدة على الجوال أو البريد</li><li>${new Safe('<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F97316" stroke-width="2" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>')}قفل بعد 5 محاولات خاطئة، وجلسة تنتهي بعد 30 دقيقة خمول</li><li>${new Safe('<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F97316" stroke-width="2" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>')}كل دخول مُسجَّل: الوقت والجهاز والنتيجة</li></ul></section>
+    <section class="hero"${imgOk(cfg().brand.cover) ? new Safe(' style="background-image:linear-gradient(180deg,rgba(11,22,38,.82),rgba(11,22,38,.94)),url(&quot;' + cfg().brand.cover + '&quot;)"') : ''}><div class="row between" style="gap:8px"><div class="brand">${svgLogo(44)}<div><b style="font-size:26px">ميدان</b><div class="brand-sub">MAYDAN · Field Operations</div></div></div><div class="row" style="gap:6px"><button class="hh-btn" type="button" data-act="lang">${LANG === 'en' ? 'عربي' : 'EN'}</button><button class="hh-btn" type="button" data-act="theme" aria-label="الوضع المظلم">${THEME === 'dark' ? '☀' : '☾'}</button></div></div>
+      <div class="auth-mid"><p class="auth-kicker">${cfg().brand.company || 'شركة الأساس العريض'}</p><h1>منصة إدارة العمليات الميدانية</h1><p>الفرق والمعدات والمعاملات والرخص والتنسيق الجغرافي لمشاريع الشبكات والبنية التحتية.</p></div>
+      <div class="authlogos">${brandLogos(40)}</div>
+      <ul class="auth-facts"><li><b>دخول موثّق</b><span>رقم الإقامة ورمز تحقق لمرة واحدة</span></li><li><b>صلاحيات حسب الدور</b><span>كل مستخدم يرى فرقه فقط</span></li><li><b>سجل كامل</b><span>كل دخول وتعديل مسجّل</span></li></ul></section>
     <section class="pane"><div class="box">${box}</div></section></div>`;
 }
 
@@ -921,7 +924,7 @@ function shell(inner) {
 }
 
 function viewOps() {
-  const typeOpts = DB.crews.map((c) => [c.id, c.name]);
+  const typeOpts = crewsV().map((c) => [c.id, c.name]);
   return html`<div class="ph"><div><h1 style="font-size:28px">غرفة العمليات</h1><p>المواقع الحية للفرق والتنسيق التلقائي بين الفرق القريبة · نطاق البحث ${cfg().radiusKm} كم</p></div></div>
   ${can('request') ? html`<form class="card" data-form="svc" style="flex-direction:row;flex-wrap:wrap;align-items:flex-end;gap:12px">
     <div class="fld" style="flex:1 1 220px"><label for="rqf">الفرقة الطالبة</label><select class="in" id="rqf" name="from">${typeOpts.map((o) => html`<option value="${o[0]}" ${o[0] === UI.reqFrom ? new Safe('selected') : ''}>${o[1]}</option>`)}</select></div>
@@ -974,7 +977,7 @@ function mountMap() {
   const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' });
   const key = mapsKey(); if (key) googleLayers(key).then((g) => { if (!MAP) return; if (!g) { osm.addTo(MAP); return; } const cur = UI.mapType === 'satellite' ? g.satellite : g.roadmap; cur.addTo(MAP); L.control.layers({ [tr('خريطة Google')]: g.roadmap, [tr('قمر صناعي Google')]: g.satellite, 'OpenStreetMap': osm }, null, { position: 'topleft' }).addTo(MAP); MAP.on('baselayerchange', (e) => { UI.mapType = e.layer === g.satellite ? 'satellite' : 'roadmap'; }); });
   else osm.addTo(MAP);
-  DB.crews.forEach((c) => {
+  crewsV().forEach((c) => {
     const col = TYPES[c.type][1]; const on = c.id === UI.sel;
     const m = L.circleMarker([c.lat, c.lng], { radius: on ? 13 : 10, color: '#fff', weight: on ? 4 : 2, fillColor: col, fillOpacity: 1 }).addTo(MAP);
     m.bindTooltip(c.id + ' · ' + TYPES[c.type][0], { permanent: true, direction: 'top', offset: [0, -10] });
@@ -990,25 +993,26 @@ function mountMap() {
   const toC = lr && UI.lastReq.to && crewById(UI.lastReq.to);
   if (UI.mapView) MAP.setView(UI.mapView.c, UI.mapView.z);
   else if (lr) MAP.fitBounds(L.latLngBounds([[lr.lat, lr.lng]].concat(toC ? [[toC.lat, toC.lng]] : [])).pad(1.2), { maxZoom: 15 });
-  else MAP.fitBounds(L.latLngBounds(DB.crews.map((c) => [c.lat, c.lng])).pad(0.15));
+  else MAP.fitBounds(L.latLngBounds(crewsV().map((c) => [c.lat, c.lng])).pad(0.15));
   MAP.on('moveend', () => { UI.mapView = { c: MAP.getCenter(), z: MAP.getZoom() }; });
 }
 function renderSide() { const s = $('#opsSide'); if (s) { s.innerHTML = opsSide().s; translateUI(s); } }
 
 function viewCrews() {
-  const c = crewById(UI.sel) || DB.crews[0]; UI.sel = c.id; const r = readiness(c); const L_ = UI.layers;
+  if (!crewsV().length) return html`<div class="ph"><div><h1 style="font-size:28px">الفرق ومعداتها</h1><p>${scopeLabel()}</p></div></div><p class="alert note">لا توجد فرق ضمن نطاقك. يربطك مدير المشروع بفرقتك من «المستخدمون ← النطاق»، أو تُربط تلقائياً عندما يكون رقم إقامتك أو جوالك هو المراقب أو المهندس المسجّل للفرقة.</p>`;
+  const c = crewById(UI.sel) || crewsV()[0]; UI.sel = c.id; const r = readiness(c); const L_ = UI.layers;
   const layerDefs = [['sup', 'المراقبون'], ['cars', 'سيارات المراقبين'], ['workers', 'العمال'], ['dynas', 'الديانات وسائقوها'], ['eq', 'المعدات'], ['drivers', 'سائقو المعدات']];
   const car = c.sup.car, co = oilInfo(car.oil), ct = testInfo(car.tested);
   const kinds = c.eq.reduce((a, e) => { a[e.kind] = (a[e.kind] || 0) + 1; return a; }, {});
   const E = can('edit'), M = can('move');
   return html`<div class="ph"><div><h1 style="font-size:28px">الفرق ومعداتها</h1><p>المراقب وسيارته ← العمال وكل عامل مع سائق ديانته ← معدات الفرقة بسائقيها. فرقة بلا معدة عاملة لا تعمل.</p></div>
-    ${E ? html`<button class="btn pri" type="button" data-act="crew-add">+ فرقة جديدة</button>` : ''}</div>
+    ${can('org') ? html`<button class="btn pri" type="button" data-act="crew-add">+ فرقة جديدة</button>` : ''}</div>
   <div class="chips" role="group" aria-label="الطبقات"><span style="font-size:13px;font-weight:600;color:#334155">الطبقات:</span>${layerDefs.map((l) => html`<button type="button" class="chip" aria-pressed="${!!L_[l[0]]}" data-act="layer" data-k="${l[0]}">${l[1]}</button>`)}</div>
   ${movePanel()}
-  <div class="split"><aside class="side" aria-label="الفرق" style="flex:1 1 280px">${DB.crews.map((x) => { const rr = crewState(x); return html`<button type="button" class="crewbtn" aria-pressed="${x.id === c.id}" data-act="crew-sel" data-id="${x.id}"><span class="row between" style="width:100%"><span class="nm">${x.name}</span><span class="pill ${rr.lvl}">${rr.label}</span></span><span class="t-mut" style="font-size:13px">1 مراقب · ${x.workers.length} عمال · ${x.workers.filter((w) => w.dyna).length} ديانة · ${x.eq.length} معدات</span><span class="t-mut" style="font-size:12px">${x.branch} · ${x.site}</span></button>`; })}</aside>
+  <div class="split"><aside class="side" aria-label="الفرق" style="flex:1 1 280px">${crewsV().map((x) => { const rr = crewState(x); return html`<button type="button" class="crewbtn" aria-pressed="${x.id === c.id}" data-act="crew-sel" data-id="${x.id}"><span class="row between" style="width:100%"><span class="nm">${x.name}</span><span class="pill ${rr.lvl}">${rr.label}</span></span><span class="t-mut" style="font-size:13px">1 مراقب · ${x.workers.length} عمال · ${x.workers.filter((w) => w.dyna).length} ديانة · ${x.eq.length} معدات</span><span class="t-mut" style="font-size:12px">${x.branch} · ${x.site}</span></button>`; })}</aside>
   <section class="wide" aria-label="تفاصيل الفرقة">
     <div class="card"><div class="row between"><div><h2 style="font-size:22px">${c.name}</h2><span class="t-mut" style="font-size:14px">${TYPES[c.type][0]} · ${c.branch} · ${c.site}</span></div>
-      <div class="row">${E ? html`<button class="btn sm" type="button" data-act="crew-edit">تعديل</button>` : ''}${M ? html`<button class="btn sm" type="button" data-act="move-crew">نقل لفرع آخر</button>` : ''}${can('request') ? (c.hold ? html`<button class="btn sm dark" type="button" data-act="crew-resume">استئناف الفرقة</button>` : html`<button class="btn sm" type="button" data-act="crew-hold">إيقاف الفرقة</button>`) : ''}
+      <div class="row">${can('crewcfg') ? html`<button class="btn sm" type="button" data-act="crew-edit">تعديل</button>` : ''}${can('moveorg') ? html`<button class="btn sm" type="button" data-act="move-crew">نقل لفرع آخر</button>` : ''}${can('request') ? (c.hold ? html`<button class="btn sm dark" type="button" data-act="crew-resume">استئناف الفرقة</button>` : html`<button class="btn sm" type="button" data-act="crew-hold">إيقاف الفرقة</button>`) : ''}
       <a class="btn sm wa" href="${safeUrl(wa(c.sup.phone))}" target="_blank" rel="noopener noreferrer">واتساب الفرقة</a><a class="btn sm tg" href="${safeUrl(tg(c.sup.phone))}" target="_blank" rel="noopener noreferrer">تليجرام الفرقة</a></div></div>
       <p class="alert ${r.lvl === 'ok' ? 'okk' : r.lvl === 'warn' ? 'wr' : 'err'}" role="status" style="font-weight:600">${r.text}</p>
       ${c.hold ? html`<p class="alert err" style="font-weight:600">متوقفة: ${c.hold.reason}${c.hold.note ? ' — ' + c.hold.note : ''} · منذ ${ago(c.hold.since)}</p>` : ''}
@@ -1019,7 +1023,7 @@ function viewCrews() {
       ${L_.cars ? html`<div class="carbox"><div class="kv"><span>سيارة المراقب</span><b>${car.model}</b></div><div class="kv"><span>اللوحة / رقم المعدة</span><b>${car.code}</b></div><div class="kv"><span>الحالة</span><span class="pill ${ST[car.st][1]}">${ST[car.st][0]}</span></div><div class="kv"><span>غيار الزيت</span><span class="${co[1]}">${co[0]}</span></div><div class="kv"><span>تجربة التشغيل</span><span class="${ct[1]}">${ct[0]}</span></div></div>` : ''}</div>` : ''}
     ${L_.workers ? html`<div class="card"><div class="row between"><h3 style="font-size:16px;color:#334155">العمال تحت المراقب · ${c.workers.length}</h3>${E ? html`<button class="btn sm" type="button" data-act="w-add">+ إضافة عامل</button>` : ''}</div>
       ${c.workers.length ? html`<ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px">${c.workers.map((w) => workerRow(c, w, E, M))}</ul>` : html`<p class="empty">لا يوجد عمال في هذه الفرقة.</p>`}</div>` : ''}
-    ${L_.eq ? html`<div class="card"><div class="row between"><h3 style="font-size:16px;color:#334155">معدات الفرقة والسائقون · ${Object.keys(kinds).map((k) => kinds[k] + ' ' + k).join(' · ') || 'لا معدات'}</h3>${E ? html`<button class="btn sm" type="button" data-act="eq-add">+ إضافة معدة</button>` : ''}</div>
+    ${L_.eq ? html`<div class="card"><div class="row between"><h3 style="font-size:16px;color:#334155">معدات الفرقة والسائقون · ${Object.keys(kinds).map((k) => kinds[k] + ' ' + k).join(' · ') || 'لا معدات'}</h3>${can('crewcfg') ? html`<button class="btn sm" type="button" data-act="eq-add">+ إضافة معدة</button>` : ''}</div>
       ${c.eq.length ? html`<div class="tblw"><table style="min-width:760px"><thead><tr><th scope="col">المعدة</th><th scope="col">الرقم / اللوحة</th>${L_.drivers ? html`<th scope="col">السائق</th>` : ''}<th scope="col">الحالة</th><th scope="col">غيار الزيت</th><th scope="col">تجربة التشغيل</th><th scope="col">إجراء</th></tr></thead>
       <tbody>${c.eq.map((e) => { const o = oilInfo(e.oil), t = testInfo(e.tested); return html`<tr><td><b>${e.kind}</b></td><td>${e.code}</td>${L_.drivers ? html`<td>${e.driver ? html`<span class="row" style="gap:8px">${e.driver.name}<a class="lnk w" href="${safeUrl(wa(e.driver.phone))}" target="_blank" rel="noopener noreferrer" aria-label="واتساب ${e.driver.name}">واتساب</a></span>` : html`<span class="pill bad">بدون سائق</span>`}</td>` : ''}<td><span class="pill ${ST[e.st][1]}">${ST[e.st][0]}</span></td><td><span class="${o[1]}">${o[0]}</span></td><td><span class="${t[1]}">${t[0]}</span></td>
         <td><div class="row" style="gap:6px">${E ? html`<button class="btn sm" type="button" data-act="eq-edit" data-id="${e.id}">تعديل</button>` : ''}${M ? html`<button class="btn sm" type="button" data-act="move-eq" data-id="${e.id}">نقل</button>` : ''}</div></td></tr>`; })}</tbody></table></div>` : html`<p class="empty">لا توجد معدات — الفرقة لا تستطيع العمل.</p>`}</div>` : ''}
@@ -1037,7 +1041,7 @@ function workerRow(c, w, E, M) {
 function movePanel() {
   const m = UI.move; if (!m) return '';
   const isCrew = m.kind === 'crew'; const from = crewById(m.from);
-  const targets = isCrew ? DB.branches.filter((b) => b !== from.branch).map((b) => [b, b]) : DB.crews.filter((x) => x.id !== m.from).map((x) => [x.id, x.name]);
+  const targets = isCrew ? DB.branches.filter((b) => b !== from.branch).map((b) => [b, b]) : crewsV().filter((x) => x.id !== m.from).map((x) => [x.id, x.name]);
   return html`<div class="movep" role="dialog" aria-label="نقل"><b style="font-size:16px">نقل: ${m.label}</b><span style="font-size:13px;color:#334155">${isCrew ? 'اختر الفرع المستلم — تنتقل الفرقة بمراقبها وعمالها ودياناتها ومعداتها:' : 'اختر الفرقة المستلمة:'}</span>
     <div class="chips">${targets.map((t) => html`<button type="button" class="chip" aria-pressed="${m.target === t[0]}" data-act="move-target" data-id="${t[0]}">${t[1]}</button>`)}</div>
     ${m.kind === 'eq' || m.kind === 'worker' ? html`<label class="row" style="min-height:44px;font-size:14px"><input type="checkbox" data-change="move-driver" ${m.withDriver ? new Safe('checked') : ''} style="width:20px;height:20px;accent-color:var(--acc)"> ${m.kind === 'worker' ? 'ينتقل العامل مع ديانته وسائقها' : 'تنتقل المعدة مع سائقها'}</label>` : ''}
@@ -1086,8 +1090,8 @@ function viewUsers() {
     ${pend.length ? html`<div class="tblw"><table><thead><tr><th scope="col">الاسم</th><th scope="col">الإقامة</th><th scope="col">الجوال</th><th scope="col">الصلاحية</th><th scope="col">ملاحظة</th><th scope="col">إجراء</th></tr></thead><tbody>
     ${pend.map((r) => html`<tr><td><b>${r.name}</b><div class="t-mut" style="font-size:12px">${ago(r.tm)}</div></td><td class="ltr">${maskIqama(r.iqama)}</td><td class="ltr">${maskPhone(r.phone)}</td><td>${ROLES[r.role]}</td><td style="max-width:260px;overflow-wrap:anywhere">${r.msg}</td><td><div class="row" style="gap:6px"><button class="btn sm dark" type="button" data-act="r-ok" data-id="${r.id}">اعتماد</button><button class="btn sm" type="button" data-act="r-no" data-id="${r.id}">رفض</button></div></td></tr>`)}</tbody></table></div>` : html`<p class="empty">لا طلبات معلّقة.</p>`}</div>
   <div class="card"><h2 style="font-size:17px">المستخدمون · ${DB.users.length}</h2><div class="tblw"><table><thead><tr><th scope="col">الاسم</th><th scope="col">الإقامة</th><th scope="col">الصلاحية</th><th scope="col">الحالة</th><th scope="col">إجراء</th></tr></thead><tbody>
-    ${DB.users.map((u) => html`<tr><td><b>${u.name}</b><div class="t-mut ltr" style="font-size:12px">${maskPhone(u.phone)}</div></td><td class="ltr">${maskIqama(u.iqama)}</td><td>${ROLES[u.role]}</td><td><span class="pill ${u.activation || u.pending ? 'warn' : u.active ? 'ok' : 'bad'}">${u.activation || u.pending ? 'بانتظار التفعيل' : u.active ? 'نشط' : 'موقوف'}</span></td>
-      <td>${u.id === CUR.id ? html`<span class="t-mut">أنت</span>` : html`<div class="row" style="gap:6px"><button class="btn sm" type="button" data-act="u-role" data-id="${u.id}">الصلاحية</button><button class="btn sm" type="button" data-act="u-reset" data-id="${u.id}">رمز تفعيل جديد</button><button class="btn sm" type="button" data-act="u-toggle" data-id="${u.id}">${u.active ? 'إيقاف' : 'تفعيل'}</button></div>`}</td></tr>`)}</tbody></table></div></div>`;
+    ${DB.users.map((u) => html`<tr><td><b>${u.name}</b><div class="t-mut ltr" style="font-size:12px">${maskPhone(u.phone)}</div></td><td class="ltr">${maskIqama(u.iqama)}</td><td>${ROLES[u.role]}<div class="t-mut" style="font-size:12px">${scopeLabel(u)}</div></td><td><span class="pill ${u.activation || u.pending ? 'warn' : u.active ? 'ok' : 'bad'}">${u.activation || u.pending ? 'بانتظار التفعيل' : u.active ? 'نشط' : 'موقوف'}</span></td>
+      <td>${u.id === CUR.id ? html`<span class="t-mut">أنت</span>` : html`<div class="row" style="gap:6px"><button class="btn sm" type="button" data-act="u-role" data-id="${u.id}">الدور والنطاق</button><button class="btn sm" type="button" data-act="u-reset" data-id="${u.id}">رمز تفعيل جديد</button><button class="btn sm" type="button" data-act="u-toggle" data-id="${u.id}">${u.active ? 'إيقاف' : 'تفعيل'}</button></div>`}</td></tr>`)}</tbody></table></div></div>`;
 }
 
 function viewSecurity() {
@@ -1218,16 +1222,16 @@ function alertCard(a) {
 // ---------- dashboard ----------
 function viewDash() {
   const A = smartAlerts(); const bad = A.filter((a) => a.lvl === 'bad').length;
-  const states = DB.crews.map((c) => ({ c, s: crewState(c), p: productivity(c) }));
+  const states = crewsV().map((c) => ({ c, s: crewState(c), p: productivity(c) }));
   const working = states.filter((x) => x.s.label === 'تعمل').length, stopped = states.filter((x) => x.s.lvl === 'bad');
-  const todayT = DB.jobs.filter((j) => j.date === today() && j.st !== 'done').length;
-  const week = DB.jobs.filter((j) => j.st === 'done' && j.doneAt && Date.now() - new Date(j.doneAt) <= 7 * 864e5).length;
-  const openReqs = DB.jobs.flatMap((j) => j.reqs.filter((r) => r.st === 'open').map((r) => ({ r, j })));
+  const todayT = jobsV().filter((j) => j.date === today() && j.st !== 'done').length;
+  const week = jobsV().filter((j) => j.st === 'done' && j.doneAt && Date.now() - new Date(j.doneAt) <= 7 * 864e5).length;
+  const openReqs = jobsV().flatMap((j) => j.reqs.filter((r) => r.st === 'open').map((r) => ({ r, j })));
   const reasons = {}; stopped.forEach((x) => { reasons[x.s.reason] = (reasons[x.s.reason] || 0) + 1; });
-  DB.jobs.filter((j) => j.st === 'hold' && j.hold).forEach((j) => { if (!stopped.some((x) => x.c.id === j.crewId)) reasons[j.hold.reason] = (reasons[j.hold.reason] || 0) + 1; });
+  jobsV().filter((j) => j.st === 'hold' && j.hold).forEach((j) => { if (!stopped.some((x) => x.c.id === j.crewId)) reasons[j.hold.reason] = (reasons[j.hold.reason] || 0) + 1; });
   const byDept = {}; openReqs.forEach((x) => { byDept[x.r.dept] = (byDept[x.r.dept] || 0) + 1; });
   const maxDone = Math.max(1, ...states.map((x) => x.p.done)); const maxR = Math.max(1, ...Object.values(reasons)); const maxD = Math.max(1, ...Object.values(byDept));
-  const safety = DB.jobs.flatMap((j) => j.reqs.filter((r) => (r.type === SAFE_IN || r.type === SAFE_OUT) && r.st === 'open').map((r) => ({ r, j }))).sort((a, b) => (a.r.due || '').localeCompare(b.r.due || '')).slice(0, 8);
+  const safety = jobsV().flatMap((j) => j.reqs.filter((r) => (r.type === SAFE_IN || r.type === SAFE_OUT) && r.st === 'open').map((r) => ({ r, j }))).sort((a, b) => (a.r.due || '').localeCompare(b.r.due || '')).slice(0, 8);
   const kpi = (label, val, sub, tone) => html`<div class="card" style="gap:6px;padding:16px"><span class="t-mut" style="font-size:13px">${label}</span><b style="font-size:30px;line-height:1.1;color:${tone || 'var(--tx)'}">${val}</b><span class="t-mut" style="font-size:12px">${sub}</span></div>`;
   return html`<div class="ph"><div><h1 style="font-size:28px">لوحة الأداء</h1><p>إنتاجية الفرق وحالتها وأسباب التوقف، والطلبات بين الأقسام، والتنبيهات الذكية لنقص الأوراق والترتيبات · ${today()}</p></div>
     <div class="row">${'Notification' in window && Notification.permission !== 'granted' ? html`<button class="btn" type="button" data-act="notif-enable">تفعيل إشعارات المتصفح</button>` : ''}${can('settings') ? html`<button class="btn" type="button" data-act="gauge-cfg">تخصيص المؤشرات</button>` : ''}<button class="btn pri" type="button" data-act="ai-review" ${UI.ai.busy ? new Safe('disabled') : ''}>مراجعة ذكية بالذكاء الاصطناعي</button></div></div>
@@ -1255,11 +1259,11 @@ function viewDash() {
 // ---------- tasks & department requests ----------
 function viewTasks() {
   const E = can('edit'); const f = UI.tf || 'open';
-  const list = DB.jobs.filter((j) => f === 'all' || (f === 'open' ? j.st !== 'done' : j.st === f));
+  const list = jobsV().filter((j) => f === 'all' || (f === 'open' ? j.st !== 'done' : j.st === f));
   const sel = taskById(UI.task) || list[0]; if (sel) UI.task = sel.id;
   const chips = [['open', 'المفتوحة'], ['new', 'جديدة'], ['prog', 'قيد التنفيذ'], ['hold', 'متوقفة'], ['done', 'منجزة'], ['all', 'الكل']];
   return html`<div class="ph"><div><h1 style="font-size:28px">المهام والطلبات</h1><p>كل مهمة بتصريحها وفرقتها وطلباتها للأقسام: تأمين السلامة والإنارة قبل التنفيذ بيوم، وإزالتها بعد التنفيذ، وتحديث حالة الموقع قبل المغادرة.</p></div>${E ? html`<button class="btn pri" type="button" data-act="task-add">+ مهمة جديدة</button>` : ''}</div>
-  <div class="chips">${chips.map((c) => html`<button type="button" class="chip" aria-pressed="${f === c[0]}" data-act="task-filter" data-k="${c[0]}">${c[1]} · ${DB.jobs.filter((j) => c[0] === 'all' || (c[0] === 'open' ? j.st !== 'done' : j.st === c[0])).length}</button>`)}</div>
+  <div class="chips">${chips.map((c) => html`<button type="button" class="chip" aria-pressed="${f === c[0]}" data-act="task-filter" data-k="${c[0]}">${c[1]} · ${jobsV().filter((j) => c[0] === 'all' || (c[0] === 'open' ? j.st !== 'done' : j.st === c[0])).length}</button>`)}</div>
   <div class="split"><aside class="side" style="flex:1 1 340px">
     ${list.length ? html`<ol class="jobs">${list.map((j) => { const c = crewById(j.crewId); const al = smartAlerts().filter((a) => a.task === j.id); return html`<li class="job" ${E && f === 'all' ? new Safe('draggable="true"') : ''} data-job="${j.id}" style="${sel && sel.id === j.id ? 'border:2px solid var(--acc);background:#fff' : ''}">
       <button type="button" data-act="task-sel" data-id="${j.id}" style="all:unset;cursor:pointer;flex:1 1 200px;min-width:0;display:flex;flex-direction:column;gap:2px"><b style="font-size:14px">${j.title}</b><span class="t-mut" style="font-size:12px">${c ? c.id : 'غير مُسندة'} · ${j.dept} · ${fmtD(j.date)}</span></button>
@@ -1361,7 +1365,7 @@ function brandBar() {
   const d = new Date(); const ds = d.toLocaleDateString(LANG === 'en' ? 'en-GB' : 'ar-SA-u-ca-gregory-nu-latn', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   return html`<header class="hero-h${cov ? '' : ' nocover'}"${cov ? new Safe(' style="background-image:url(&quot;' + cov + '&quot;)"') : ''}><div class="hh-in">
     <div class="hh-main"><div class="hh-logos">${brandLogos(38)}</div><div class="hh-title"><b>${B.company || ''}</b><span>${B.app || 'ميدان'} · إدارة الفرق والمعدات والخدمات اللوجستية</span></div></div>
-    <div class="hh-side"><span class="hh-date">${ds}</span>${CUR ? html`<span class="hh-user">${CUR.name} · ${ROLES[CUR.role]}</span>` : ''}
+    <div class="hh-side"><span class="hh-date">${ds}</span>${CUR ? html`<span class="hh-user" title="${'نطاقك: ' + scopeLabel()}">${CUR.name} · ${ROLES[CUR.role]}</span><span class="hh-scope">${scopeLabel()}</span>` : ''}
       <div class="row" style="gap:6px">${gwBadge()}<button class="hh-btn" type="button" data-act="palette" aria-label="تغيير سمة الألوان" title="تغيير سمة الألوان"><i class="swatch" aria-hidden="true"></i></button><button class="hh-btn" type="button" data-act="lang" aria-label="${LANG === 'en' ? 'العربية' : 'English'}">${LANG === 'en' ? 'عربي' : 'EN'}</button><button class="hh-btn" type="button" data-act="theme" aria-label="${THEME === 'dark' ? 'الوضع الفاتح' : 'الوضع المظلم'}">${THEME === 'dark' ? new Safe('<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>') : new Safe('<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>')}</button></div></div></div></header>`;
 }
 
@@ -1394,7 +1398,7 @@ function gaugesPanel() {
 // ---------- inventory & hierarchy (for company / execution / project managers) ----------
 function viewInv() {
   const fb = UI.invBranch || '', fp = UI.invProj || '';
-  const crews = DB.crews.filter((c) => { const p = projById(c.projectId); return (!fb || (p && p.branch) === fb || c.branch === fb) && (!fp || c.projectId === fp); });
+  const crews = crewsV().filter((c) => { const p = projById(c.projectId); return (!fb || (p && p.branch) === fb || c.branch === fb) && (!fp || c.projectId === fp); });
   const units = crews.flatMap((c) => allUnitsOf(c).map((u) => ({ u, c })));
   const kinds = {}; units.forEach((x) => { const k = x.u === x.c.sup.car ? 'سيارات المراقبين' : x.u.kind; kinds[k] = (kinds[k] || 0) + 1; });
   const engs = new Set(crews.filter((c) => c.eng).map((c) => c.eng.name)); const drivers = units.filter((x) => x.u.driver).length;
@@ -1515,7 +1519,7 @@ function viewUsers3() {
   ${tab === 'emps' ? viewEmps() : viewUsers()}`;
 }
 function viewEmps() {
-  const q = (UI.empQ || '').trim(); const list = DB.employees.filter((e) => !q || (e.name + e.iqama + e.job + e.branch + e.empNo).toLowerCase().includes(q.toLowerCase()));
+  const q = (UI.empQ || '').trim(); const list = DB.employees.filter(empInScope).filter((e) => !q || (e.name + e.iqama + e.job + e.branch + e.empNo).toLowerCase().includes(q.toLowerCase()));
   const linked = (e) => { for (const c of DB.crews) { if (c.eng && (c.eng.empId === e.id || (e.iqama && c.eng.iqama === e.iqama))) return c.id + ' · مهندس'; if (c.sup.empId === e.id || (e.iqama && c.sup.iqama === e.iqama)) return c.id + ' · مراقب'; for (const w of c.workers) { if (w.empId === e.id || (e.iqama && w.iqama === e.iqama)) return c.id + ' · ' + (w.role || 'عامل'); if (w.dyna && w.dyna.driver && (w.dyna.driver.empId === e.id || (e.iqama && w.dyna.driver.iqama === e.iqama))) return c.id + ' · سائق ديانة'; } for (const u of c.eq) if (u.driver && (u.driver.empId === e.id || (e.iqama && u.driver.iqama === e.iqama))) return c.id + ' · سائق ' + u.kind; } return ''; };
   const hasUser = (e) => e.iqama && DB.users.some((u) => u.iqama === e.iqama);
   return html`<div class="ph"><div><h1 style="font-size:28px">سجل الموظفين</h1><p>مستورد من Odoo (hr.employee) أو من Excel / CSV. منه تُسحب الأسماء وأرقام الإقامات والمهن إلى الفرق ونماذج فريق العمل، ومنه تُنشأ حسابات الدخول.</p></div>
@@ -1770,7 +1774,7 @@ function render() {
 
 // ---------- actions ----------
 const need = (p) => { if (!can(p)) { toast('لا تملك صلاحية لهذا الإجراء.', 'err'); return false; } return true; };
-const curCrew = () => crewById(UI.sel) || DB.crews[0];
+const curCrew = () => { const c = crewById(UI.sel); return c && crewInScope(c) ? c : crewsV()[0] || null; };
 const stOpts = Object.keys(ST).map((k) => [k, ST[k][0]]);
 const unitFields = (u, withKind) => [].concat(withKind ? [{ k: 'kind', label: 'نوع المعدة', type: 'select', val: u.kind, list: 'eqKinds' }] : [])
   .concat([{ k: 'code', label: 'الرقم / اللوحة', val: u.code, req: true }, { k: 'st', label: 'الحالة', type: 'select', val: u.st, opts: stOpts }, { k: 'odo', label: 'العداد (كم)', type: 'number', val: u.odo || 0 }, { k: 'oil', label: 'المتبقي لغيار الزيت (كم، بالسالب إن تأخر)', type: 'number', val: u.oil },
@@ -1902,7 +1906,7 @@ const ACT = {
   'maint-plan-del': (d) => { if (!need('settings')) return; cfg().maintPlan = cfg().maintPlan.filter((x) => x.key !== d.k); save(); render(); },
   'emp-export': (d) => exportRows(empRows(), 'hr.employee-maydan-' + today(), d.fmt),
   'emp-add': () => ACT['emp-edit']({}),
-  'emp-edit': (d) => { if (!need('data')) return; const e = d.id ? empById(d.id) : { name: '', iqama: '', job: '', branch: '', phone: '', email: '', empNo: '', notes: '', docs: {} }; if (!e) return;
+  'emp-edit': (d) => { if (!need('cards')) return; { const e0 = empById(d.id); if (e0 && !empInScope(e0) && !can('org')) return toast('هذا الموظف خارج نطاق فرقك.', 'err'); } const e = d.id ? empById(d.id) : { name: '', iqama: '', job: '', branch: '', phone: '', email: '', empNo: '', notes: '', docs: {} }; if (!e) return;
     const types = DB.lists.empDocs; const docFields = []; types.forEach((t, i) => { const x = (e.docs || {})[t] || {}; docFields.push({ k: 'dx' + i, label: t + ' — تاريخ الانتهاء', type: 'date', val: x.exp || '', ltr: true }, { k: 'df' + i, label: t + (x.fileName ? ' — مرفق: ' + x.fileName + ' (اختر ملفاً لاستبداله)' : ' — صورة أو PDF'), type: 'file' }); });
     openForm(d.id ? 'ملف الموظف: ' + e.name : 'موظف جديد', [{ k: 'name', label: 'الاسم', val: e.name, req: true }, { k: 'iqama', label: 'رقم الإقامة / الهوية', val: e.iqama, ltr: true }, { k: 'job', label: 'المهنة', val: e.job }, { k: 'branch', label: 'الفرع', type: 'select', val: e.branch || DB.branches[0], list: 'branches' }, { k: 'phone', label: 'الجوال', val: e.phone, ltr: true, ph: '05xxxxxxxx' }, { k: 'email', label: 'البريد', val: e.email, ltr: true }, { k: 'empNo', label: 'الرقم الوظيفي', val: e.empNo, ltr: true }, { k: 'notes', label: 'ملاحظات', type: 'textarea', val: e.notes || '' }].concat(docFields, d.id ? [{ k: 'del', label: 'حذف الموظف من السجل', type: 'check', val: false, wide: true }] : []),
       async (v) => { if (v.del) { DB.employees = DB.employees.filter((x) => x.id !== e.id); Object.values(e.docs || {}).forEach((x) => { if (x.fileId) fileDel(x.fileId); }); audit(CUR.name, 'حذف موظف', e.name); return; }
@@ -1998,7 +2002,11 @@ const ACT = {
     if (CLOUD) { try { const x = await api('/requests/' + encodeURIComponent(r.id) + '/approve', { method: 'POST', body: '{}' }); UI.lastCode = { name: r.name, phone: r.phone, code: x.code }; await cloudLoad(); } catch (err) { toast(err.message, 'err'); } return render(); }
     r.st = 'approved'; const u = { id: uid('u'), name: r.name, iqama: r.iqama, phone: r.phone, email: r.email, role: r.role, active: false, created: nowIso() }; DB.users.push(u); UI.lastCode = { name: u.name, phone: u.phone, code: await issueActivation(u) }; audit(CUR.name, 'اعتماد طلب حساب', u.name); save(); render(); },
   'r-no': async (d) => { if (!need('users')) return; const r = DB.reqs.find((x) => x.id === d.id); if (!r) return; if (CLOUD) { try { await api('/requests/' + encodeURIComponent(r.id) + '/reject', { method: 'POST', body: '{}' }); await cloudLoad(); } catch (err) { toast(err.message, 'err'); } return render(); } r.st = 'rejected'; audit(CUR.name, 'رفض طلب حساب', r.name); save(); render(); },
-  'u-role': (d) => { if (!need('users')) return; const u = DB.users.find((x) => x.id === d.id); if (!u) return; openForm('صلاحية ' + u.name, [{ k: 'role', label: 'الصلاحية', type: 'select', val: u.role, opts: Object.keys(ROLES).map((k) => [k, ROLES[k]]) }], async (v) => { if (!ROLES[v.role]) return 'صلاحية غير صالحة.'; if (CLOUD) { try { await api('/users/' + encodeURIComponent(u.id), { method: 'PATCH', body: JSON.stringify({ role: v.role }) }); await cloudLoad(); } catch (err) { return err.message; } return; } u.role = v.role; audit(CUR.name, 'تغيير صلاحية', u.name + ' → ' + ROLES[v.role]); }); },
+  'u-role': (d) => { if (!need('users')) return; const u = DB.users.find((x) => x.id === d.id); if (!u) return;
+    openForm('الدور والنطاق — ' + u.name, scopeFields(u), async (v) => { if (!ROLES[v.role]) return 'صلاحية غير صالحة.';
+      const sc = { offices: [].concat(v.offices || []).slice(0, 50), projects: [].concat(v.projects || []).filter((x) => projById(x)).slice(0, 50), crews: [].concat(v.crews || []).filter((x) => crewById(x)).slice(0, 200) };
+      if (CLOUD) { try { await api('/users/' + encodeURIComponent(u.id), { method: 'PATCH', body: JSON.stringify({ role: v.role, scope: sc }) }); await cloudLoad(); } catch (err) { return err.message; } return; }
+      u.role = v.role; u.scope = sc; if (CUR && CUR.id === u.id) CUR = u; audit(CUR.name, 'تغيير الدور والنطاق', u.name + ' → ' + ROLES[v.role]); }, { ok: 'حفظ' }); },
   'u-reset': async (d) => { if (!need('users')) return; const u = DB.users.find((x) => x.id === d.id); if (!u) return; if (CLOUD) { try { const r = await api('/users/' + encodeURIComponent(u.id) + '/activation', { method: 'POST', body: '{}' }); UI.lastCode = { name: u.name, phone: u.phone, code: r.code }; await cloudLoad(); } catch (err) { toast(err.message, 'err'); } return render(); } UI.lastCode = { name: u.name, phone: u.phone, code: await issueActivation(u) }; audit(CUR.name, 'إصدار رمز تفعيل', u.name); save(); render(); },
   'u-toggle': async (d) => { if (!need('users')) return; const u = DB.users.find((x) => x.id === d.id); if (!u || u.activation || u.pending) return; if (CLOUD) { try { await api('/users/' + encodeURIComponent(u.id), { method: 'PATCH', body: JSON.stringify({ active: !u.active }) }); await cloudLoad(); } catch (err) { toast(err.message, 'err'); } return render(); } u.active = !u.active; audit(CUR.name, u.active ? 'تفعيل مستخدم' : 'إيقاف مستخدم', u.name); save(); render(); },
   'code-hide': () => { UI.lastCode = null; render(); },
@@ -2064,7 +2072,7 @@ document.addEventListener('change', (e) => {
     fr.readAsText(el.files[0].size > 5e6 ? new Blob() : el.files[0]);
   }
 });
-Object.assign(ACT, FL_ACT);
+Object.assign(ACT, FL_ACT); applyActRules(ACT);
 const INPUTS = { 'card-q': 'cardQ', 'eq-q': 'eqQ', 'tx-q': 'txQ', 'emp-q': 'empQ' };
 document.addEventListener('input', (e) => { const el = e.target.closest('[data-input]'); if (!el || !INPUTS[el.dataset.input]) return; UI[INPUTS[el.dataset.input]] = el.value; const pos = el.selectionStart; const sel = '[data-input="' + el.dataset.input + '"]'; render(); const n = $(sel); if (n) { n.focus(); n.setSelectionRange(pos, pos); } });
 // drag & drop ordering for jobs
