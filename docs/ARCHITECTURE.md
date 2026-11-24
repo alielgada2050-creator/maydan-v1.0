@@ -47,3 +47,19 @@
 
 ## الذكاء الاصطناعي
 مزودون متوافقون مع OpenAI (OpenRouter، Groq، Gemini، DeepSeek، 9Router) بترتيب احتياطي؛ وعلى الخادم تبقى المفاتيح في Secret Manager. عند عدم توفر مزود يعمل تحليل محلي.
+
+## Documented approval system (v8)
+- `src/modules/03-riyadh.js`: 175 Riyadh districts grouped by area, plus approximate centres. They feed a searchable `combo` field (input + datalist). Districts users add are kept in `DB.lists.districts`.
+- `src/modules/30-docsys.js`:
+  - **Unified ID:** `CAT-YY-XXXX`, where CAT is C civil/802, M meters/402·801, F LV/MV faults, P33 pilot cables, or X emergencies.
+  - **Work-order and SAP numbers** are recorded on every transaction.
+  - **One permit-status rule** for every chip and report:
+    - expired = black
+    - under 5 days = red
+    - under 14 days = amber
+    - otherwise green
+  - The scheduler sends a yellow-zone alert once a permit is under 14 days, and red alerts daily from under 5 days.
+  - **Critical-permits report** (`permits` view): the top 10 permits nearest to expiry, the 60-day closure rule, and visual-evidence status. It can be printed.
+  - **Stage photos:** finishing the civil, electrical or asphalt stage requires a photo. The photo is geo-tagged and renamed `ID_STAGE_YYYYMMDD_SAP.ext`.
+  - **QA checklist:** location, length, permit and its attachment, WO, SAP, and geo-tagged stage photos. It must be approved («اعتماد الجودة») before a file moves from the lab to PDC.
+  - **Kanban drag and drop:** elements use `data-drag` / `data-drop`. A flow ticket can only be dropped on the next stage. Task columns map to the start / hold / resume / close actions.

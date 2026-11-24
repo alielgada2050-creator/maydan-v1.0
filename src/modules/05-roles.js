@@ -30,7 +30,7 @@ const ACT_RULES = {
   'eq-add': ['crewcfg', 1], 'eq-edit': ['edit', 1], 'move-crew': ['moveorg', 1], 'move-eq': ['move', 1], 'move-w': ['move', 1], 'move-dy': ['move', 1],
   'crew-hold': ['request', 1], 'crew-resume': ['request', 1], 'proj-add': ['org'], 'proj-edit': ['org'], 'person-edit': ['org'], 'assign-person': ['org'], 'br-add': ['org'],
   'task-add': ['tasks'], 'task-edit': ['tasks'], 'doc-del': ['permits'], 'emp-user': ['users'], 'maint-log': ['edit'], 'odo-update': ['edit'],
-  'fl-gate': ['permits'], 'fl-add': ['tasks'], 'fl-edit': ['tasks'], 'fl-coord': ['notify'], 'fl-cl-coord': ['notify'], 'fl-fwd': ['notify'], 'fl-ro': ['settings'], 'fl-rep-to': ['notify'], 'fl-folder': ['permits']
+  'fl-gate': ['permits'], 'fl-add': ['tasks'], 'fl-edit': ['tasks'], 'fl-coord': ['notify'], 'fl-cl-coord': ['notify'], 'fl-fwd': ['notify'], 'fl-ro': ['settings'], 'fl-rep-to': ['notify'], 'fl-folder': ['permits'], 'fl-qa': ['permits']
 };
 
 function normName(n) { return String(n || '').replace(/^\s*م\s*[./]?\s*/, '').replace(/\s+/g, ' ').trim(); }
@@ -76,7 +76,7 @@ function applyActRules(ACT) {
     g.__ruled = true; ACT[k] = g;
   });
   // field-transaction actions that name a job: the job must be inside the user's tree
-  Object.keys(ACT).filter((k) => /^fl-(adv|gate|safety|ret|edit|coord|folder|open|goto)$/.test(k)).forEach((k) => {
+  Object.keys(ACT).filter((k) => /^fl-(adv|gate|safety|ret|edit|coord|folder|open|goto|qa)$/.test(k)).forEach((k) => {
     const f = ACT[k]; if (f.__jobScoped) return;
     const g = function (d) { const j = d && d.id && DB.jobs.find((x) => x.id === d.id); if (j && !jobInScope(j)) return toast('هذه المعاملة خارج نطاق فرقك.', 'err'); return f.apply(this, arguments); };
     g.__jobScoped = true; g.__ruled = f.__ruled; ACT[k] = g;

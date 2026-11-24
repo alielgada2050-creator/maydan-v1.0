@@ -345,6 +345,20 @@ html[data-theme="dark"] .btn.wa:not(.txt),html[data-theme="dark"] .lnk.w,html[da
 @media (max-width:640px){.hh-logos{flex-wrap:wrap;gap:8px;padding:10px 12px;width:100%;box-sizing:border-box}.hl-primary{height:38px}.hl-div{display:none}.hl-partners{width:100%;justify-content:space-between;gap:8px;padding-top:8px;border-top:1px solid #E2E8F0}.hl-partners img{height:24px;max-width:31%}.hh-title .hh-co{font-size:19px}}
 html[data-theme="dark"] .hh-logos{background:#fff}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:opacity 150ms ease!important}.btn:active,.chip:active{transform:none}}
+/* v8 — permits status, critical report, kanban, QA */
+.pill.exp{background:#0B0F19;color:#fff;border:1px solid #0B0F19}html[data-theme="dark"] .pill.exp{background:#000;border-color:#475569}
+.t-exp{color:#0B0F19}html[data-theme="dark"] .t-exp{color:#E2E8F0}.t-ok{color:var(--ok-tx,#15803D)}
+.plegend{gap:6px}.flfilter{gap:10px;align-items:center}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.pcrit{border-inline-start:4px solid #16A34A;gap:8px}.pcrit.pc-warn{border-inline-start-color:#D97706}.pcrit.pc-bad{border-inline-start-color:#DC2626}.pcrit.pc-exp{border-inline-start-color:#0B0F19}
+.pnote{margin:0;font-size:13px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.pring{width:52px;height:52px;flex:0 0 52px}.pring .pr-bg{fill:none;stroke:var(--line);stroke-width:5}.pring .pr-fg{fill:none;stroke:#16A34A;stroke-width:5;stroke-linecap:round}
+.pring.pr-warn .pr-fg{stroke:#D97706}.pring.pr-bad .pr-fg{stroke:#DC2626}.pring.pr-exp .pr-fg{stroke:#0B0F19}.pring text{font:700 15px system-ui;fill:currentColor}
+[data-drop].kb-over{outline:2px dashed var(--acc);outline-offset:-2px;background:color-mix(in srgb,var(--acc) 6%,transparent)}
+[draggable="true"].drag{opacity:.5}[data-drag]{touch-action:manipulation}
+.qa .qal{list-style:none;margin:6px 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:4px;font-size:13px}.qal .y{color:var(--ok-tx,#15803D)}.qal .n{color:var(--red)}
+.seg{display:inline-flex;gap:4px}
+@media print{body.pp>*:not(dialog){display:block!important}body.pp .nav,body.pp .no-print,body.pp .hh,body.pp .brandbar,body.pp .alert{display:none!important}body.pp .pcrit,body.pp .pill{-webkit-print-color-adjust:exact;print-color-adjust:exact}body.pp .pgrid{grid-template-columns:repeat(2,1fr)}}
 </style>
 </head>
 <body>

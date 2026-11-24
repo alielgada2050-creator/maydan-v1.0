@@ -57,6 +57,7 @@ function migrateFlow(d) {
   d.inbox = d.inbox || []; d.reports = d.reports || [];
   d.settings.flow = d.settings.flow || { r1: 2, r2: 5, clusterKm: 2 };
   d.jobs.forEach((j) => { if (j.flow) { j.alerts = j.alerts || {}; j.log = j.log || []; j.gate = j.gate || null; j.safety = j.safety || {}; } });
+  flMigrateIds(d);
   return d;
 }
 
@@ -78,8 +79,8 @@ function flPermitLine(j) {
 }
 function flPermitChip(j) {
   if (!j.permit) return html`<span class="pill bad">بلا رخصة</span>`;
-  const d = flPermitDays(j); const c = d === null ? 'mutp' : d < 0 ? 'bad' : d <= 3 ? 'warn' : 'ok';
-  return html`<span class="pill ${c}" title="${flPermitLine(j)}">رخصة ${j.permit}${d === null ? '' : d < 0 ? ' · منتهية' : ' · ' + d + ' يوم'}</span>`;
+  const s = flPermitState(j);
+  return html`<span class="pill ${s.c}" title="${flPermitLine(j)}">رخصة ${j.permit}${s.d === null ? '' : s.d < 0 ? ' · منتهية' : ' · ' + s.d + ' يوم'}</span>`;
 }
 function flGateOk(j) { const g = j.gate; return !!g && ((g.mode === 'permit' || g.mode === 'undertaking') ? !!g.fileId : g.mode === 'override'); }
 function flGateLabel(j) {
@@ -94,7 +95,7 @@ function flWho(role, offices) {
 }
 function flJobText(j) {
   return j.kind + ' — ' + (j.district || '') + (j.station ? ' · محطة ' + j.station : '') + (j.plan ? ' · مخطط ' + j.plan : '') + (j.plot ? ' · قطعة ' + j.plot : '') +
-    '\nالأساس ' + (j.baseNo || '—') + ' · المعاملة ' + (j.txNo || '—') + '\n' + flPermitLine(j) + (j.lengthM ? '\nطول الحفر ' + j.lengthM + ' م' : '') + '\nالتاريخ ' + j.date;
+    '\nالمعرّف ' + (j.uid || '—') + (j.woNo ? ' · أمر العمل ' + j.woNo : '') + (j.sapNo ? ' · SAP ' + j.sapNo : '') + '\nالأساس ' + (j.baseNo || '—') + ' · المعاملة ' + (j.txNo || '—') + '\n' + flPermitLine(j) + (j.lengthM ? '\nطول الحفر ' + j.lengthM + ' م' : '') + '\nالتاريخ ' + j.date;
 }
 
 // ---------- notification routing (inbox) ----------
@@ -172,7 +173,8 @@ function flTick() {
     if (!flActive(j)) return;
     if ((j.date === tm || j.date === td) && !j.alerts.d1 && flIdx(j) <= flPath(j).indexOf('gate')) { flCoordinate(j, 'd1'); n++; }
     const pd = flPermitDays(j);
-    if (j.permit && pd !== null && pd <= 3 && j.alerts.exp !== td) { flNotify('permit', ['permits_eng', 'permits_sup', 'civil'], pd < 0 ? 'رخصة منتهية والعمل قائم — خطر غرامة' : 'رخصة تقترب من الانتهاء', flJobText(j) + '\nجدّد الرخصة أو أنهِ الأعمال وأغلق الموقع قبل الانتهاء لتفادي الغرامات.', [j]); j.alerts.exp = td; n++; }
+    if (j.permit && pd !== null && pd >= 5 && pd < 14 && j.alerts.yel !== j.permitExp) { flNotify('permit', ['permits_eng', 'permits_sup'], 'الرخصة دخلت المنطقة الصفراء (أقل من 14 يوماً)', flJobText(j) + '\nخطّط لإنهاء الأعمال أو تجديد الرخصة قبل دخول المنطقة الحمراء (أقل من 5 أيام).', [j]); j.alerts.yel = j.permitExp; n++; }
+    if (j.permit && pd !== null && pd < 5 && j.alerts.exp !== td) { flNotify('permit', ['permits_eng', 'permits_sup', 'civil'], pd < 0 ? 'رخصة منتهية والعمل قائم — خطر غرامة' : 'رخصة تقترب من الانتهاء', flJobText(j) + '\nجدّد الرخصة أو أنهِ الأعمال وأغلق الموقع قبل الانتهاء لتفادي الغرامات.', [j]); j.alerts.exp = td; n++; }
     if (j.gate && j.gate.mode === 'override' && !j.gate.fileId && j.gate.due < td && j.alerts.gate !== td) { flNotify('gate', ['permits_sup', 'civil'], 'تأخر إرفاق الرخصة بعد تجاوز المهندس', flJobText(j) + '\nتجاوز بواسطة ' + j.gate.by + ' — كان الإرفاق مطلوباً قبل ' + j.gate.due, [j]); j.alerts.gate = td; n++; }
     if (j.pdc && j.stage === 'pdc' && daysTo(j.pdc.due) <= 10 && j.alerts.pdc !== td) { flNotify('permit', ['permits_sup', 'permits_eng'], 'مهلة الاستشاري (60 يوماً) تنتهي خلال ' + daysTo(j.pdc.due) + ' يوم', flJobText(j), [j]); j.alerts.pdc = td; n++; }
   });

@@ -516,6 +516,7 @@ function fieldHtml(f) {
   const wide = f.wide ? new Safe(' style="grid-column:1/-1"') : '';
   if (f.type === 'select') return html`<div class="fld"${wide}><label for="${id}">${f.label}</label><select class="in" id="${id}" name="${f.k}" ${f.list ? new Safe('data-change="addable"') : ''}>${opts.map((o) => html`<option value="${o[0]}" ${String(o[0]) === String(f.val) ? new Safe('selected') : ''}>${o[1]}</option>`)}${f.list ? html`<option value="__new__">+ إضافة خيار جديد…</option>` : ''}</select>
     ${f.list ? html`<input class="in" name="${f.k}__new" placeholder="اكتب الخيار الجديد" hidden aria-label="خيار جديد لـ ${f.label}" maxlength="60">` : ''}${f.hint ? html`<span class="hint">${f.hint}</span>` : ''}</div>`;
+  if (f.type === 'combo') { const lid = 'dl_' + f.k; return html`<div class="fld"${wide}><label for="${id}">${f.label}</label><input class="in" id="${id}" name="${f.k}" list="${lid}" value="${f.val == null ? '' : f.val}" placeholder="${f.ph || 'ابحث أو اكتب…'}" autocomplete="off" maxlength="60" data-combo="1"><datalist id="${lid}">${opts.map((o) => html`<option value="${o[0]}">${o[1] || ''}</option>`)}</datalist>${f.hint ? html`<span class="hint">${f.hint}</span>` : ''}</div>`; }
   if (f.type === 'check') return html`<label class="row" style="min-height:44px;font-size:14px${f.wide ? ';grid-column:1/-1' : ''}"><input type="checkbox" name="${f.k}" ${f.val ? new Safe('checked') : ''} style="width:20px;height:20px;accent-color:var(--acc)"> ${f.label}</label>`;
   if (f.type === 'checks') { const vals = f.val || []; const all = opts.map((o) => o[0]).concat(vals.filter((v) => !opts.some((o) => o[0] === v))); return html`<fieldset class="fld" style="grid-column:1/-1;border:1px solid var(--line2);border-radius:12px;padding:12px"><legend style="font-size:13px;font-weight:600;padding:0 6px">${f.label}</legend>
     <div class="chips">${all.map((o) => html`<label class="chip" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" name="${f.k}" value="${o}" ${vals.includes(o) ? new Safe('checked') : ''} style="accent-color:var(--acc)">${o}</label>`)}</div>
@@ -919,7 +920,7 @@ function shell(inner) {
   const A = smartAlerts(); const badN = A.filter((x) => x.lvl === 'bad').length;
   const inN = (DB.inbox || []).filter((i) => i.st === 'new').length, repN = (DB.reports || []).filter((r) => r.st !== 'resolved' && daysTo(r.due) <= 3).length, flN = (DB.jobs || []).filter((j) => j.flow && j.stage !== 'closed' && !flGateOk(j) && daysTo(j.date) <= 1).length;
   const groups = [['القيادة', [['dash', 'لوحة الأداء', badN], ['ops', 'غرفة العمليات', openN], ['cluster', 'خريطة الكلاستر', 0]]],
-    ['المعاملات الميدانية', [['flow', 'دورة المعاملات', flN], ['inbox', 'مركز التنسيق', inN], ['reports', 'البلاغات والمعادات', repN], ['tasks', 'المهام والطلبات', DB.jobs.filter((j) => j.st !== 'done' && A.some((x) => x.task === j.id)).length], ['docs', 'الوثائق والمستندات', 0]]],
+    ['المعاملات الميدانية', [['flow', 'دورة المعاملات', flN], ['permits', 'تقرير الرخص الحرجة', jobsV().filter((j) => j.permit && j.permitExp && j.st !== 'done' && daysTo(j.permitExp) < 5).length], ['inbox', 'مركز التنسيق', inN], ['reports', 'البلاغات والمعادات', repN], ['tasks', 'المهام والطلبات', DB.jobs.filter((j) => j.st !== 'done' && A.some((x) => x.task === j.id)).length], ['docs', 'الوثائق والمستندات', 0]]],
     ['الفرق والأصول', [['crews', 'الفرق ومعداتها', DB.crews.filter((c) => crewState(c).lvl === 'bad').length], ['cards', 'بطاقات الفريق', 0], ['equip', 'سجل المعدات', allEquipment().filter((x) => needsCare(x.u)).length], ['inv', 'الحصر والهيكل', hierarchyIssues().length]]],
     ['الإدارة', [['ai', 'الوكيل الذكي', 0]].concat(can('users') ? [['users', 'المستخدمون والطلبات', pendingR]] : []).concat(can('audit') ? [['security', 'الأمان وسجل الدخول', 0]] : []).concat(can('settings') ? [['settings', 'الإعدادات', 0]] : [])]];
   return html`<div class="shell"><nav class="nav" aria-label="القائمة الرئيسية"><div class="brand">${svgLogo(32)}<b>ميدان</b></div>
@@ -1263,24 +1264,26 @@ function viewDash() {
 
 // ---------- tasks & department requests ----------
 function viewTasks() {
-  const E = can('edit'); const f = UI.tf || 'open';
-  const list = jobsV().filter((j) => f === 'all' || (f === 'open' ? j.st !== 'done' : j.st === f));
+  const E = can('edit'); const f = UI.tf || 'open'; const q = String(UI.taskQ || '').trim().toLowerCase();
+  const list = jobsV().filter((j) => (f === 'all' || (f === 'open' ? j.st !== 'done' : j.st === f)) && (!q || [j.title, j.uid, j.woNo, j.permit, j.site, j.crewId].join(' ').toLowerCase().includes(q)));
+  const kb = UI.taskKb;
   const sel = taskById(UI.task) || list[0]; if (sel) UI.task = sel.id;
   const chips = [['open', 'المفتوحة'], ['new', 'جديدة'], ['prog', 'قيد التنفيذ'], ['hold', 'متوقفة'], ['done', 'منجزة'], ['all', 'الكل']];
   return html`<div class="ph"><div><h1 style="font-size:28px">المهام والطلبات</h1><p>كل مهمة بتصريحها وفرقتها وطلباتها للأقسام: تأمين السلامة والإنارة قبل التنفيذ بيوم، وإزالتها بعد التنفيذ، وتحديث حالة الموقع قبل المغادرة.</p></div>${E ? html`<button class="btn pri" type="button" data-act="task-add">+ مهمة جديدة</button>` : ''}</div>
-  <div class="chips">${chips.map((c) => html`<button type="button" class="chip" aria-pressed="${f === c[0]}" data-act="task-filter" data-k="${c[0]}">${c[1]} · ${jobsV().filter((j) => c[0] === 'all' || (c[0] === 'open' ? j.st !== 'done' : j.st === c[0])).length}</button>`)}</div>
-  <div class="split"><aside class="side" style="flex:1 1 340px">
+  <div class="row between"><div class="chips">${kb ? '' : chips.map((c) => html`<button type="button" class="chip" aria-pressed="${f === c[0]}" data-act="task-filter" data-k="${c[0]}">${c[1]} · ${jobsV().filter((j) => c[0] === 'all' || (c[0] === 'open' ? j.st !== 'done' : j.st === c[0])).length}</button>`)}</div>
+    <div class="row"><input class="in" type="search" style="width:240px" placeholder="بحث بالوصف أو أمر العمل أو الرخصة أو الحي" value="${UI.taskQ || ''}" data-input="task-q" aria-label="بحث في المهام"><div class="seg" role="group" aria-label="طريقة العرض"><button type="button" class="chip" data-act="task-kb" data-k="" aria-pressed="${!kb}">قائمة</button><button type="button" class="chip" data-act="task-kb" data-k="1" aria-pressed="${!!kb}">كانبان</button></div></div></div>
+  ${kb ? html`${permitLegend()}<p class="t-mut" style="font-size:12px">اسحب البطاقة بين الأعمدة: «قيد التنفيذ» تبدأ أو تستأنف، «متوقفة» تطلب سبب التوقف، «منجزة» تطلب تحديث حالة الموقع.</p>${viewTaskKanban(jobsV().filter((j) => !q || [j.title, j.uid, j.woNo, j.permit, j.site, j.crewId].join(' ').toLowerCase().includes(q)))}${sel ? taskDetail(sel) : ''}` : html`<div class="split"><aside class="side" style="flex:1 1 340px">
     ${list.length ? html`<ol class="jobs">${list.map((j) => { const c = crewById(j.crewId); const al = smartAlerts().filter((a) => a.task === j.id); return html`<li class="job" ${E && f === 'all' ? new Safe('draggable="true"') : ''} data-job="${j.id}" style="${sel && sel.id === j.id ? 'border:2px solid var(--acc);background:#fff' : ''}">
-      <button type="button" data-act="task-sel" data-id="${j.id}" style="all:unset;cursor:pointer;flex:1 1 200px;min-width:0;display:flex;flex-direction:column;gap:2px"><b style="font-size:14px">${j.title}</b><span class="t-mut" style="font-size:12px">${c ? c.id : 'غير مُسندة'} · ${j.dept} · ${fmtD(j.date)}</span></button>
+      <button type="button" data-act="task-sel" data-id="${j.id}" style="all:unset;cursor:pointer;flex:1 1 200px;min-width:0;display:flex;flex-direction:column;gap:2px"><b style="font-size:14px">${j.title}</b><span class="t-mut" style="font-size:12px">${j.uid ? j.uid + ' · ' : ''}${c ? c.id : 'غير مُسندة'} · ${j.dept} · ${fmtD(j.date)}${j.woNo ? ' · WO ' + j.woNo : ''}</span></button>
       <span class="pill ${JOB_ST[j.st][1]}">${JOB_ST[j.st][0]}</span>${al.length ? html`<span class="pill ${al.some((a) => a.lvl === 'bad') ? 'bad' : 'warn'}" title="تنبيهات">${al.length} !</span>` : ''}
       ${E ? html`<span style="display:flex;flex-direction:column;gap:2px"><button class="btn sm" type="button" data-act="job-up" data-id="${j.id}" aria-label="تقديم ${j.title}" style="min-height:22px;padding:0 10px">▲</button><button class="btn sm" type="button" data-act="job-down" data-id="${j.id}" aria-label="تأخير ${j.title}" style="min-height:22px;padding:0 10px">▼</button></span>` : ''}</li>`; })}</ol>` : html`<p class="empty">لا مهام في هذا التصنيف.</p>`}
-  </aside><section class="wide">${sel ? taskDetail(sel) : ''}</section></div>`;
+  </aside><section class="wide">${sel ? taskDetail(sel) : ''}</section></div>`}`;
 }
 function taskDetail(t) {
   const E = can('edit'), R = can('request'); const c = crewById(t.crewId); const al = smartAlerts().filter((a) => a.task === t.id); const ds = docStatus(t);
   const docs = DB.docs.filter((d) => d.taskId === t.id || (CREW_LEVEL_DOCS.includes(d.type) && !d.taskId && d.crewId === t.crewId));
   return html`<div class="card"><div class="row between"><div><h2 style="font-size:21px">${t.title}</h2><span class="t-mut" style="font-size:13px">${t.dept} · التنفيذ ${fmtD(t.date)} (${t.date}) · ${t.site}</span></div><span class="pill ${JOB_ST[t.st][1]}">${JOB_ST[t.st][0]}${t.st === 'hold' && t.hold ? ' — ' + t.hold.reason : ''}</span></div>
-    <div class="grid g4"><div class="kv"><span>التصريح</span><b>${t.permit || '—'}</b>${t.permitExp ? html`<span class="${daysTo(t.permitExp) < 0 ? 'pill bad' : daysTo(t.permitExp) <= 3 ? 'pill warn' : 't-mut'}" style="font-size:12px">ينتهي ${fmtD(t.permitExp)}</span>` : ''}</div>
+    <div class="grid g4"><div class="kv"><span>التصريح</span><b>${t.permit || '—'}</b>${t.permitExp ? html`<span class="pill ${permitState(t.permitExp, true).c}" style="font-size:12px;width:max-content">${permitState(t.permitExp, true).label} · ${t.permitExp}</span>` : ''}${t.woNo || t.uid ? html`<span class="t-mut ltr" style="font-size:12px">${[t.uid, t.woNo ? 'WO ' + t.woNo : ''].filter(Boolean).join(' · ')}</span>` : ''}</div>
       <div class="kv"><span>الفرقة</span><b>${c ? c.name : 'غير مُسندة'}</b>${c ? html`<span class="pill ${crewState(c).lvl}" style="width:max-content">${crewState(c).label}</span>` : ''}</div>
       <div class="kv"><span>المهندس</span><b>${c && c.eng ? c.eng.name : '—'}</b><span>${c ? contactLinks(c.eng) : ''}</span></div>
       <div class="kv"><span>المراقب</span><b>${c ? c.sup.name : '—'}</b><span>${c ? contactLinks(c.sup) : ''}</span></div></div>
@@ -1352,10 +1355,11 @@ function taskFields(t) {
   t = t || { title: '', permit: '', permitExp: '', site: '', crewId: UI.sel || '', dept: 'التنفيذ', date: addDays(1) };
   return [{ k: 'title', label: 'وصف المهمة', val: t.title, req: true, wide: true }, { k: 'permit', label: 'رقم التصريح', val: t.permit, ltr: true, ph: 'R7047' }, { k: 'permitExp', label: 'انتهاء التصريح', type: 'date', val: t.permitExp, ltr: true },
     { k: 'crewId', label: 'الفرقة', type: 'select', val: t.crewId, opts: [['', '— غير مُسندة']].concat(DB.crews.map((c) => [c.id, c.name])) }, { k: 'dept', label: 'القسم', type: 'select', val: t.dept, list: 'depts' },
-    { k: 'date', label: 'تاريخ التنفيذ', type: 'date', val: t.date, ltr: true, req: true }, { k: 'site', label: 'الموقع / الحي', val: t.site }];
+    { k: 'date', label: 'تاريخ التنفيذ', type: 'date', val: t.date, ltr: true, req: true }, { k: 'site', label: 'الموقع / الحي', type: 'combo', opts: districtOpts(), val: t.site, hint: 'ابحث في أحياء الرياض أو اكتب موقعاً جديداً' },
+    { k: 'woNo', label: 'رقم أمر العمل', val: t.woNo || '', ltr: true, ph: '802xxxxxxx' }];
 }
-function taskValidate(v) { if (!validDate(v.date)) return 'تاريخ التنفيذ غير صالح.'; if (v.permitExp && !validDate(v.permitExp)) return 'تاريخ انتهاء التصريح غير صالح.'; if (v.permit && !/^[A-Za-z0-9؀-ۿ\-\/ ]{1,30}$/.test(v.permit)) return 'رقم التصريح غير صالح.'; return ''; }
-function taskFromForm(v) { const c = crewById(v.crewId); return { title: v.title.trim().slice(0, 140), permit: v.permit.trim(), permitExp: v.permitExp, crewId: v.crewId, dept: v.dept, date: v.date, site: v.site.trim().slice(0, 80) || (c ? c.site : '') }; }
+function taskValidate(v) { if (!validDate(v.date)) return 'تاريخ التنفيذ غير صالح.'; if (v.woNo && !/^\d{6,12}$/.test(String(v.woNo).trim())) return 'رقم أمر العمل أرقام فقط (6 إلى 12 رقماً).'; if (v.permit && !v.permitExp) return 'أدخل تاريخ انتهاء التصريح لتحديد لونه وحالته.'; if (v.permitExp && !validDate(v.permitExp)) return 'تاريخ انتهاء التصريح غير صالح.'; if (v.permit && !/^[A-Za-z0-9؀-ۿ\-\/ ]{1,30}$/.test(v.permit)) return 'رقم التصريح غير صالح.'; return ''; }
+function taskFromForm(v) { const c = crewById(v.crewId); return { title: v.title.trim().slice(0, 140), permit: v.permit.trim(), permitExp: v.permitExp, crewId: v.crewId, dept: v.dept, date: v.date, site: rememberDistrict(String(v.site || '').trim().slice(0, 80)) || (c ? c.site : ''), woNo: String(v.woNo || '').trim() }; }
 function localReview() {
   const A = smartAlerts(); if (!A.length) return 'لا توجد نواقص: كل التصاريح والمستندات وترتيبات السلامة مكتملة.';
   const by = {}; A.forEach((a) => { const k = a.to || (a.title.startsWith('نقص مستند') ? 'المستندات' : a.title.includes('تصريح') ? 'التصاريح' : a.crew ? 'الفرق والمعدات' : 'التنفيذ'); (by[k] = by[k] || []).push(a); });
@@ -1769,7 +1773,7 @@ function render() {
   const app = $('#app');
   if (!CUR) { if (MAP) { MAP.remove(); MAP = null; } app.innerHTML = viewAuth().s; translateUI(app); mountGoogleBtn(); const f = app.querySelector('input'); if (f) f.focus(); return; }
   if (!can('users') && UI.view === 'users') UI.view = 'ops';
-  const v = { flow: viewFlow, cluster: viewCluster, inbox: viewInbox, reports: viewReports, cards: viewCards, dash: viewDash, tasks: viewTasks, docs: viewDocs3, inv: viewInv, ops: viewOps, crews: viewCrews, equip: viewEquip3, ai: viewAI, users: viewUsers3, security: viewSecurity, settings: viewSettings3 }[UI.view] || viewDash;
+  const v = { flow: viewFlow, permits: viewPermits, cluster: viewCluster, inbox: viewInbox, reports: viewReports, cards: viewCards, dash: viewDash, tasks: viewTasks, docs: viewDocs3, inv: viewInv, ops: viewOps, crews: viewCrews, equip: viewEquip3, ai: viewAI, users: viewUsers3, security: viewSecurity, settings: viewSettings3 }[UI.view] || viewDash;
   if (MAP) { MAP.remove(); MAP = null; }
   flBeforeRender();
   const entering = UI.lastView !== UI.view; UI.lastView = UI.view;
@@ -1822,7 +1826,7 @@ const ACT = {
   'n-dismiss': (d) => { const n = DB.notifs.find((x) => x.id === d.id); if (!n) return; n.st = 'dismissed'; audit(CUR.name, 'تجاهل تنسيق', n.title); save(); render(); },
   layer: (d) => { UI.layers[d.k] = !UI.layers[d.k]; render(); },
   'crew-sel': (d) => { UI.sel = d.id; UI.move = null; render(); },
-  'crew-add': () => { if (!need('edit')) return; openForm('فرقة جديدة', [{ k: 'id', label: 'رمز الفرقة', ltr: true, req: true, ph: 'X-07' }, { k: 'name', label: 'اسم الفرقة', req: true }, { k: 'type', label: 'النوع', type: 'select', val: 'excav', list: 'crewTypes' }, { k: 'projectId', label: 'المشروع (إلزامي)', type: 'select', val: (DB.projects[0] || {}).id, list: 'projects', hint: 'مشروع جديد يُنشأ على الفرع الأول؛ عدّل فرعه من «الحصر والهيكل»' }, { k: 'site', label: 'الموقع / الحي', req: true },
+  'crew-add': () => { if (!need('edit')) return; openForm('فرقة جديدة', [{ k: 'id', label: 'رمز الفرقة', ltr: true, req: true, ph: 'X-07' }, { k: 'name', label: 'اسم الفرقة', req: true }, { k: 'type', label: 'النوع', type: 'select', val: 'excav', list: 'crewTypes' }, { k: 'projectId', label: 'المشروع (إلزامي)', type: 'select', val: (DB.projects[0] || {}).id, list: 'projects', hint: 'مشروع جديد يُنشأ على الفرع الأول؛ عدّل فرعه من «الحصر والهيكل»' }, { k: 'site', label: 'الموقع / الحي', type: 'combo', opts: districtOpts(), req: true },
       { k: 'engEmp', label: 'المهندس المسؤول (إلزامي) من سجل الموظفين', type: 'select', val: '', opts: empOpts() }, { k: 'eng', label: 'أو اسم المهندس يدوياً' }, { k: 'engPhone', label: 'جوال المهندس', ltr: true, ph: '05xxxxxxxx' },
       { k: 'supEmp', label: 'المراقب (إلزامي) من سجل الموظفين', type: 'select', val: '', opts: empOpts() }, { k: 'sup', label: 'أو اسم المراقب يدوياً' }, { k: 'supPhone', label: 'جوال المراقب', ltr: true, ph: '05xxxxxxxx' }, { k: 'car', label: 'سيارة المراقب (الموديل)' }, { k: 'plate', label: 'لوحة سيارة المراقب (إلزامي)', req: true }],
     (v) => { const id = v.id.trim().toUpperCase().slice(0, 12); if (!/^[A-Z0-9-]{2,12}$/.test(id) || crewById(id)) return 'رمز الفرقة غير صالح أو مستخدم.'; const pr = projById(v.projectId); if (!pr) return 'اختر المشروع.';
@@ -1831,7 +1835,7 @@ const ACT = {
       const base = crewById(UI.sel) || DB.crews[0] || { lat: 24.7136, lng: 46.6753 };
       DB.crews.push({ id, name: v.name.trim().slice(0, 60), type: TYPES[v.type] ? v.type : 'excav', branch: pr.branch, projectId: pr.id, site: v.site.trim().slice(0, 60), lat: base.lat + 0.01, lng: base.lng + 0.01, seen: nowIso(), eng: E.p, hold: null, sup: Object.assign(S.p, { car: { id: uid('car'), kind: 'سيارة', model: v.car.trim().slice(0, 40) || '—', code: v.plate.trim().slice(0, 20), st: 'ok', oil: OIL_INTERVAL, tested: false, odo: 0, maint: {}, regExp: '' } }), workers: [], eq: [] });
       UI.sel = id; audit(CUR.name, 'إضافة فرقة', id); toast('أُضيفت الفرقة. أسند لها معدات بسائقيها لتصبح جاهزة.'); }, { note: 'السلسلة الإلزامية: المعدة بسائقها ← المراقب ← المهندس ← المشروع ← الفرع.' }); },
-  'crew-edit': () => { if (!need('edit')) return; const c = curCrew(); openForm('تعديل ' + c.name, [{ k: 'name', label: 'اسم الفرقة', val: c.name, req: true }, { k: 'type', label: 'النوع', type: 'select', val: c.type, list: 'crewTypes' }, { k: 'projectId', label: 'المشروع (إلزامي)', type: 'select', val: c.projectId, list: 'projects' }, { k: 'site', label: 'الموقع / الحي', val: c.site, req: true },
+  'crew-edit': () => { if (!need('edit')) return; const c = curCrew(); openForm('تعديل ' + c.name, [{ k: 'name', label: 'اسم الفرقة', val: c.name, req: true }, { k: 'type', label: 'النوع', type: 'select', val: c.type, list: 'crewTypes' }, { k: 'projectId', label: 'المشروع (إلزامي)', type: 'select', val: c.projectId, list: 'projects' }, { k: 'site', label: 'الموقع / الحي', type: 'combo', opts: districtOpts(), val: c.site, req: true },
       { k: 'engEmp', label: 'المهندس من سجل الموظفين', type: 'select', val: c.eng ? c.eng.empId || '' : '', opts: empOpts() }, { k: 'eng', label: 'أو اسم المهندس يدوياً', val: c.eng ? c.eng.name : '' }, { k: 'engPhone', label: 'جوال المهندس', ltr: true, val: c.eng ? c.eng.phone : '', ph: '05xxxxxxxx' },
       { k: 'lat', label: 'خط العرض', type: 'number', val: c.lat, ltr: true }, { k: 'lng', label: 'خط الطول', type: 'number', val: c.lng, ltr: true }, { k: 'del', label: 'حذف هذه الفرقة نهائياً مع عمالها ومعداتها', type: 'check', val: false, wide: true }],
     (v) => { if (v.del) { DB.crews = DB.crews.filter((x) => x.id !== c.id); DB.jobs.forEach((j) => { if (j.crewId === c.id) j.crewId = ''; }); UI.sel = DB.crews[0] ? DB.crews[0].id : null; audit(CUR.name, 'حذف فرقة', c.id); return; }
@@ -1943,6 +1947,7 @@ const ACT = {
   'docs-crew': (d) => { const c = crewById(d.id); UI.person = c && c.eng ? c.eng.name : c ? c.sup.name : null; UI.view = 'docs'; render(); },
   'task-filter': (d) => { UI.tf = d.k; UI.task = null; render(); },
   'task-sel': (d) => { UI.task = d.id; render(); },
+  'task-kb': (d) => { UI.taskKb = !!d.k; render(); },
   'task-open': (d) => { const t = taskById(d.id); if (!t) return; UI.task = t.id; UI.tf = t.st === 'done' ? 'all' : 'open'; UI.view = 'tasks'; render(); },
   'task-add': () => { if (!need('edit')) return; openForm('مهمة جديدة', taskFields(null), (v) => { const e = taskValidate(v); if (e) return e; const t = newTask(Object.assign(taskFromForm(v), { workType: classifyWork(v.title) })); DB.jobs.unshift(t); ensureTeamForm(t); UI.task = t.id; UI.tf = 'open'; audit(CUR.name, 'إضافة مهمة', t.title); toast('أُضيفت المهمة، وأُنشئ طلب تأمين السلامة والإنارة تلقائياً قبل التنفيذ بيوم.'); }, { note: 'سيُنشأ تلقائياً طلب لقسم السلامة والإنارة لتأمين الموقع قبل يوم التنفيذ.' }); },
   'task-edit': (d) => { if (!need('edit')) return; const t = taskById(d.id); if (!t) return; openForm('تعديل المهمة', taskFields(t).concat([{ k: 'del', label: 'حذف هذه المهمة', type: 'check', val: false, wide: true }]), (v) => {
@@ -2067,6 +2072,7 @@ document.addEventListener('change', (e) => {
   if (k === 'stg-mode') { if (!need('settings')) return; if (el.value === 'server' || CLOUD) return; gcfg().mode = el.value; persistLocal(); if (el.value === 'local') { GW.status = ''; } render(); return; }
   if (k === 'cover-upload' && el.files && el.files[0]) { if (!need('settings')) return; const file = el.files[0]; el.value = ''; if (!/^image\/(png|jpeg|webp)$/.test(file.type) || file.size > 4 * 1024 * 1024) return toast('PNG أو JPG أو WEBP حتى 4 ميجابايت.', 'err');
     const fr = new FileReader(); fr.onload = () => { const url = String(fr.result); if (!/^data:image\/(png|jpeg|webp);base64,/.test(url)) return toast('صورة غير صالحة.', 'err'); const img = new Image(); img.onload = () => { const w = Math.min(1600, img.width), h = Math.round(img.height * (w / img.width)); const cv = document.createElement('canvas'); cv.width = w; cv.height = Math.min(h, 700); cv.getContext('2d').drawImage(img, 0, 0, w, h); let src = cv.toDataURL('image/webp', 0.72); if (!/^data:image\/webp/.test(src)) src = cv.toDataURL('image/jpeg', 0.75); if (!imgOk(src)) return toast('تعذّر معالجة الصورة.', 'err'); cfg().brand.cover = src; audit(CUR.name, 'تغيير صورة الهيدر', file.name); save(); render(); }; img.onerror = () => toast('صورة غير صالحة.', 'err'); img.src = url; }; fr.readAsDataURL(file); return; }
+  if (k === 'fl-dist') { UI.flDist = el.value; return render(); }
   if (k === 'inv-branch') { UI.invBranch = el.value; UI.invProj = ''; return render(); }
   if (k === 'inv-proj') { UI.invProj = el.value; return render(); }
   if (k === 'tx-done') { UI.txDone = el.checked; return render(); }
@@ -2085,9 +2091,10 @@ document.addEventListener('change', (e) => {
   }
 });
 Object.assign(ACT, FL_ACT); applyActRules(ACT);
-const INPUTS = { 'card-q': 'cardQ', 'eq-q': 'eqQ', 'tx-q': 'txQ', 'emp-q': 'empQ' };
+const INPUTS = { 'card-q': 'cardQ', 'eq-q': 'eqQ', 'tx-q': 'txQ', 'emp-q': 'empQ', 'fl-q': 'flQ', 'task-q': 'taskQ' };
 document.addEventListener('input', (e) => { const el = e.target.closest('[data-input]'); if (!el || !INPUTS[el.dataset.input]) return; UI[INPUTS[el.dataset.input]] = el.value; const pos = el.selectionStart; const sel = '[data-input="' + el.dataset.input + '"]'; render(); const n = $(sel); if (n) { n.focus(); n.setSelectionRange(pos, pos); } });
 // drag & drop ordering for jobs
+kbWire();
 document.addEventListener('dragstart', (e) => { const li = e.target.closest && e.target.closest('[data-job]'); if (!li) return; UI.dragId = li.dataset.job; li.classList.add('drag'); e.dataTransfer.effectAllowed = 'move'; });
 document.addEventListener('dragover', (e) => { if (UI.dragId && e.target.closest && e.target.closest('[data-job]')) e.preventDefault(); });
 document.addEventListener('drop', (e) => { const li = e.target.closest && e.target.closest('[data-job]'); if (!li || !UI.dragId) return; e.preventDefault(); const from = DB.jobs.findIndex((j) => j.id === UI.dragId), to = DB.jobs.findIndex((j) => j.id === li.dataset.job); if (from > -1 && to > -1 && from !== to) { const [it] = DB.jobs.splice(from, 1); DB.jobs.splice(to, 0, it); save(); } UI.dragId = null; render(); });

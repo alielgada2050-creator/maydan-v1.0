@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-CEdg9wVJAAWL0xBanJFSZQ5bQ1pWx35WuVcAEsCe1t0=' https://unpkg.com https://accounts.google.com/gsi/client; style-src 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com https://accounts.google.com/gsi/style; frame-src https://accounts.google.com/gsi/; font-src https://fonts.gstatic.com; img-src data: https://unpkg.com https://*.tile.openstreetmap.org https://tile.googleapis.com https://maps.gstatic.com; connect-src https: http://localhost:* http://127.0.0.1:*; form-action 'none'; base-uri 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-pMW4qySYzFDJRZgh5esIY7+SHtprMOiZizPg1X7ZFSM=' https://unpkg.com https://accounts.google.com/gsi/client; style-src 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com https://accounts.google.com/gsi/style; frame-src https://accounts.google.com/gsi/; font-src https://fonts.gstatic.com; img-src data: https://unpkg.com https://*.tile.openstreetmap.org https://tile.googleapis.com https://maps.gstatic.com; connect-src https: http://localhost:* http://127.0.0.1:*; form-action 'none'; base-uri 'none'; object-src 'none'">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex,nofollow">
 <meta name="maydan-server" content="0">
@@ -345,6 +345,20 @@ html[data-theme="dark"] .btn.wa:not(.txt),html[data-theme="dark"] .lnk.w,html[da
 @media (max-width:640px){.hh-logos{flex-wrap:wrap;gap:8px;padding:10px 12px;width:100%;box-sizing:border-box}.hl-primary{height:38px}.hl-div{display:none}.hl-partners{width:100%;justify-content:space-between;gap:8px;padding-top:8px;border-top:1px solid #E2E8F0}.hl-partners img{height:24px;max-width:31%}.hh-title .hh-co{font-size:19px}}
 html[data-theme="dark"] .hh-logos{background:#fff}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:opacity 150ms ease!important}.btn:active,.chip:active{transform:none}}
+/* v8 — permits status, critical report, kanban, QA */
+.pill.exp{background:#0B0F19;color:#fff;border:1px solid #0B0F19}html[data-theme="dark"] .pill.exp{background:#000;border-color:#475569}
+.t-exp{color:#0B0F19}html[data-theme="dark"] .t-exp{color:#E2E8F0}.t-ok{color:var(--ok-tx,#15803D)}
+.plegend{gap:6px}.flfilter{gap:10px;align-items:center}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.pcrit{border-inline-start:4px solid #16A34A;gap:8px}.pcrit.pc-warn{border-inline-start-color:#D97706}.pcrit.pc-bad{border-inline-start-color:#DC2626}.pcrit.pc-exp{border-inline-start-color:#0B0F19}
+.pnote{margin:0;font-size:13px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.pring{width:52px;height:52px;flex:0 0 52px}.pring .pr-bg{fill:none;stroke:var(--line);stroke-width:5}.pring .pr-fg{fill:none;stroke:#16A34A;stroke-width:5;stroke-linecap:round}
+.pring.pr-warn .pr-fg{stroke:#D97706}.pring.pr-bad .pr-fg{stroke:#DC2626}.pring.pr-exp .pr-fg{stroke:#0B0F19}.pring text{font:700 15px system-ui;fill:currentColor}
+[data-drop].kb-over{outline:2px dashed var(--acc);outline-offset:-2px;background:color-mix(in srgb,var(--acc) 6%,transparent)}
+[draggable="true"].drag{opacity:.5}[data-drag]{touch-action:manipulation}
+.qa .qal{list-style:none;margin:6px 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:4px;font-size:13px}.qal .y{color:var(--ok-tx,#15803D)}.qal .n{color:var(--red)}
+.seg{display:inline-flex;gap:4px}
+@media print{body.pp>*:not(dialog){display:block!important}body.pp .nav,body.pp .no-print,body.pp .hh,body.pp .brandbar,body.pp .alert{display:none!important}body.pp .pcrit,body.pp .pill{-webkit-print-color-adjust:exact;print-color-adjust:exact}body.pp .pgrid{grid-template-columns:repeat(2,1fr)}}
 </style>
 </head>
 <body>
@@ -787,6 +801,39 @@ function rowsToTasks(rows) {
   }).filter((x) => x.title);
 }
 
+// ---- module: 03-riyadh.js ----
+// ================================================================
+// Module: Riyadh districts (searchable lists) — grouped by area.
+// Coordinates are approximate district centres, used only to pre-fill a location
+// when none is entered; the field team should correct them from the site.
+// Users can add any missing district from the list itself (stored in DB.lists.districts).
+// ================================================================
+const RIYADH_AREAS = {
+  'شمال الرياض': ['النرجس', 'الياسمين', 'الملقا', 'القيروان', 'حطين', 'العارض', 'الصحافة', 'الربيع', 'الندى', 'النفل', 'العقيق', 'الوادي', 'الغدير', 'المروج', 'المصيف', 'التعاون', 'الازدهار', 'المرسلات', 'الواحة', 'صلاح الدين', 'الرائد', 'الفلاح', 'الملك فهد', 'الملك عبدالله', 'المحمدية', 'الرحمانية', 'الورود', 'السليمانية', 'النخيل', 'المعذر الشمالي', 'الخير', 'بنبان', 'الملك سلمان', 'الشهداء', 'النزهة', 'المغرزات', 'الحمراء', 'الإسكان', 'الملك خالد', 'مطار الملك خالد', 'الملك عبدالعزيز', 'البرية'],
+  'شرق الرياض': ['الخليج', 'الجنادرية', 'النظيم', 'النسيم الشرقي', 'النسيم الغربي', 'السلام', 'النهضة', 'الريان', 'الروابي', 'الروضة', 'القدس', 'الأندلس', 'غرناطة', 'قرطبة', 'اشبيلية', 'اليرموك', 'المونسية', 'الرمال', 'المعيزيلة', 'الملك فيصل', 'الربوة', 'الشرق', 'الفيحاء', 'الجزيرة', 'السعادة', 'المنار', 'الحمراء الشرقي', 'الندوة', 'الرماية', 'القادسية', 'الخزامى الشرقي', 'المشاعل', 'هيت', 'الصناعية الأولى', 'الدوبية'],
+  'غرب الرياض': ['ظهرة لبن', 'هجرة وادي لبن', 'عرقة', 'السويدي', 'السويدي الغربي', 'ظهرة البديعة', 'البديعة', 'شبرا', 'الزهرة', 'العريجاء', 'العريجاء الوسطى', 'العريجاء الغربية', 'الحزم', 'نمار', 'ظهرة نمار', 'ديراب', 'طويق', 'الدريهمية', 'الفيصلية', 'لبن', 'السفارات', 'أم الحمام الشرقي', 'أم الحمام الغربي', 'الخزامى', 'المهدية', 'العوالي', 'الرفيعة', 'النموذجية', 'سلطانة', 'الدخل المحدود', 'المعذر', 'الأمير عبدالعزيز', 'ظهرة العودة', 'عليشة'],
+  'جنوب الرياض': ['العزيزية', 'الدار البيضاء', 'الشفا', 'المروة', 'بدر', 'عكاظ', 'الشعلة', 'المنصورية', 'طيبة', 'المصانع', 'منفوحة', 'منفوحة الجديدة', 'اليمامة', 'الجرادية', 'عتيقة', 'غبيرة', 'البطيحا', 'الخالدية', 'الحائر', 'الفاخرية', 'المناخ', 'السلي', 'الدفاع', 'هجرة', 'أحد', 'الوشام', 'الصناعية الثانية', 'الصناعية الثالثة', 'الإسكان (جنوب)', 'سدير', 'المصفاة', 'الغنامية', 'الوسيطاء', 'العمل'],
+  'وسط الرياض': ['الملز', 'جرير', 'الضباط', 'الفاروق', 'الزهراء', 'الوزارات', 'المربع', 'الفوطة', 'الديرة', 'الصالحية', 'الظهيرة', 'العود', 'المرقب', 'معكال', 'الشميسي', 'أم سليم', 'ثليم', 'العليا', 'الصحافة (وسط)', 'الصفا', 'الربوة (وسط)', 'الرفيعة (وسط)', 'العطايف', 'دخنة', 'القرى', 'الدحو', 'جبرة', 'الحلة', 'الناصرية', 'الشرفية']
+};
+// approximate centres for pre-filling a location (lat, lng)
+const DISTRICT_XY = {
+  'النرجس': [24.864, 46.664], 'الياسمين': [24.828, 46.640], 'الملقا': [24.812, 46.614], 'القيروان': [24.833, 46.590], 'حطين': [24.758, 46.596], 'العارض': [24.889, 46.622],
+  'الصحافة': [24.808, 46.643], 'الربيع': [24.797, 46.659], 'الندى': [24.808, 46.683], 'النفل': [24.780, 46.680], 'العقيق': [24.772, 46.630], 'الوادي': [24.790, 46.700],
+  'الغدير': [24.775, 46.655], 'المروج': [24.756, 46.660], 'التعاون': [24.756, 46.700], 'الملك فهد': [24.740, 46.680], 'المحمدية': [24.730, 46.640], 'الرحمانية': [24.718, 46.655],
+  'السليمانية': [24.705, 46.700], 'النخيل': [24.745, 46.635], 'الخليج': [24.776, 46.802], 'الجنادرية': [24.800, 46.880], 'النظيم': [24.745, 46.880], 'النسيم الشرقي': [24.735, 46.835],
+  'النسيم الغربي': [24.725, 46.815], 'السلام': [24.718, 46.812], 'النهضة': [24.763, 46.817], 'الريان': [24.709, 46.775], 'الروابي': [24.697, 46.785], 'الروضة': [24.735, 46.770],
+  'القدس': [24.748, 46.760], 'الأندلس': [24.745, 46.790], 'غرناطة': [24.792, 46.735], 'قرطبة': [24.810, 46.735], 'اشبيلية': [24.795, 46.785], 'اليرموك': [24.814, 46.789],
+  'الرمال': [24.857, 46.855], 'الملك فيصل': [24.762, 46.795], 'الربوة': [24.690, 46.760], 'الجزيرة': [24.640, 46.790], 'السعادة': [24.675, 46.850], 'ظهرة لبن': [24.625, 46.560],
+  'السويدي': [24.595, 46.660], 'العريجاء': [24.590, 46.620], 'الحزم': [24.560, 46.630], 'نمار': [24.565, 46.600], 'طويق': [24.595, 46.560], 'العزيزية': [24.577, 46.764],
+  'الدار البيضاء': [24.555, 46.800], 'الشفا': [24.560, 46.700], 'المروة': [24.585, 46.720], 'بدر': [24.540, 46.740], 'منفوحة': [24.610, 46.725], 'غبيرة': [24.613, 46.732],
+  'طيبة': [24.570, 46.860], 'الملز': [24.663, 46.733], 'جرير': [24.661, 46.748], 'الضباط': [24.680, 46.722], 'الفاروق': [24.650, 46.770], 'الوزارات': [24.665, 46.712],
+  'المربع': [24.645, 46.708], 'العود': [24.632, 46.721], 'ثليم': [24.645, 46.725], 'العليا': [24.700, 46.680], 'الشميسي': [24.635, 46.690], 'البطيحا': [24.625, 46.705]
+};
+function districtList() { return [...new Set([].concat(...Object.values(RIYADH_AREAS), (DB.lists && DB.lists.districts) || []))]; }
+function districtArea(n) { const a = Object.keys(RIYADH_AREAS).find((k) => RIYADH_AREAS[k].includes(n)); return a || ''; }
+function districtOpts() { return districtList().map((n) => [n, districtArea(n) || 'أُضيف يدوياً']); }
+function rememberDistrict(n) { n = String(n || '').trim().slice(0, 60); if (n && !districtList().includes(n)) { DB.lists.districts = DB.lists.districts || []; DB.lists.districts.push(n); } return n; }
+
 // ---- module: 05-roles.js ----
 // ================================================================
 // Module: role hierarchy and scope (who sees and edits what)
@@ -820,7 +867,7 @@ const ACT_RULES = {
   'eq-add': ['crewcfg', 1], 'eq-edit': ['edit', 1], 'move-crew': ['moveorg', 1], 'move-eq': ['move', 1], 'move-w': ['move', 1], 'move-dy': ['move', 1],
   'crew-hold': ['request', 1], 'crew-resume': ['request', 1], 'proj-add': ['org'], 'proj-edit': ['org'], 'person-edit': ['org'], 'assign-person': ['org'], 'br-add': ['org'],
   'task-add': ['tasks'], 'task-edit': ['tasks'], 'doc-del': ['permits'], 'emp-user': ['users'], 'maint-log': ['edit'], 'odo-update': ['edit'],
-  'fl-gate': ['permits'], 'fl-add': ['tasks'], 'fl-edit': ['tasks'], 'fl-coord': ['notify'], 'fl-cl-coord': ['notify'], 'fl-fwd': ['notify'], 'fl-ro': ['settings'], 'fl-rep-to': ['notify'], 'fl-folder': ['permits']
+  'fl-gate': ['permits'], 'fl-add': ['tasks'], 'fl-edit': ['tasks'], 'fl-coord': ['notify'], 'fl-cl-coord': ['notify'], 'fl-fwd': ['notify'], 'fl-ro': ['settings'], 'fl-rep-to': ['notify'], 'fl-folder': ['permits'], 'fl-qa': ['permits']
 };
 
 function normName(n) { return String(n || '').replace(/^\s*م\s*[./]?\s*/, '').replace(/\s+/g, ' ').trim(); }
@@ -866,7 +913,7 @@ function applyActRules(ACT) {
     g.__ruled = true; ACT[k] = g;
   });
   // field-transaction actions that name a job: the job must be inside the user's tree
-  Object.keys(ACT).filter((k) => /^fl-(adv|gate|safety|ret|edit|coord|folder|open|goto)$/.test(k)).forEach((k) => {
+  Object.keys(ACT).filter((k) => /^fl-(adv|gate|safety|ret|edit|coord|folder|open|goto|qa)$/.test(k)).forEach((k) => {
     const f = ACT[k]; if (f.__jobScoped) return;
     const g = function (d) { const j = d && d.id && DB.jobs.find((x) => x.id === d.id); if (j && !jobInScope(j)) return toast('هذه المعاملة خارج نطاق فرقك.', 'err'); return f.apply(this, arguments); };
     g.__jobScoped = true; g.__ruled = f.__ruled; ACT[k] = g;
@@ -943,6 +990,7 @@ function migrateFlow(d) {
   d.inbox = d.inbox || []; d.reports = d.reports || [];
   d.settings.flow = d.settings.flow || { r1: 2, r2: 5, clusterKm: 2 };
   d.jobs.forEach((j) => { if (j.flow) { j.alerts = j.alerts || {}; j.log = j.log || []; j.gate = j.gate || null; j.safety = j.safety || {}; } });
+  flMigrateIds(d);
   return d;
 }
 
@@ -964,8 +1012,8 @@ function flPermitLine(j) {
 }
 function flPermitChip(j) {
   if (!j.permit) return html`<span class="pill bad">بلا رخصة</span>`;
-  const d = flPermitDays(j); const c = d === null ? 'mutp' : d < 0 ? 'bad' : d <= 3 ? 'warn' : 'ok';
-  return html`<span class="pill ${c}" title="${flPermitLine(j)}">رخصة ${j.permit}${d === null ? '' : d < 0 ? ' · منتهية' : ' · ' + d + ' يوم'}</span>`;
+  const s = flPermitState(j);
+  return html`<span class="pill ${s.c}" title="${flPermitLine(j)}">رخصة ${j.permit}${s.d === null ? '' : s.d < 0 ? ' · منتهية' : ' · ' + s.d + ' يوم'}</span>`;
 }
 function flGateOk(j) { const g = j.gate; return !!g && ((g.mode === 'permit' || g.mode === 'undertaking') ? !!g.fileId : g.mode === 'override'); }
 function flGateLabel(j) {
@@ -980,7 +1028,7 @@ function flWho(role, offices) {
 }
 function flJobText(j) {
   return j.kind + ' — ' + (j.district || '') + (j.station ? ' · محطة ' + j.station : '') + (j.plan ? ' · مخطط ' + j.plan : '') + (j.plot ? ' · قطعة ' + j.plot : '') +
-    '\nالأساس ' + (j.baseNo || '—') + ' · المعاملة ' + (j.txNo || '—') + '\n' + flPermitLine(j) + (j.lengthM ? '\nطول الحفر ' + j.lengthM + ' م' : '') + '\nالتاريخ ' + j.date;
+    '\nالمعرّف ' + (j.uid || '—') + (j.woNo ? ' · أمر العمل ' + j.woNo : '') + (j.sapNo ? ' · SAP ' + j.sapNo : '') + '\nالأساس ' + (j.baseNo || '—') + ' · المعاملة ' + (j.txNo || '—') + '\n' + flPermitLine(j) + (j.lengthM ? '\nطول الحفر ' + j.lengthM + ' م' : '') + '\nالتاريخ ' + j.date;
 }
 
 // ---------- notification routing (inbox) ----------
@@ -1058,7 +1106,8 @@ function flTick() {
     if (!flActive(j)) return;
     if ((j.date === tm || j.date === td) && !j.alerts.d1 && flIdx(j) <= flPath(j).indexOf('gate')) { flCoordinate(j, 'd1'); n++; }
     const pd = flPermitDays(j);
-    if (j.permit && pd !== null && pd <= 3 && j.alerts.exp !== td) { flNotify('permit', ['permits_eng', 'permits_sup', 'civil'], pd < 0 ? 'رخصة منتهية والعمل قائم — خطر غرامة' : 'رخصة تقترب من الانتهاء', flJobText(j) + '\nجدّد الرخصة أو أنهِ الأعمال وأغلق الموقع قبل الانتهاء لتفادي الغرامات.', [j]); j.alerts.exp = td; n++; }
+    if (j.permit && pd !== null && pd >= 5 && pd < 14 && j.alerts.yel !== j.permitExp) { flNotify('permit', ['permits_eng', 'permits_sup'], 'الرخصة دخلت المنطقة الصفراء (أقل من 14 يوماً)', flJobText(j) + '\nخطّط لإنهاء الأعمال أو تجديد الرخصة قبل دخول المنطقة الحمراء (أقل من 5 أيام).', [j]); j.alerts.yel = j.permitExp; n++; }
+    if (j.permit && pd !== null && pd < 5 && j.alerts.exp !== td) { flNotify('permit', ['permits_eng', 'permits_sup', 'civil'], pd < 0 ? 'رخصة منتهية والعمل قائم — خطر غرامة' : 'رخصة تقترب من الانتهاء', flJobText(j) + '\nجدّد الرخصة أو أنهِ الأعمال وأغلق الموقع قبل الانتهاء لتفادي الغرامات.', [j]); j.alerts.exp = td; n++; }
     if (j.gate && j.gate.mode === 'override' && !j.gate.fileId && j.gate.due < td && j.alerts.gate !== td) { flNotify('gate', ['permits_sup', 'civil'], 'تأخر إرفاق الرخصة بعد تجاوز المهندس', flJobText(j) + '\nتجاوز بواسطة ' + j.gate.by + ' — كان الإرفاق مطلوباً قبل ' + j.gate.due, [j]); j.alerts.gate = td; n++; }
     if (j.pdc && j.stage === 'pdc' && daysTo(j.pdc.due) <= 10 && j.alerts.pdc !== td) { flNotify('permit', ['permits_sup', 'permits_eng'], 'مهلة الاستشاري (60 يوماً) تنتهي خلال ' + daysTo(j.pdc.due) + ' يوم', flJobText(j), [j]); j.alerts.pdc = td; n++; }
   });
@@ -1099,26 +1148,32 @@ let CMAP = null;
 function flKpis() {
   const J = flJobs().filter(jobInScope).filter(flActive); const tm = addDays(1);
   return [['معاملات نشطة', J.length, 'info'], ['أعمال الغد', J.filter((j) => j.date === tm).length, 'warn'], ['بانتظار الرخصة', J.filter((j) => flIdx(j) <= flPath(j).indexOf('gate') && !flGateOk(j) && daysTo(j.date) <= 2).length, 'bad'],
-    ['رخص ≤ 3 أيام', J.filter((j) => j.permit && flPermitDays(j) !== null && flPermitDays(j) <= 3).length, 'bad'], ['تنبيهات جديدة', DB.inbox.filter((i) => i.st === 'new').length, 'warn'], ['بلاغات مفتوحة', DB.reports.filter((r) => r.st !== 'resolved').length, 'warn']];
+    ['رخص < 5 أيام', J.filter((j) => j.permit && flPermitDays(j) !== null && flPermitDays(j) < 5).length, 'bad'], ['رخص < 14 يوماً', J.filter((j) => j.permit && flPermitDays(j) !== null && flPermitDays(j) >= 5 && flPermitDays(j) < 14).length, 'warn'], ['تنبيهات جديدة', DB.inbox.filter((i) => i.st === 'new').length, 'warn'], ['بلاغات مفتوحة', DB.reports.filter((r) => r.st !== 'resolved').length, 'warn']];
 }
 function flKpiRow() { return html`<div class="flkpi">${flKpis().map((k) => html`<div class="flk"><span>${k[0]}</span><b class="${k[1] ? 't-' + k[2] : ''}">${k[1]}</b></div>`)}</div>`; }
 function flTicket(j) {
   const g = flGateLabel(j); const cl = UI.flSel === j.id ? ' on' : '';
-  return html`<button type="button" class="flcard${cl}" data-act="fl-open" data-id="${j.id}" style="--sc:${FL_COLORS[j.stage]}">
-    <span class="row between" style="gap:6px"><b class="ltr">${j.baseNo || j.id}</b>${flPermitChip(j)}</span>
-    <span class="flk-t">${j.kind}</span>
+  const dr = can('edit') && jobInScope(j) && j.stage !== 'closed' ? new Safe(' draggable="true" data-drag="fl"') : '';
+  return html`<button type="button" class="flcard${cl}" data-act="fl-open" data-id="${j.id}"${dr} style="--sc:${FL_COLORS[j.stage]}">
+    <span class="row between" style="gap:6px"><b class="ltr">${j.uid || j.baseNo || j.id}</b>${flPermitChip(j)}</span>
+    <span class="flk-t">${j.kind}</span><span class="t-mut ltr" style="font-size:11px;text-align:start">${[j.baseNo, j.woNo ? 'WO ' + j.woNo : '', j.sapNo ? 'SAP ' + j.sapNo : ''].filter(Boolean).join(' · ')}</span>
     <span class="t-mut" style="font-size:12px">${j.district || '—'} · ${j.office || ''} · ${fmtD(j.date)}</span>
     <span class="row" style="gap:6px"><span class="pill ${g[1]}">${g[0]}</span>${j.lengthM ? html`<span class="pill mutp">${j.lengthM} م</span>` : ''}</span></button>`;
 }
 function viewFlow() {
-  const off = UI.flOff || ''; const J = flJobs().filter(jobInScope).filter((j) => !off || j.office === off).sort((a, b) => a.date.localeCompare(b.date));
+  const off = UI.flOff || ''; const q = String(UI.flQ || '').trim().toLowerCase(); const dq = UI.flDist || '';
+  const J = flJobs().filter(jobInScope).filter((j) => (!off || j.office === off) && (!dq || j.district === dq) && (!q || [j.uid, j.baseNo, j.txNo, j.permit, j.woNo, j.sapNo, j.district, j.kind].join(' ').toLowerCase().includes(q))).sort((a, b) => a.date.localeCompare(b.date));
+  const dists = [...new Set(flJobs().filter(jobInScope).map((j) => j.district).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ar'));
   const sel = UI.flSel && DB.jobs.find((x) => x.id === UI.flSel);
   return html`<div class="ph"><div><h1 style="font-size:28px">دورة المعاملات الميدانية</h1><p>كل معاملة سجل واحد يتحرك بين المراحل: الرخصة ← السلامة ← الحفر ← الكهرباء ← الأسفلت ← المختبر ← الاستشاري ← المركز. كل انتقال يرسل تنبيهاً للمسؤول التالي برقم الرخصة وتاريخ انتهائها.</p></div>
-    <div class="row">${can('edit') ? html`<button class="btn pri" type="button" data-act="fl-add">+ معاملة ميدانية</button>` : ''}<button class="btn" type="button" data-act="nav" data-v="cluster">خريطة الكلاستر</button></div></div>
+    <div class="row">${can('edit') ? html`<button class="btn pri" type="button" data-act="fl-add">+ معاملة ميدانية</button>` : ''}<button class="btn" type="button" data-act="nav" data-v="permits">تقرير الرخص الحرجة</button><button class="btn" type="button" data-act="nav" data-v="cluster">خريطة الكلاستر</button></div></div>
   ${flKpiRow()}
   <div class="chips" role="group" aria-label="المكتب"><button type="button" class="chip" data-act="fl-off" data-k="" aria-pressed="${!off}">كل المكاتب</button>${DB.lists.offices.map((o) => html`<button type="button" class="chip" data-act="fl-off" data-k="${o}" aria-pressed="${off === o}">${o}</button>`)}</div>
+  <div class="row flfilter"><input class="in" type="search" style="flex:1 1 240px;max-width:340px" placeholder="بحث بالمعرّف أو الأساس أو الرخصة أو أمر العمل أو SAP" value="${UI.flQ || ''}" data-input="fl-q" aria-label="بحث في المعاملات">
+    <select class="in" style="flex:0 1 220px" data-change="fl-dist" aria-label="تصفية حسب الحي"><option value="">كل الأحياء (${dists.length})</option>${dists.map((x) => html`<option value="${x}" ${dq === x ? new Safe('selected') : ''}>${x} — ${districtArea(x) || 'أُضيف يدوياً'}</option>`)}</select>
+    ${permitLegend()}<span class="t-mut" style="font-size:12px">اسحب البطاقة إلى المرحلة التالية لإنهاء المرحلة الحالية.</span></div>
   ${sel ? flDetail(sel) : ''}
-  <div class="board" aria-label="لوحة المراحل">${FL_FULL.map((s) => { const L = J.filter((j) => j.stage === s); return html`<section class="col"><h3 style="--sc:${FL_COLORS[s]}"><span>${FL_STAGES[s][0]}</span><span class="badge-n">${L.length}</span></h3>${L.length ? L.map(flTicket) : html`<p class="t-mut" style="font-size:12px;margin:6px">—</p>`}</section>`; })}</div>`;
+  <div class="board" aria-label="لوحة المراحل">${FL_FULL.map((s) => { const L = J.filter((j) => j.stage === s); return html`<section class="col" data-drop="fl" data-k="${s}"><h3 style="--sc:${FL_COLORS[s]}"><span>${FL_STAGES[s][0]}</span><span class="badge-n">${L.length}</span></h3>${L.length ? L.map(flTicket) : html`<p class="t-mut" style="font-size:12px;margin:6px">—</p>`}</section>`; })}</div>`;
 }
 function flStepper(j) {
   const P = flPath(j); const i = flIdx(j);
@@ -1153,16 +1208,17 @@ function flDetail(j) {
   const nb = flNeighbors(j, cfg().flow.r2); const docs = DB.docs.filter((d) => d.taskId === j.id); const crew = crewById(j.crewId);
   const gf = gwOn() && gcfg().jobFolders && gcfg().jobFolders[j.id];
   return html`<article class="card fldetail" style="--sc:${FL_COLORS[j.stage]}"><div class="row between"><div><h2 style="font-size:20px">${j.kind} — ${j.district || ''}</h2>
-      <p class="t-mut ltr" style="margin:4px 0 0;text-align:start">${flFolderName(j)}</p></div>
+      <p class="t-mut ltr" style="margin:4px 0 0;text-align:start"><b>${j.uid || ''}</b> · ${flFolderName(j)}</p></div>
       <div class="row">${flPermitChip(j)}<button class="btn sm" type="button" data-act="fl-edit" data-id="${j.id}">تعديل</button><a class="btn sm wa" href="${wa('', '«ميدان» — ' + flJobText(j) + (flNav(j) ? '\nالموقع: ' + flPin(j) : ''))}" target="_blank" rel="noopener noreferrer">واتساب</a>${flNav(j) ? html`<a class="btn sm" href="${flNav(j)}" target="_blank" rel="noopener noreferrer">الملاحة</a>` : ''}<button class="btn sm" type="button" data-act="fl-close-detail">إغلاق</button></div></div>
     ${flStepper(j)}
     <div class="grid g2"><div class="flkv"><span>المكتب</span><b>${j.office || '—'}</b><span>الحي</span><b>${j.district || '—'}</b><span>المحطة / المخطط / القطعة</span><b>${[j.station, j.plan, j.plot].filter(Boolean).join(' / ') || '—'}</b><span>التاريخ</span><b>${j.date}</b><span>طول الحفر</span><b>${j.lengthM ? j.lengthM + ' م' : '—'}</b><span>الفرقة</span><b>${crew ? crew.id + ' · ' + crew.sup.name : '—'}</b></div>
-      <div class="flkv"><span>رقم الأساس</span><b class="ltr">${j.baseNo || '—'}</b><span>رقم المعاملة</span><b class="ltr">${j.txNo || '—'}</b><span>الرخصة</span><b>${flPermitLine(j)}</b><span>بوابة الرخصة</span><b>${flGateLabel(j)[0]}</b>
+      <div class="flkv"><span>المعرّف الموحّد</span><b class="ltr">${j.uid || '—'} <span class="t-mut">(${FL_CATS[flCatOf(j)][0]})</span></b><span>أمر العمل / SAP</span><b class="ltr">${j.woNo || '—'} / ${j.sapNo || '—'}</b><span>رقم الأساس</span><b class="ltr">${j.baseNo || '—'}</b><span>رقم المعاملة</span><b class="ltr">${j.txNo || '—'}</b><span>الرخصة</span><b>${flPermitLine(j)}</b><span>بوابة الرخصة</span><b>${flGateLabel(j)[0]}</b>
         <span>مجلد Drive</span><b>${gf ? html`<a href="${'https://drive.google.com/drive/folders/' + gf.id}" target="_blank" rel="noopener noreferrer">فتح مجلد «${flFolderName(j)}»</a>` : gwOn() ? html`<button class="btn sm" type="button" data-act="fl-folder" data-id="${j.id}">إنشاء مجلد المعاملة</button>` : html`<span class="t-mut">يُنشأ عند الربط مع Google Drive</span>`}</b></div></div>
     ${flStageActions(j)}
+    ${flQaBox(j)}
     ${j.gate && j.gate.mode === 'override' && !j.gate.fileId ? html`<p class="alert wr">تجاوز بواسطة ${j.gate.by}: ${j.gate.reason} — يجب إرفاق الرخصة قبل ${j.gate.due}. <button class="btn sm" type="button" data-act="fl-gate" data-id="${j.id}" data-k="late">إرفاق الرخصة الآن</button></p>` : ''}
     <div class="grid g2"><div><h3 style="font-size:15px">المعاملات القريبة (${nb.length}) — نطاق ${cfg().flow.r2} كم</h3>${nb.length ? html`<ul class="nb">${nb.map((x) => html`<li><button type="button" class="lnk" data-act="fl-open" data-id="${x.o.id}">${x.o.baseNo || x.o.id} — ${x.o.kind}</button><span class="t-mut">${x.o.district} · ${x.o.date}${x.dist != null ? ' · ' + x.dist.toFixed(1) + ' كم' : ''} · ${x.why.join('، ')}</span></li>`)}</ul>` : html`<p class="t-mut">لا توجد معاملات قريبة.</p>`}</div>
-      <div><h3 style="font-size:15px">المستندات (${docs.length})</h3>${docs.length ? html`<ul class="nb">${docs.map((d) => html`<li><span>${d.type} — ${d.fileName || d.title}</span>${d.fileId ? html`<button class="btn sm" type="button" data-act="doc-file" data-id="${d.id}">تنزيل</button>` : ''}</li>`)}</ul>` : html`<p class="t-mut">لا مستندات بعد.</p>`}</div></div>
+      <div><h3 style="font-size:15px">المستندات (${docs.length})</h3>${docs.length ? html`<ul class="nb">${docs.map((d) => html`<li><span>${d.type} — <span class="ltr">${d.fileName || d.title}</span>${d.geo ? html` <a class="pill ok" href="${'https://www.google.com/maps?q=' + d.geo.lat + ',' + d.geo.lng}" target="_blank" rel="noopener noreferrer" title="دقة ${d.geo.acc} م">GPS</a>` : ''}</span>${d.fileId ? html`<button class="btn sm" type="button" data-act="doc-file" data-id="${d.id}">تنزيل</button>` : ''}</li>`)}</ul>` : html`<p class="t-mut">لا مستندات بعد.</p>`}</div></div>
     <details><summary>سجل المعاملة (${j.log.length})</summary><ul class="nb">${j.log.slice(0, 30).map((l) => html`<li><span>${fmtT(l.tm)} · ${FL_STAGES[l.stage] ? FL_STAGES[l.stage][0] : l.stage}</span><span class="t-mut">${l.by}${l.note ? ' — ' + l.note : ''}</span></li>`)}</ul></details></article>`;
 }
 
@@ -1286,32 +1342,45 @@ function flAfterRender() {
 function flJobFields(j) {
   j = j || {};
   return [{ k: 'kind', label: 'نوع العمل', type: 'select', list: 'flKinds', val: j.kind || 'حفر مفتوح لتركيب ميني بيلر' }, { k: 'office', label: 'المكتب', type: 'select', list: 'offices', val: j.office || DB.lists.offices[0] },
+    { k: 'cat', label: 'تصنيف المعرّف الموحّد', type: 'select', opts: [['', 'تلقائي حسب نوع العمل']].concat(Object.keys(FL_CATS).map((c) => [c, c + ' — ' + FL_CATS[c][0]])), val: j.cat && j.cat !== (FL_KIND_CAT[j.kind] || 'C') ? j.cat : '', hint: j.uid ? 'المعرّف الحالي ' + j.uid : 'يُولَّد بصيغة CAT-YY-XXXX' },
+    { k: 'woNo', label: 'رقم أمر العمل', ltr: true, val: j.woNo || '', ph: '802xxxxxxx' }, { k: 'sapNo', label: 'رقم SAP', ltr: true, val: j.sapNo || '' },
     { k: 'baseNo', label: 'رقم الأساس', ltr: true, val: j.baseNo || '', ph: 'R6661' }, { k: 'txNo', label: 'رقم المعاملة / السكيم', ltr: true, val: j.txNo || '' },
     { k: 'permit', label: 'رقم الرخصة', ltr: true, val: j.permit || '' }, { k: 'permitType', label: 'نوع الرخصة', type: 'select', opts: [['اعتيادي', 'ترخيص اعتيادي'], ['طارئ', 'ترخيص طارئ (10 أيام)']], val: j.permitType || 'اعتيادي' },
     { k: 'permitExp', label: 'تاريخ انتهاء الرخصة', type: 'date', val: j.permitExp || '' }, { k: 'date', label: 'تاريخ التنفيذ', type: 'date', val: j.date || addDays(1) },
-    { k: 'district', label: 'الحي', val: j.district || '' }, { k: 'station', label: 'المحطة', val: j.station || '' }, { k: 'plan', label: 'المخطط', val: j.plan || '' }, { k: 'plot', label: 'القطعة', val: j.plot || '' },
-    { k: 'lat', label: 'خط العرض', type: 'number', val: j.lat || '', ltr: true }, { k: 'lng', label: 'خط الطول', type: 'number', val: j.lng || '', ltr: true },
+    { k: 'district', label: 'الحي (ابحث في أحياء الرياض)', type: 'combo', opts: districtOpts(), val: j.district || '', hint: 'اختر من القائمة أو اكتب حياً جديداً فيُضاف' }, { k: 'station', label: 'المحطة', val: j.station || '' }, { k: 'plan', label: 'المخطط', val: j.plan || '' }, { k: 'plot', label: 'القطعة', val: j.plot || '' },
+    { k: 'lat', label: 'خط العرض', type: 'number', val: j.lat || '', ltr: true, hint: 'إن تُرك فارغاً يُملأ بمركز الحي تقريبياً' }, { k: 'lng', label: 'خط الطول', type: 'number', val: j.lng || '', ltr: true },
     { k: 'lengthM', label: 'طول الحفر (م)', type: 'number', val: j.lengthM || '' }, { k: 'barrier', label: 'نوع الصبات', type: 'select', opts: [['صبات خرسانية', 'صبات خرسانية'], ['صبات بلاستيكية', 'صبات بلاستيكية']], val: (j.safety && j.safety.barrier) || 'صبات خرسانية' },
     { k: 'crewId', label: 'الفرقة المنفذة', type: 'select', opts: [['', '— بدون —']].concat(DB.crews.map((c) => [c.id, c.id + ' · ' + (TYPES[c.type] ? TYPES[c.type][0] : '') + ' · ' + c.sup.name])), val: j.crewId || '' },
     { k: 'note', label: 'ملاحظات', type: 'textarea', val: j.note || '' }];
 }
 function flApply(j, v) {
-  ['kind', 'office', 'baseNo', 'txNo', 'permit', 'permitType', 'permitExp', 'date', 'district', 'station', 'plan', 'plot', 'crewId', 'note'].forEach((k) => { j[k] = String(v[k] || '').trim().slice(0, 200); });
+  const oldCat = j.uid ? flCatOf(j) : '';
+  ['kind', 'office', 'baseNo', 'txNo', 'permit', 'permitType', 'permitExp', 'date', 'district', 'station', 'plan', 'plot', 'crewId', 'note', 'woNo', 'sapNo'].forEach((k) => { j[k] = String(v[k] || '').trim().slice(0, 200); });
+  j.district = rememberDistrict(j.district);
   j.lat = parseFloat(v.lat) || 0; j.lng = parseFloat(v.lng) || 0; j.lengthM = Math.max(0, Math.round(+v.lengthM || 0));
+  if (!flHasXY(j) && DISTRICT_XY[j.district]) { j.lat = DISTRICT_XY[j.district][0]; j.lng = DISTRICT_XY[j.district][1]; j.xyApprox = true; } else if (v.lat) j.xyApprox = false;
+  j.cat = FL_CATS[v.cat] ? v.cat : ''; const nc = flCatOf(j); flEnsureUid(j, !!oldCat && oldCat !== nc);
   j.safety = j.safety || {}; j.safety.barrier = v.barrier || 'صبات خرسانية';
   j.title = j.kind + ' — ' + j.district + (j.baseNo ? ' (' + j.baseNo + ')' : ''); j.site = j.district;
 }
 function flValidate(v) {
-  if (!v.kind || !v.district) return 'نوع العمل والحي مطلوبان.';
+  if (!v.kind || !String(v.district || '').trim()) return 'نوع العمل والحي مطلوبان.';
+  if (v.woNo && !/^\d{6,12}$/.test(String(v.woNo).trim())) return 'رقم أمر العمل أرقام فقط (6 إلى 12 رقماً).';
+  if (v.sapNo && !/^\d{6,12}$/.test(String(v.sapNo).trim())) return 'رقم SAP أرقام فقط (6 إلى 12 رقماً).';
+  if (v.baseNo && !/^[A-Za-z]{0,3}\d{3,10}$/.test(String(v.baseNo).trim())) return 'رقم الأساس بصيغة حرف ثم أرقام، مثل R6661.';
+  if (v.permit && !/^[A-Za-z0-9\-\/]{3,20}$/.test(String(v.permit).trim())) return 'رقم الرخصة غير صالح.';
+  if (v.permit && !v.permitExp) return 'أدخل تاريخ انتهاء الرخصة لتحديد لونها وحالتها.';
   if (v.lat && !(+v.lat > 16 && +v.lat < 33)) return 'خط العرض خارج المملكة.';
   if (v.lng && !(+v.lng > 34 && +v.lng < 56)) return 'خط الطول خارج المملكة.';
   if (!/^\d{4}-\d{2}-\d{2}$/.test(v.date || '')) return 'تاريخ التنفيذ مطلوب.';
   return '';
 }
-async function flAttach(j, kind, file) {
+async function flAttach(j, kind, file, o) {
   if (!file || !file.size) return 'اختر ملفاً.'; if (file.size > 10 * 1024 * 1024) return 'الملف أكبر من 10 ميجابايت.'; if (!ALLOWED_FILES[file.type] || /officedocument/.test(file.type)) return 'المسموح: صورة أو PDF.';
-  const doc = { id: uid('d'), type: kind, title: kind + ' — ' + flFolderName(j), crewId: j.crewId, taskId: j.id, workType: '', person: CUR.name, exp: kind === 'تصريح' ? j.permitExp || '' : '', url: '', fileId: uid('f'), fileName: safeName(file.name), size: file.size, form: null, tm: nowIso(), by: CUR.name };
-  try { await filePut(doc.fileId, file, j.id); } catch (e) { return 'تعذّر حفظ الملف.'; }
+  o = o || {}; const stage = o.stage || j.stage; const name = flDocName(j, stage, file.name);
+  let blob = file; try { blob = new File([file], name, { type: file.type }); } catch (e) { /* old browsers: keep the original name on the blob */ }
+  const doc = { id: uid('d'), type: kind, title: kind + ' — ' + flFolderName(j), crewId: j.crewId, taskId: j.id, workType: '', person: CUR.name, exp: kind === 'تصريح' ? j.permitExp || '' : '', url: '', fileId: uid('f'), fileName: name, orig: safeName(file.name), stage, geo: o.geo || null, size: file.size, form: null, tm: nowIso(), by: CUR.name };
+  try { await filePut(doc.fileId, blob, j.id); } catch (e) { return 'تعذّر حفظ الملف.'; }
   DB.docs.unshift(doc); return doc;
 }
 
@@ -1341,7 +1410,10 @@ const FL_ACT = {
     if (j.stage === 'gate' && !flGateOk(j)) return toast('لا يمكن بدء التنفيذ: أرفق صورة الرخصة أو التعهد، أو سجّل تجاوز المهندس.', 'err');
     if (flIdx(j) < flPath(j).indexOf('gate') + 1 && nx !== 'gate' && !flGateOk(j)) return toast('أرفق الرخصة أولاً.', 'err');
     if (j.stage === 'safety' && !(j.safety.delivered && j.safety.hse)) return toast('أكّد توريد الصبات والإنارة واعتماد فحص HSE قبل الحفر.', 'err');
-    if (['dig', 'elec', 'asphalt'].includes(j.stage)) return openForm('إنهاء «' + FL_STAGES[j.stage][0] + '»', [{ k: 'note', label: 'ملاحظة التنفيذ', type: 'textarea' }, { k: 'photo', label: 'صورة التنفيذ (اختياري)', type: 'file', capture: true, wide: true }], async (v) => { if (v.photo && v.photo.size) { const r = await flAttach(j, 'صور التنفيذ', v.photo); if (typeof r === 'string') return r; } flSetStage(j, nx, v.note); audit(CUR.name, 'تقدم معاملة', flFolderName(j) + ' → ' + FL_STAGES[nx][0]); toast('انتقلت إلى «' + FL_STAGES[nx][0] + '» وأُرسل التنبيه للمسؤول.'); }, { ok: 'إنهاء والانتقال' });
+    if (j.stage === 'lab' && nx === 'pdc' && !j.qa) return toast('اعتمد قائمة التوثيق والجودة أولاً (الموقع، الطول، الرخصة، أمر العمل، SAP، صور المراحل الموثّقة).', 'err');
+    if (['dig', 'elec', 'asphalt'].includes(j.stage)) { const st = j.stage; const had = flStageDocs(j, st).length; return openForm('إنهاء «' + FL_STAGES[st][0] + '»', [{ k: 'note', label: 'ملاحظة التنفيذ', type: 'textarea' }, { k: 'photo', label: had ? 'صورة إضافية (اختياري — يوجد ' + had + ')' : 'صورة التنفيذ (إلزامية — تُوثَّق بالموقع)', type: 'file', capture: true, wide: true, hint: 'تُسمّى تلقائياً ' + flDocName(j, st, 'x.jpg') }], async (v) => {
+      if (!(v.photo && v.photo.size) && !had) return 'أرفق صورة التنفيذ — لا تُغلق المرحلة دون دليل مرئي.';
+      if (v.photo && v.photo.size) { if (!/^image\//.test(v.photo.type)) return 'صورة التنفيذ يجب أن تكون صورة.'; const geo = await geoNow(4000); const r = await flAttach(j, 'صور التنفيذ', v.photo, { stage: st, geo }); if (typeof r === 'string') return r; if (!geo) toast('حُفظت الصورة دون موقع جغرافي — فعّل خدمة الموقع لتوثيقها.', 'err'); } flSetStage(j, nx, v.note); audit(CUR.name, 'تقدم معاملة', flFolderName(j) + ' → ' + FL_STAGES[nx][0]); toast('انتقلت إلى «' + FL_STAGES[nx][0] + '» وأُرسل التنبيه للمسؤول.'); }, { ok: 'إنهاء والانتقال' }); }
     flSetStage(j, nx); audit(CUR.name, 'تقدم معاملة', flFolderName(j) + ' → ' + FL_STAGES[nx][0]); save(); toast('انتقلت إلى «' + FL_STAGES[nx][0] + '».'); render();
   },
   'fl-gate': (d) => {
@@ -1371,6 +1443,9 @@ const FL_ACT = {
     flNotify('coord', ['civil', 'elec', 'permits_eng', 'permits_sup'], 'تنسيق موحّد لكلاستر ' + c.district + ' (' + c.jobs.length + ' معاملات)', 'نطاق ' + c.rad.toFixed(1) + ' كم · ' + c.meters + ' م حفر\n' + list + '\nنسّقوا مرة واحدة: توريد سلامة وإنارة، المعدات، المراقبين، والسفلتة بالتوالي.', c.jobs, { fwdRole: 'sup_civil+sup_elec', nav: flNav(head) });
     c.jobs.forEach((j) => flLog(j, j.stage, 'تنسيق كلاستر ' + c.district)); audit(CUR.name, 'تنسيق كلاستر', c.district + ' · ' + c.jobs.length); save(); toast('أُرسل التنسيق الموحّد للمهندسين وقسم الرخص.'); render(); },
   'fl-ai': () => flAi(),
+  'fl-qa': (d) => { const j = DB.jobs.find((x) => x.id === d.id); if (!j || !need('edit')) return; const miss = flQa(j).filter((x) => !x[1]); if (miss.length) return toast('ناقص: ' + miss.map((x) => x[0]).join('، '), 'err');
+    j.qa = { by: CUR.name, tm: nowIso() }; flLog(j, j.stage, 'اعتماد قائمة التوثيق والجودة'); audit(CUR.name, 'اعتماد الجودة', flRef(j)); save(); toast('اعتُمدت قائمة التوثيق — يمكن الرفع للاستشاري.'); render(); },
+  'print': () => { document.body.classList.add('pp'); const off = () => { document.body.classList.remove('pp'); window.removeEventListener('afterprint', off); }; window.addEventListener('afterprint', off); window.print(); setTimeout(off, 1500); },
   'fl-tick': () => { FL_TICKED = ''; const n = flTick(); FL_TICKED = today(); toast(n ? 'أُنشئ ' + n + ' تنبيهات جديدة.' : 'لا تنبيهات جديدة — كل شيء محدّث.'); render(); },
   'fl-fwd': (d) => {
     const it = DB.inbox.find((x) => x.id === d.id); if (!it || !need('notify')) return; const jobs = it.jobIds.map((id) => DB.jobs.find((j) => j.id === id)).filter(Boolean);
@@ -1388,9 +1463,9 @@ const FL_ACT = {
   'fl-rep': (d) => {
     if (!need('edit')) return; const J = flJobs();
     openForm('تسجيل بلاغ / معاد', [{ k: 'kind', label: 'النوع', type: 'select', opts: Object.keys(FL_REPORT_KINDS).map((k) => [k, FL_REPORT_KINDS[k][0]]), val: d.k || 'pdc' }, { k: 'jobId', label: 'المعاملة', type: 'select', opts: [['', '— غير مربوط —']].concat(J.map((j) => [j.id, flFolderName(j) + ' · ' + j.district])), val: d.job || '' },
-      { k: 'baseNo', label: 'رقم الأساس (إن لم تُربط)', ltr: true }, { k: 'permit', label: 'رقم الرخصة', ltr: true }, { k: 'district', label: 'الحي' }, { k: 'recv', label: 'تاريخ الاستلام', type: 'date', val: today() }, { k: 'note', label: 'الملاحظة / سبب الإعادة', type: 'textarea' }], (v) => {
+      { k: 'baseNo', label: 'رقم الأساس (إن لم تُربط)', ltr: true }, { k: 'permit', label: 'رقم الرخصة', ltr: true }, { k: 'district', label: 'الحي', type: 'combo', opts: districtOpts() }, { k: 'recv', label: 'تاريخ الاستلام', type: 'date', val: today() }, { k: 'note', label: 'الملاحظة / سبب الإعادة', type: 'textarea' }], (v) => {
       const K = FL_REPORT_KINDS[v.kind]; if (!K) return 'اختر النوع.'; const j = J.find((x) => x.id === v.jobId); if (!j && !v.baseNo && !v.permit) return 'اربط المعاملة أو أدخل رقم الأساس/الرخصة.';
-      const r = { id: uid('rp'), kind: v.kind, kindName: K[0], jobId: j ? j.id : '', baseNo: j ? j.baseNo : v.baseNo.trim(), permit: j ? j.permit : v.permit.trim(), district: j ? j.district : v.district.trim(), note: String(v.note || '').trim().slice(0, 500), recv: v.recv || today(), due: addDays(K[1], v.recv || today()), st: 'open', to: '', tm: nowIso(), by: CUR.name };
+      const r = { id: uid('rp'), kind: v.kind, kindName: K[0], jobId: j ? j.id : '', baseNo: j ? j.baseNo : v.baseNo.trim(), permit: j ? j.permit : v.permit.trim(), district: j ? j.district : rememberDistrict(v.district), note: String(v.note || '').trim().slice(0, 500), recv: v.recv || today(), due: addDays(K[1], v.recv || today()), st: 'open', to: '', tm: nowIso(), by: CUR.name };
       DB.reports.unshift(r);
       if (j) { if (v.kind === 'lab') flSetStage(j, 'asphalt', 'راسب المختبر — إعادة دك وسفلتة'); if (v.kind === 'pdc') { flSetStage(j, 'pdc', 'إعادة من الاستشاري — مهلة 60 يوماً جديدة'); } if (v.kind === 'ripc') flSetStage(j, 'pdc', 'إعادة من المركز — تعود للاستشاري أولاً'); }
       flNotify('report', ['permits_sup', 'civil'], K[0] + (r.baseNo ? ' — ' + r.baseNo : ''), (j ? flJobText(j) + '\n' : '') + r.note + '\nالمهلة حتى ' + r.due, j ? [j] : []); audit(CUR.name, 'تسجيل ' + K[0], r.baseNo || r.permit); UI.view = 'reports';
@@ -1430,7 +1505,11 @@ function seedFlow(d) {
     { office: 'مكتب الشرق', district: 'العزيزية', kind: 'تمديد كابلات', baseNo: 'R7304', txNo: '261300304', permit: '2410204', permitExp: T(11), date: T(4), lat: 24.5772, lng: 46.7641, lengthM: 300, station: 'محطة العزيزية' },
     { office: 'مكتب الشرق', district: 'العزيزية', kind: 'تركيب عدادات', baseNo: 'R7305', txNo: '261300305', permit: '2410205', permitExp: T(9), date: T(4), lat: 24.5801, lng: 46.7702, station: 'محطة العزيزية' },
     { office: 'مكتب الشرق', district: 'غبيرة', kind: 'حفر مفتوح', baseNo: 'R7306', txNo: '261300306', permit: '2410206', permitExp: T(20), date: T(-40), lat: 24.6132, lng: 46.7322, lengthM: 150, stage: 'ripc', gate: G('demo-permit') }
+    ,{ office: 'مكتب خريص', district: 'الروضة', kind: 'صيانة أعطال جهد منخفض ومتوسط', baseNo: 'R7208', txNo: '261300208', permit: '2410108', permitExp: T(13), date: T(2), lat: 24.7352, lng: 46.7702, lengthM: 12 },
+    { office: 'مكتب الشمال', district: 'الياسمين', kind: 'تمديد كابلات البايلوت', baseNo: 'R7108', txNo: '261300108', permit: '2410008', permitExp: T(26), date: T(5), lat: 24.8281, lng: 46.6402, lengthM: 260 },
+    { office: 'مكتب الشرق', district: 'السلي', kind: 'حالة طارئة', baseNo: 'R7307', txNo: '261300307', permit: '2410207', permitType: 'طارئ', permitExp: T(8), date: T(0), lat: 24.6301, lng: 46.8102, lengthM: 8, stage: 'gate' }
   ].map(mk);
+  rows.forEach((j, i) => { j.woNo = (j.kind === 'تركيب عدادات' ? '402' : '802') + String(3100100 + i * 37); j.sapNo = String(5400200 + i * 53); flEnsureUid(j, false, d.jobs.concat(rows.slice(0, i))); });
   rows.forEach((j) => { j.st = j.stage === 'plan' || j.stage === 'gate' ? 'new' : 'prog'; d.jobs.push(j); });
   (d.employees || []).forEach((e, i) => { if (i % 4 === 3) return; e.docs = e.docs || {}; const sx = (exp) => ({ exp, fileId: '', fileName: '', size: 0, tm: nowIso(), by: 'بيانات تجريبية' });
     e.docs['صورة الإقامة'] = sx(T(180 + i)); e.docs['كارت الأمن الصناعي'] = sx(i % 5 === 0 ? T(-4) : i % 7 === 0 ? T(12) : T(150)); e.docs['كارت التأمين الطبي'] = sx(T(90 + i));
@@ -1441,6 +1520,184 @@ function seedFlow(d) {
     { id: uid('rp'), kind: 'lab', kindName: FL_REPORT_KINDS.lab[0], jobId: '', baseNo: 'R6690', permit: '2392589', district: 'الملز', note: 'راسب دمك — نقطتان', recv: T(-2), due: T(5), st: 'routed', to: 'asphalt', tm: nowIso(), by: 'بيانات تجريبية' }
   ];
   return d;
+}
+
+// ---- module: 30-docsys.js ----
+// ================================================================
+// Module: documented approval system (دليل التوثيق والمعرّف الموحّد)
+// - Unified ID per transaction: CAT-YY-XXXX (C civil/routes 802 · M meters 402/801 ·
+//   F LV/MV fault maintenance · P33 pilot cables · X emergencies).
+// - Work-order (أمر العمل) and SAP numbers on every task.
+// - Permit status colours: expired black · < 5 days red · < 14 days amber · otherwise green.
+// - Uploaded files are renamed PROJECT_STAGE_DATE_SAP.ext; stage photos carry GPS.
+// - QA documentation checklist must be approved before a file goes to the consultant (PDC).
+// - Critical-permits report (top 10 nearest to expiry) + Kanban drag-and-drop.
+// Loaded before the DB is created, so only declarations live at top level.
+// ================================================================
+const FL_CATS = {
+  C: ['الإنشاءات', 'أعمال مدنية ومسارات — أوامر 802'],
+  M: ['العدادات', 'تركيب واستبدال عدادات — 402 / 801'],
+  F: ['الأعطال', 'صيانة جهد منخفض ومتوسط'],
+  P33: ['كابلات البايلوت', 'تمديد وتوصيل كابلات البايلوت'],
+  X: ['الحالات الطارئة', 'أعمال طارئة — ترخيص 10 أيام']
+};
+// new kinds from the guide, appended to the existing ones
+Object.assign(FL_KINDS, {
+  'صيانة أعطال جهد منخفض ومتوسط': FL_FULL,
+  'تمديد كابلات البايلوت': FL_FULL,
+  'حالة طارئة': FL_FULL
+});
+const FL_KIND_CAT = { 'تركيب عدادات': 'M', 'صيانة أعطال جهد منخفض ومتوسط': 'F', 'تمديد كابلات البايلوت': 'P33', 'حالة طارئة': 'X' };
+function flCatOf(j) { if (j.cat && FL_CATS[j.cat]) return j.cat; if (j.permitType === 'طارئ' && !FL_KIND_CAT[j.kind]) return 'X'; return FL_KIND_CAT[j.kind] || 'C'; }
+const UID_RE = /^(C|M|F|P33|X)-\d{2}-\d{4}$/;
+function flUidNext(cat, yy, jobs) {
+  const pre = cat + '-' + yy + '-'; let mx = 0;
+  (jobs || DB.jobs).forEach((j) => { if (j.uid && j.uid.startsWith(pre)) mx = Math.max(mx, +j.uid.slice(pre.length) || 0); });
+  return pre + String(mx + 1).padStart(4, '0');
+}
+function flEnsureUid(j, force, jobs) {
+  const cat = flCatOf(j); j.cat = cat;
+  if (j.uid && !force && j.uid.startsWith(cat + '-')) return j.uid;
+  j.uid = flUidNext(cat, String((j.date || today()).slice(2, 4)), jobs); return j.uid;
+}
+const flRef = (j) => j.uid || j.baseNo || j.id;
+function flMigrateIds(d) {
+  d.lists.flKinds = d.lists.flKinds || [];
+  Object.keys(FL_KINDS).forEach((k) => { if (!d.lists.flKinds.includes(k)) d.lists.flKinds.push(k); });
+  d.lists.districts = d.lists.districts || [];
+  d.jobs.forEach((j) => { j.woNo = j.woNo || ''; if (j.flow) { j.sapNo = j.sapNo || ''; j.qa = j.qa || null; flEnsureUid(j, false, d.jobs); } });
+  return d;
+}
+
+// ---------- permit status ----------
+// one rule for every list, report and chip in the app
+function permitState(exp, has) {
+  if (!has) return { c: 'bad', k: 'none', label: 'بلا رخصة', d: null };
+  if (!exp) return { c: 'mutp', k: 'nodate', label: 'بلا تاريخ انتهاء', d: null };
+  const d = daysTo(exp);
+  if (d < 0) return { c: 'exp', k: 'exp', label: 'منتهية منذ ' + -d + ' يوم', d };
+  if (d < 5) return { c: 'bad', k: 'red', label: d === 0 ? 'تنتهي اليوم' : 'متبقي ' + d + ' يوم', d };
+  if (d < 14) return { c: 'warn', k: 'amber', label: 'متبقي ' + d + ' يوم', d };
+  return { c: 'ok', k: 'green', label: 'سارية · ' + d + ' يوم', d };
+}
+const flPermitState = (j) => permitState(j.permitExp, !!j.permit);
+const PERMIT_LEGEND = [['exp', 'منتهية'], ['bad', 'أقل من 5 أيام'], ['warn', 'أقل من 14 يوماً'], ['ok', 'سارية']];
+function permitLegend() { return html`<div class="row plegend" aria-label="دليل ألوان الرخص">${PERMIT_LEGEND.map((x) => html`<span class="pill ${x[0]}">${x[1]}</span>`)}</div>`; }
+
+// ---------- documentation (naming + GPS) ----------
+const STAGE_CODE = { gate: 'PERMIT', safety: 'SAFETY', dig: 'CIVIL', elec: 'ELEC', asphalt: 'ASPHALT', lab: 'LAB', pdc: 'PDC', ripc: 'RIPC', plan: 'PLAN', closed: 'CLOSE' };
+function flDocName(j, stage, orig) {
+  const ext = (String(orig || '').match(/\.([a-z0-9]{2,5})$/i) || [, 'jpg'])[1].toLowerCase();
+  const part = (s) => String(s || '').replace(/[^A-Za-z0-9\-]/g, '');
+  return [part(flRef(j)) || 'NOID', STAGE_CODE[stage] || 'DOC', today().replace(/-/g, ''), part(j.sapNo) || 'NOSAP'].join('_') + '.' + ext;
+}
+function geoNow(ms) {
+  return new Promise((res) => {
+    if (!navigator.geolocation) return res(null);
+    let done = false; const t = setTimeout(() => { if (!done) { done = true; res(null); } }, ms || 4000);
+    try { navigator.geolocation.getCurrentPosition((p) => { if (done) return; done = true; clearTimeout(t); res({ lat: +p.coords.latitude.toFixed(6), lng: +p.coords.longitude.toFixed(6), acc: Math.round(p.coords.accuracy || 0), tm: nowIso() }); }, () => { if (!done) { done = true; clearTimeout(t); res(null); } }, { enableHighAccuracy: true, timeout: ms || 4000, maximumAge: 60000 }); } catch (e) { done = true; clearTimeout(t); res(null); }
+  });
+}
+const flStageDocs = (j, stage) => DB.docs.filter((d) => d.taskId === j.id && d.stage === stage);
+
+// ---------- QA checklist (before the consultant) ----------
+function flQa(j) {
+  const P = flPath(j); const docs = DB.docs.filter((d) => d.taskId === j.id);
+  const photo = (s) => !P.includes(s) || flStageDocs(j, s).length > 0;
+  const geo = ['dig', 'elec', 'asphalt'].filter((s) => P.includes(s)).every((s) => flStageDocs(j, s).some((d) => d.geo));
+  return [
+    ['الموقع (الحي والإحداثيات)', !!j.district && flHasXY(j)],
+    ['طول الحفر بالمتر', !P.includes('dig') && !P.includes('asphalt') ? true : +j.lengthM > 0],
+    ['رقم الرخصة ومرفقها', !!j.permit && docs.some((d) => d.type === 'تصريح' || d.type === 'تعهد')],
+    ['رقم أمر العمل', !!j.woNo],
+    ['رقم SAP', !!j.sapNo],
+    ['صور المراحل (مدني / كهرباء / أسفلت)', ['dig', 'elec', 'asphalt'].every(photo)],
+    ['الصور موثّقة بالموقع الجغرافي', geo]
+  ];
+}
+const flQaOk = (j) => flQa(j).every((x) => x[1]);
+
+// ---------- critical permits report ----------
+function permitRows() {
+  const rows = [];
+  jobsV().forEach((j) => {
+    if (!j.permit || j.st === 'done' || (j.flow && j.stage === 'closed')) return;
+    const s = permitState(j.permitExp, true); if (s.d === null) return;
+    rows.push({ j, s });
+  });
+  return rows.sort((a, b) => a.s.d - b.s.d);
+}
+function permitNote(j, s) {
+  if (s.k === 'exp') return j.flow && ['lab', 'pdc', 'ripc'].includes(j.stage) ? 'منتهية — أكمل ملف الإغلاق قبل مهلة 60 يوماً' : 'منتهية والعمل قائم — خطر غرامة، جدّد أو أغلق الموقع';
+  if (!j.flow) return j.st === 'hold' ? 'المهمة متوقفة — راجع سبب التوقف' : 'متابعة التنفيذ قبل الانتهاء';
+  if (!flGateOk(j)) return 'لم تُرفق صورة الرخصة بعد';
+  const m = { plan: 'جدولة التنفيذ والتنسيق الجغرافي', gate: 'إرفاق الرخصة وبدء التنفيذ', safety: 'توريد السلامة وفحص HSE', dig: 'إنهاء الحفر', elec: 'إنهاء الأعمال الكهربائية', asphalt: 'إنهاء السفلتة قبل الانتهاء', lab: 'فحص المختبر', pdc: 'متابعة الاستشاري', ripc: 'متابعة المركز' };
+  return m[j.stage] || '';
+}
+function ring(d, c) {
+  const p = Math.max(0, Math.min(1, (d < 0 ? 0 : d) / 30)); const C = 2 * Math.PI * 22;
+  return new Safe('<svg class="pring pr-' + c + '" viewBox="0 0 52 52" aria-hidden="true"><circle cx="26" cy="26" r="22" class="pr-bg"/><circle cx="26" cy="26" r="22" class="pr-fg" stroke-dasharray="' + (C * p).toFixed(1) + ' ' + C.toFixed(1) + '" transform="rotate(-90 26 26)"/><text x="26" y="30" text-anchor="middle">' + (d < 0 ? '!' : d) + '</text></svg>');
+}
+function viewPermits() {
+  const R = permitRows(); const top = R.slice(0, 10);
+  const cnt = (k) => R.filter((r) => r.s.c === k).length;
+  const closing = flJobs().filter(jobInScope).filter((j) => j.permitExp && daysTo(j.permitExp) < 0 && ['asphalt', 'lab', 'pdc', 'ripc'].includes(j.stage));
+  const ev = flJobs().filter(jobInScope).filter((j) => flActive(j) && flIdx(j) > flPath(j).indexOf('dig'));
+  const evOk = ev.filter((j) => flQa(j)[6][1]).length;
+  return html`<div class="ph"><div><h1 style="font-size:28px">تقرير الرخص الحرجة</h1><p>أقرب ${top.length} رخص للانتهاء من المهام والمعاملات الجارية، مع الإجراء المطلوب لكل رخصة. يُحدَّث تلقائياً.</p></div>
+    <div class="row no-print"><button class="btn" type="button" data-act="print">طباعة التقرير</button><button class="btn" type="button" data-act="nav" data-v="flow">دورة المعاملات</button></div></div>
+  <div class="flkpi"><div class="flk"><span>منتهية</span><b class="t-exp">${cnt('exp')}</b></div><div class="flk"><span>أقل من 5 أيام</span><b class="t-bad">${cnt('bad')}</b></div><div class="flk"><span>أقل من 14 يوماً</span><b class="t-warn">${cnt('warn')}</b></div><div class="flk"><span>سارية</span><b class="t-ok">${cnt('ok')}</b></div><div class="flk"><span>صور موثّقة بالموقع</span><b>${evOk}/${ev.length}</b></div></div>
+  ${permitLegend()}
+  ${top.length ? html`<div class="pgrid">${top.map((r, i) => { const j = r.j; const crew = crewById(j.crewId); return html`<article class="card pcrit pc-${r.s.c}"><div class="row" style="gap:12px;flex-wrap:nowrap">${ring(r.s.d, r.s.c)}
+      <div style="min-width:0;flex:1"><div class="row between" style="gap:6px"><b class="ltr">${j.uid || j.permit}</b><span class="t-mut" style="font-size:12px">#${i + 1}</span></div>
+      <div style="font-size:13px">رخصة <b class="ltr">${j.permit}</b> · ${j.kind || j.title}</div>
+      <div class="t-mut" style="font-size:12px">${j.district || j.site || '—'}${crew ? ' · ' + crew.id : ''} · تنتهي <bdi class="ltr">${j.permitExp}</bdi></div></div></div>
+      <p class="pnote"><span class="pill ${r.s.c}">${r.s.label}</span> ${permitNote(j, r.s)}</p>
+      ${j.flow ? html`<button class="btn sm no-print" type="button" data-act="fl-goto" data-id="${j.id}">فتح المعاملة</button>` : html`<button class="btn sm no-print" type="button" data-act="task-open" data-id="${j.id}">فتح المهمة</button>`}</article>`; })}</div>` : html`<p class="empty">لا رخص جارية بتواريخ انتهاء.</p>`}
+  <div class="grid g2"><div class="card"><h3 style="font-size:16px">قاعدة الـ 60 يوماً بعد انتهاء الرخصة</h3><p class="t-mut" style="font-size:13px">بعد انتهاء الرخصة يجب استكمال تقرير المختبر URS ورفع ملف الإغلاق للاستشاري خلال 60 يوماً.</p>
+      ${closing.length ? html`<ul class="nb">${closing.map((j) => { const left = 60 + daysTo(j.permitExp); return html`<li><button type="button" class="lnk" data-act="fl-goto" data-id="${j.id}">${flRef(j)} — ${FL_STAGES[j.stage][0]}</button><span class="pill ${left <= 10 ? 'bad' : left <= 30 ? 'warn' : 'info'}">${left < 0 ? 'تجاوزت المهلة ' + -left + ' يوم' : 'متبقي ' + left + ' يوم'}</span></li>`; })}</ul>` : html`<p class="t-ok" style="font-size:13px">لا ملفات إغلاق بعد انتهاء الرخصة.</p>`}</div>
+    <div class="card"><h3 style="font-size:16px">الأدلة المرئية</h3><p class="t-mut" style="font-size:13px">كل مرحلة تنفيذ تُغلق بصورة موثّقة بالموقع الجغرافي، وتُسمّى ملفاتها: المعرّف_المرحلة_التاريخ_SAP.</p>
+      ${ev.length ? html`<ul class="nb">${ev.map((j) => { const ok = flQa(j)[6][1]; return html`<li><button type="button" class="lnk" data-act="fl-goto" data-id="${j.id}">${flRef(j)} — ${j.district}</button><span class="pill ${ok ? 'ok' : 'warn'}">${ok ? 'موثّقة' : 'ناقصة'}</span></li>`; })}</ul>` : html`<p class="t-mut" style="font-size:13px">لا معاملات بعد مرحلة الحفر.</p>`}</div></div>`;
+}
+
+// ---------- QA box inside the transaction detail ----------
+function flQaBox(j) {
+  const Q = flQa(j); const ok = Q.every((x) => x[1]); const show = flIdx(j) >= flPath(j).indexOf('lab') || j.qa;
+  if (!show && flPath(j).includes('lab')) return '';
+  return html`<div class="gatebox qa"><div class="row between"><b>قائمة التوثيق والجودة قبل الرفع للاستشاري</b>${j.qa ? html`<span class="pill ok">اعتمد ${j.qa.by} · ${fmtT(j.qa.tm)}</span>` : html`<span class="pill ${ok ? 'info' : 'warn'}">${Q.filter((x) => x[1]).length}/${Q.length}</span>`}</div>
+    <ul class="qal">${Q.map((x) => html`<li class="${x[1] ? 'y' : 'n'}">${x[1] ? '✓' : '✗'} ${x[0]}</li>`)}</ul>
+    ${!j.qa && can('edit') && jobInScope(j) ? html`<button class="btn sm ${ok ? 'pri' : ''}" type="button" data-act="fl-qa" data-id="${j.id}" ${ok ? '' : new Safe('aria-disabled="true"')}>اعتماد الجودة</button>` : ''}</div>`;
+}
+
+// ---------- Kanban (drag & drop) ----------
+// tickets carry data-drag="<board>" data-id; columns carry data-drop="<board>" data-k="<column>"
+const KANBAN = {
+  fl: (id, col) => {
+    const j = DB.jobs.find((x) => x.id === id); if (!j || col === j.stage) return;
+    if (col !== flNext(j)) return toast('اسحب المعاملة إلى المرحلة التالية فقط («' + (flNext(j) ? FL_STAGES[flNext(j)][0] : '—') + '»). الإعادة تتم بتسجيل بلاغ.', 'err');
+    FL_ACT['fl-adv']({ id });
+  },
+  task: (id, col) => {
+    const t = taskById(id); if (!t || t.st === col) return;
+    const m = { prog: t.st === 'hold' ? 'task-resume' : 'task-start', hold: 'task-hold', done: 'task-close' }[col];
+    if (!m) return toast('لا يمكن إعادة المهمة إلى «جديدة».', 'err');
+    if (m === 'task-start' && t.st !== 'new') return;
+    ACT[m]({ id });
+  }
+};
+function kbWire() {
+  let drag = null;
+  document.addEventListener('dragstart', (e) => { const el = e.target.closest && e.target.closest('[data-drag]'); if (!el) return; drag = { b: el.dataset.drag, id: el.dataset.id }; el.classList.add('drag'); e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', el.dataset.id); } catch (x) { /* ignore */ } });
+  document.addEventListener('dragover', (e) => { const c = drag && e.target.closest && e.target.closest('[data-drop="' + drag.b + '"]'); if (!c) return; e.preventDefault(); document.querySelectorAll('.kb-over').forEach((x) => { if (x !== c) x.classList.remove('kb-over'); }); c.classList.add('kb-over'); });
+  document.addEventListener('drop', (e) => { const c = drag && e.target.closest && e.target.closest('[data-drop="' + drag.b + '"]'); if (!c) return; e.preventDefault(); const d = drag; drag = null; document.querySelectorAll('.kb-over,.drag').forEach((x) => x.classList.remove('kb-over', 'drag')); if (KANBAN[d.b]) KANBAN[d.b](d.id, c.dataset.k); });
+  document.addEventListener('dragend', () => { drag = null; document.querySelectorAll('.kb-over,.drag').forEach((x) => x.classList.remove('kb-over', 'drag')); });
+}
+function viewTaskKanban(list) {
+  const E = can('request');
+  return html`<div class="board kb" aria-label="لوحة كانبان للمهام">${Object.keys(JOB_ST).map((s) => { const L = list.filter((t) => t.st === s); return html`<section class="col" data-drop="task" data-k="${s}"><h3><span>${JOB_ST[s][0]}</span><span class="badge-n">${L.length}</span></h3>
+    ${L.length ? L.map((t) => { const c = crewById(t.crewId); const ps = t.permit ? permitState(t.permitExp, true) : null; return html`<button type="button" class="flcard" data-act="task-sel" data-id="${t.id}" ${E ? new Safe('draggable="true" data-drag="task"') : ''}>
+      <span class="row between" style="gap:6px"><b class="ltr">${t.uid || t.woNo || t.permit || '—'}</b>${ps ? html`<span class="pill ${ps.c}">${ps.label}</span>` : ''}</span>
+      <span class="flk-t">${t.title}</span><span class="t-mut" style="font-size:12px">${c ? c.id : 'غير مُسندة'} · ${t.site || '—'} · ${fmtD(t.date)}</span>${t.woNo ? html`<span class="t-mut ltr" style="font-size:11px">WO ${t.woNo}</span>` : ''}</button>`; }) : html`<p class="t-mut" style="font-size:12px;margin:6px">—</p>`}</section>`; })}</div>`;
 }
 
 const freshDB = () => seedFlow(seedV3(migrate3(seed())));
@@ -1526,6 +1783,7 @@ function fieldHtml(f) {
   const wide = f.wide ? new Safe(' style="grid-column:1/-1"') : '';
   if (f.type === 'select') return html`<div class="fld"${wide}><label for="${id}">${f.label}</label><select class="in" id="${id}" name="${f.k}" ${f.list ? new Safe('data-change="addable"') : ''}>${opts.map((o) => html`<option value="${o[0]}" ${String(o[0]) === String(f.val) ? new Safe('selected') : ''}>${o[1]}</option>`)}${f.list ? html`<option value="__new__">+ إضافة خيار جديد…</option>` : ''}</select>
     ${f.list ? html`<input class="in" name="${f.k}__new" placeholder="اكتب الخيار الجديد" hidden aria-label="خيار جديد لـ ${f.label}" maxlength="60">` : ''}${f.hint ? html`<span class="hint">${f.hint}</span>` : ''}</div>`;
+  if (f.type === 'combo') { const lid = 'dl_' + f.k; return html`<div class="fld"${wide}><label for="${id}">${f.label}</label><input class="in" id="${id}" name="${f.k}" list="${lid}" value="${f.val == null ? '' : f.val}" placeholder="${f.ph || 'ابحث أو اكتب…'}" autocomplete="off" maxlength="60" data-combo="1"><datalist id="${lid}">${opts.map((o) => html`<option value="${o[0]}">${o[1] || ''}</option>`)}</datalist>${f.hint ? html`<span class="hint">${f.hint}</span>` : ''}</div>`; }
   if (f.type === 'check') return html`<label class="row" style="min-height:44px;font-size:14px${f.wide ? ';grid-column:1/-1' : ''}"><input type="checkbox" name="${f.k}" ${f.val ? new Safe('checked') : ''} style="width:20px;height:20px;accent-color:var(--acc)"> ${f.label}</label>`;
   if (f.type === 'checks') { const vals = f.val || []; const all = opts.map((o) => o[0]).concat(vals.filter((v) => !opts.some((o) => o[0] === v))); return html`<fieldset class="fld" style="grid-column:1/-1;border:1px solid var(--line2);border-radius:12px;padding:12px"><legend style="font-size:13px;font-weight:600;padding:0 6px">${f.label}</legend>
     <div class="chips">${all.map((o) => html`<label class="chip" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" name="${f.k}" value="${o}" ${vals.includes(o) ? new Safe('checked') : ''} style="accent-color:var(--acc)">${o}</label>`)}</div>
@@ -1929,7 +2187,7 @@ function shell(inner) {
   const A = smartAlerts(); const badN = A.filter((x) => x.lvl === 'bad').length;
   const inN = (DB.inbox || []).filter((i) => i.st === 'new').length, repN = (DB.reports || []).filter((r) => r.st !== 'resolved' && daysTo(r.due) <= 3).length, flN = (DB.jobs || []).filter((j) => j.flow && j.stage !== 'closed' && !flGateOk(j) && daysTo(j.date) <= 1).length;
   const groups = [['القيادة', [['dash', 'لوحة الأداء', badN], ['ops', 'غرفة العمليات', openN], ['cluster', 'خريطة الكلاستر', 0]]],
-    ['المعاملات الميدانية', [['flow', 'دورة المعاملات', flN], ['inbox', 'مركز التنسيق', inN], ['reports', 'البلاغات والمعادات', repN], ['tasks', 'المهام والطلبات', DB.jobs.filter((j) => j.st !== 'done' && A.some((x) => x.task === j.id)).length], ['docs', 'الوثائق والمستندات', 0]]],
+    ['المعاملات الميدانية', [['flow', 'دورة المعاملات', flN], ['permits', 'تقرير الرخص الحرجة', jobsV().filter((j) => j.permit && j.permitExp && j.st !== 'done' && daysTo(j.permitExp) < 5).length], ['inbox', 'مركز التنسيق', inN], ['reports', 'البلاغات والمعادات', repN], ['tasks', 'المهام والطلبات', DB.jobs.filter((j) => j.st !== 'done' && A.some((x) => x.task === j.id)).length], ['docs', 'الوثائق والمستندات', 0]]],
     ['الفرق والأصول', [['crews', 'الفرق ومعداتها', DB.crews.filter((c) => crewState(c).lvl === 'bad').length], ['cards', 'بطاقات الفريق', 0], ['equip', 'سجل المعدات', allEquipment().filter((x) => needsCare(x.u)).length], ['inv', 'الحصر والهيكل', hierarchyIssues().length]]],
     ['الإدارة', [['ai', 'الوكيل الذكي', 0]].concat(can('users') ? [['users', 'المستخدمون والطلبات', pendingR]] : []).concat(can('audit') ? [['security', 'الأمان وسجل الدخول', 0]] : []).concat(can('settings') ? [['settings', 'الإعدادات', 0]] : [])]];
   return html`<div class="shell"><nav class="nav" aria-label="القائمة الرئيسية"><div class="brand">${svgLogo(32)}<b>ميدان</b></div>
@@ -2273,24 +2531,26 @@ function viewDash() {
 
 // ---------- tasks & department requests ----------
 function viewTasks() {
-  const E = can('edit'); const f = UI.tf || 'open';
-  const list = jobsV().filter((j) => f === 'all' || (f === 'open' ? j.st !== 'done' : j.st === f));
+  const E = can('edit'); const f = UI.tf || 'open'; const q = String(UI.taskQ || '').trim().toLowerCase();
+  const list = jobsV().filter((j) => (f === 'all' || (f === 'open' ? j.st !== 'done' : j.st === f)) && (!q || [j.title, j.uid, j.woNo, j.permit, j.site, j.crewId].join(' ').toLowerCase().includes(q)));
+  const kb = UI.taskKb;
   const sel = taskById(UI.task) || list[0]; if (sel) UI.task = sel.id;
   const chips = [['open', 'المفتوحة'], ['new', 'جديدة'], ['prog', 'قيد التنفيذ'], ['hold', 'متوقفة'], ['done', 'منجزة'], ['all', 'الكل']];
   return html`<div class="ph"><div><h1 style="font-size:28px">المهام والطلبات</h1><p>كل مهمة بتصريحها وفرقتها وطلباتها للأقسام: تأمين السلامة والإنارة قبل التنفيذ بيوم، وإزالتها بعد التنفيذ، وتحديث حالة الموقع قبل المغادرة.</p></div>${E ? html`<button class="btn pri" type="button" data-act="task-add">+ مهمة جديدة</button>` : ''}</div>
-  <div class="chips">${chips.map((c) => html`<button type="button" class="chip" aria-pressed="${f === c[0]}" data-act="task-filter" data-k="${c[0]}">${c[1]} · ${jobsV().filter((j) => c[0] === 'all' || (c[0] === 'open' ? j.st !== 'done' : j.st === c[0])).length}</button>`)}</div>
-  <div class="split"><aside class="side" style="flex:1 1 340px">
+  <div class="row between"><div class="chips">${kb ? '' : chips.map((c) => html`<button type="button" class="chip" aria-pressed="${f === c[0]}" data-act="task-filter" data-k="${c[0]}">${c[1]} · ${jobsV().filter((j) => c[0] === 'all' || (c[0] === 'open' ? j.st !== 'done' : j.st === c[0])).length}</button>`)}</div>
+    <div class="row"><input class="in" type="search" style="width:240px" placeholder="بحث بالوصف أو أمر العمل أو الرخصة أو الحي" value="${UI.taskQ || ''}" data-input="task-q" aria-label="بحث في المهام"><div class="seg" role="group" aria-label="طريقة العرض"><button type="button" class="chip" data-act="task-kb" data-k="" aria-pressed="${!kb}">قائمة</button><button type="button" class="chip" data-act="task-kb" data-k="1" aria-pressed="${!!kb}">كانبان</button></div></div></div>
+  ${kb ? html`${permitLegend()}<p class="t-mut" style="font-size:12px">اسحب البطاقة بين الأعمدة: «قيد التنفيذ» تبدأ أو تستأنف، «متوقفة» تطلب سبب التوقف، «منجزة» تطلب تحديث حالة الموقع.</p>${viewTaskKanban(jobsV().filter((j) => !q || [j.title, j.uid, j.woNo, j.permit, j.site, j.crewId].join(' ').toLowerCase().includes(q)))}${sel ? taskDetail(sel) : ''}` : html`<div class="split"><aside class="side" style="flex:1 1 340px">
     ${list.length ? html`<ol class="jobs">${list.map((j) => { const c = crewById(j.crewId); const al = smartAlerts().filter((a) => a.task === j.id); return html`<li class="job" ${E && f === 'all' ? new Safe('draggable="true"') : ''} data-job="${j.id}" style="${sel && sel.id === j.id ? 'border:2px solid var(--acc);background:#fff' : ''}">
-      <button type="button" data-act="task-sel" data-id="${j.id}" style="all:unset;cursor:pointer;flex:1 1 200px;min-width:0;display:flex;flex-direction:column;gap:2px"><b style="font-size:14px">${j.title}</b><span class="t-mut" style="font-size:12px">${c ? c.id : 'غير مُسندة'} · ${j.dept} · ${fmtD(j.date)}</span></button>
+      <button type="button" data-act="task-sel" data-id="${j.id}" style="all:unset;cursor:pointer;flex:1 1 200px;min-width:0;display:flex;flex-direction:column;gap:2px"><b style="font-size:14px">${j.title}</b><span class="t-mut" style="font-size:12px">${j.uid ? j.uid + ' · ' : ''}${c ? c.id : 'غير مُسندة'} · ${j.dept} · ${fmtD(j.date)}${j.woNo ? ' · WO ' + j.woNo : ''}</span></button>
       <span class="pill ${JOB_ST[j.st][1]}">${JOB_ST[j.st][0]}</span>${al.length ? html`<span class="pill ${al.some((a) => a.lvl === 'bad') ? 'bad' : 'warn'}" title="تنبيهات">${al.length} !</span>` : ''}
       ${E ? html`<span style="display:flex;flex-direction:column;gap:2px"><button class="btn sm" type="button" data-act="job-up" data-id="${j.id}" aria-label="تقديم ${j.title}" style="min-height:22px;padding:0 10px">▲</button><button class="btn sm" type="button" data-act="job-down" data-id="${j.id}" aria-label="تأخير ${j.title}" style="min-height:22px;padding:0 10px">▼</button></span>` : ''}</li>`; })}</ol>` : html`<p class="empty">لا مهام في هذا التصنيف.</p>`}
-  </aside><section class="wide">${sel ? taskDetail(sel) : ''}</section></div>`;
+  </aside><section class="wide">${sel ? taskDetail(sel) : ''}</section></div>`}`;
 }
 function taskDetail(t) {
   const E = can('edit'), R = can('request'); const c = crewById(t.crewId); const al = smartAlerts().filter((a) => a.task === t.id); const ds = docStatus(t);
   const docs = DB.docs.filter((d) => d.taskId === t.id || (CREW_LEVEL_DOCS.includes(d.type) && !d.taskId && d.crewId === t.crewId));
   return html`<div class="card"><div class="row between"><div><h2 style="font-size:21px">${t.title}</h2><span class="t-mut" style="font-size:13px">${t.dept} · التنفيذ ${fmtD(t.date)} (${t.date}) · ${t.site}</span></div><span class="pill ${JOB_ST[t.st][1]}">${JOB_ST[t.st][0]}${t.st === 'hold' && t.hold ? ' — ' + t.hold.reason : ''}</span></div>
-    <div class="grid g4"><div class="kv"><span>التصريح</span><b>${t.permit || '—'}</b>${t.permitExp ? html`<span class="${daysTo(t.permitExp) < 0 ? 'pill bad' : daysTo(t.permitExp) <= 3 ? 'pill warn' : 't-mut'}" style="font-size:12px">ينتهي ${fmtD(t.permitExp)}</span>` : ''}</div>
+    <div class="grid g4"><div class="kv"><span>التصريح</span><b>${t.permit || '—'}</b>${t.permitExp ? html`<span class="pill ${permitState(t.permitExp, true).c}" style="font-size:12px;width:max-content">${permitState(t.permitExp, true).label} · ${t.permitExp}</span>` : ''}${t.woNo || t.uid ? html`<span class="t-mut ltr" style="font-size:12px">${[t.uid, t.woNo ? 'WO ' + t.woNo : ''].filter(Boolean).join(' · ')}</span>` : ''}</div>
       <div class="kv"><span>الفرقة</span><b>${c ? c.name : 'غير مُسندة'}</b>${c ? html`<span class="pill ${crewState(c).lvl}" style="width:max-content">${crewState(c).label}</span>` : ''}</div>
       <div class="kv"><span>المهندس</span><b>${c && c.eng ? c.eng.name : '—'}</b><span>${c ? contactLinks(c.eng) : ''}</span></div>
       <div class="kv"><span>المراقب</span><b>${c ? c.sup.name : '—'}</b><span>${c ? contactLinks(c.sup) : ''}</span></div></div>
@@ -2362,10 +2622,11 @@ function taskFields(t) {
   t = t || { title: '', permit: '', permitExp: '', site: '', crewId: UI.sel || '', dept: 'التنفيذ', date: addDays(1) };
   return [{ k: 'title', label: 'وصف المهمة', val: t.title, req: true, wide: true }, { k: 'permit', label: 'رقم التصريح', val: t.permit, ltr: true, ph: 'R7047' }, { k: 'permitExp', label: 'انتهاء التصريح', type: 'date', val: t.permitExp, ltr: true },
     { k: 'crewId', label: 'الفرقة', type: 'select', val: t.crewId, opts: [['', '— غير مُسندة']].concat(DB.crews.map((c) => [c.id, c.name])) }, { k: 'dept', label: 'القسم', type: 'select', val: t.dept, list: 'depts' },
-    { k: 'date', label: 'تاريخ التنفيذ', type: 'date', val: t.date, ltr: true, req: true }, { k: 'site', label: 'الموقع / الحي', val: t.site }];
+    { k: 'date', label: 'تاريخ التنفيذ', type: 'date', val: t.date, ltr: true, req: true }, { k: 'site', label: 'الموقع / الحي', type: 'combo', opts: districtOpts(), val: t.site, hint: 'ابحث في أحياء الرياض أو اكتب موقعاً جديداً' },
+    { k: 'woNo', label: 'رقم أمر العمل', val: t.woNo || '', ltr: true, ph: '802xxxxxxx' }];
 }
-function taskValidate(v) { if (!validDate(v.date)) return 'تاريخ التنفيذ غير صالح.'; if (v.permitExp && !validDate(v.permitExp)) return 'تاريخ انتهاء التصريح غير صالح.'; if (v.permit && !/^[A-Za-z0-9؀-ۿ\-\/ ]{1,30}$/.test(v.permit)) return 'رقم التصريح غير صالح.'; return ''; }
-function taskFromForm(v) { const c = crewById(v.crewId); return { title: v.title.trim().slice(0, 140), permit: v.permit.trim(), permitExp: v.permitExp, crewId: v.crewId, dept: v.dept, date: v.date, site: v.site.trim().slice(0, 80) || (c ? c.site : '') }; }
+function taskValidate(v) { if (!validDate(v.date)) return 'تاريخ التنفيذ غير صالح.'; if (v.woNo && !/^\d{6,12}$/.test(String(v.woNo).trim())) return 'رقم أمر العمل أرقام فقط (6 إلى 12 رقماً).'; if (v.permit && !v.permitExp) return 'أدخل تاريخ انتهاء التصريح لتحديد لونه وحالته.'; if (v.permitExp && !validDate(v.permitExp)) return 'تاريخ انتهاء التصريح غير صالح.'; if (v.permit && !/^[A-Za-z0-9؀-ۿ\-\/ ]{1,30}$/.test(v.permit)) return 'رقم التصريح غير صالح.'; return ''; }
+function taskFromForm(v) { const c = crewById(v.crewId); return { title: v.title.trim().slice(0, 140), permit: v.permit.trim(), permitExp: v.permitExp, crewId: v.crewId, dept: v.dept, date: v.date, site: rememberDistrict(String(v.site || '').trim().slice(0, 80)) || (c ? c.site : ''), woNo: String(v.woNo || '').trim() }; }
 function localReview() {
   const A = smartAlerts(); if (!A.length) return 'لا توجد نواقص: كل التصاريح والمستندات وترتيبات السلامة مكتملة.';
   const by = {}; A.forEach((a) => { const k = a.to || (a.title.startsWith('نقص مستند') ? 'المستندات' : a.title.includes('تصريح') ? 'التصاريح' : a.crew ? 'الفرق والمعدات' : 'التنفيذ'); (by[k] = by[k] || []).push(a); });
@@ -2779,7 +3040,7 @@ function render() {
   const app = $('#app');
   if (!CUR) { if (MAP) { MAP.remove(); MAP = null; } app.innerHTML = viewAuth().s; translateUI(app); mountGoogleBtn(); const f = app.querySelector('input'); if (f) f.focus(); return; }
   if (!can('users') && UI.view === 'users') UI.view = 'ops';
-  const v = { flow: viewFlow, cluster: viewCluster, inbox: viewInbox, reports: viewReports, cards: viewCards, dash: viewDash, tasks: viewTasks, docs: viewDocs3, inv: viewInv, ops: viewOps, crews: viewCrews, equip: viewEquip3, ai: viewAI, users: viewUsers3, security: viewSecurity, settings: viewSettings3 }[UI.view] || viewDash;
+  const v = { flow: viewFlow, permits: viewPermits, cluster: viewCluster, inbox: viewInbox, reports: viewReports, cards: viewCards, dash: viewDash, tasks: viewTasks, docs: viewDocs3, inv: viewInv, ops: viewOps, crews: viewCrews, equip: viewEquip3, ai: viewAI, users: viewUsers3, security: viewSecurity, settings: viewSettings3 }[UI.view] || viewDash;
   if (MAP) { MAP.remove(); MAP = null; }
   flBeforeRender();
   const entering = UI.lastView !== UI.view; UI.lastView = UI.view;
@@ -2832,7 +3093,7 @@ const ACT = {
   'n-dismiss': (d) => { const n = DB.notifs.find((x) => x.id === d.id); if (!n) return; n.st = 'dismissed'; audit(CUR.name, 'تجاهل تنسيق', n.title); save(); render(); },
   layer: (d) => { UI.layers[d.k] = !UI.layers[d.k]; render(); },
   'crew-sel': (d) => { UI.sel = d.id; UI.move = null; render(); },
-  'crew-add': () => { if (!need('edit')) return; openForm('فرقة جديدة', [{ k: 'id', label: 'رمز الفرقة', ltr: true, req: true, ph: 'X-07' }, { k: 'name', label: 'اسم الفرقة', req: true }, { k: 'type', label: 'النوع', type: 'select', val: 'excav', list: 'crewTypes' }, { k: 'projectId', label: 'المشروع (إلزامي)', type: 'select', val: (DB.projects[0] || {}).id, list: 'projects', hint: 'مشروع جديد يُنشأ على الفرع الأول؛ عدّل فرعه من «الحصر والهيكل»' }, { k: 'site', label: 'الموقع / الحي', req: true },
+  'crew-add': () => { if (!need('edit')) return; openForm('فرقة جديدة', [{ k: 'id', label: 'رمز الفرقة', ltr: true, req: true, ph: 'X-07' }, { k: 'name', label: 'اسم الفرقة', req: true }, { k: 'type', label: 'النوع', type: 'select', val: 'excav', list: 'crewTypes' }, { k: 'projectId', label: 'المشروع (إلزامي)', type: 'select', val: (DB.projects[0] || {}).id, list: 'projects', hint: 'مشروع جديد يُنشأ على الفرع الأول؛ عدّل فرعه من «الحصر والهيكل»' }, { k: 'site', label: 'الموقع / الحي', type: 'combo', opts: districtOpts(), req: true },
       { k: 'engEmp', label: 'المهندس المسؤول (إلزامي) من سجل الموظفين', type: 'select', val: '', opts: empOpts() }, { k: 'eng', label: 'أو اسم المهندس يدوياً' }, { k: 'engPhone', label: 'جوال المهندس', ltr: true, ph: '05xxxxxxxx' },
       { k: 'supEmp', label: 'المراقب (إلزامي) من سجل الموظفين', type: 'select', val: '', opts: empOpts() }, { k: 'sup', label: 'أو اسم المراقب يدوياً' }, { k: 'supPhone', label: 'جوال المراقب', ltr: true, ph: '05xxxxxxxx' }, { k: 'car', label: 'سيارة المراقب (الموديل)' }, { k: 'plate', label: 'لوحة سيارة المراقب (إلزامي)', req: true }],
     (v) => { const id = v.id.trim().toUpperCase().slice(0, 12); if (!/^[A-Z0-9-]{2,12}$/.test(id) || crewById(id)) return 'رمز الفرقة غير صالح أو مستخدم.'; const pr = projById(v.projectId); if (!pr) return 'اختر المشروع.';
@@ -2841,7 +3102,7 @@ const ACT = {
       const base = crewById(UI.sel) || DB.crews[0] || { lat: 24.7136, lng: 46.6753 };
       DB.crews.push({ id, name: v.name.trim().slice(0, 60), type: TYPES[v.type] ? v.type : 'excav', branch: pr.branch, projectId: pr.id, site: v.site.trim().slice(0, 60), lat: base.lat + 0.01, lng: base.lng + 0.01, seen: nowIso(), eng: E.p, hold: null, sup: Object.assign(S.p, { car: { id: uid('car'), kind: 'سيارة', model: v.car.trim().slice(0, 40) || '—', code: v.plate.trim().slice(0, 20), st: 'ok', oil: OIL_INTERVAL, tested: false, odo: 0, maint: {}, regExp: '' } }), workers: [], eq: [] });
       UI.sel = id; audit(CUR.name, 'إضافة فرقة', id); toast('أُضيفت الفرقة. أسند لها معدات بسائقيها لتصبح جاهزة.'); }, { note: 'السلسلة الإلزامية: المعدة بسائقها ← المراقب ← المهندس ← المشروع ← الفرع.' }); },
-  'crew-edit': () => { if (!need('edit')) return; const c = curCrew(); openForm('تعديل ' + c.name, [{ k: 'name', label: 'اسم الفرقة', val: c.name, req: true }, { k: 'type', label: 'النوع', type: 'select', val: c.type, list: 'crewTypes' }, { k: 'projectId', label: 'المشروع (إلزامي)', type: 'select', val: c.projectId, list: 'projects' }, { k: 'site', label: 'الموقع / الحي', val: c.site, req: true },
+  'crew-edit': () => { if (!need('edit')) return; const c = curCrew(); openForm('تعديل ' + c.name, [{ k: 'name', label: 'اسم الفرقة', val: c.name, req: true }, { k: 'type', label: 'النوع', type: 'select', val: c.type, list: 'crewTypes' }, { k: 'projectId', label: 'المشروع (إلزامي)', type: 'select', val: c.projectId, list: 'projects' }, { k: 'site', label: 'الموقع / الحي', type: 'combo', opts: districtOpts(), val: c.site, req: true },
       { k: 'engEmp', label: 'المهندس من سجل الموظفين', type: 'select', val: c.eng ? c.eng.empId || '' : '', opts: empOpts() }, { k: 'eng', label: 'أو اسم المهندس يدوياً', val: c.eng ? c.eng.name : '' }, { k: 'engPhone', label: 'جوال المهندس', ltr: true, val: c.eng ? c.eng.phone : '', ph: '05xxxxxxxx' },
       { k: 'lat', label: 'خط العرض', type: 'number', val: c.lat, ltr: true }, { k: 'lng', label: 'خط الطول', type: 'number', val: c.lng, ltr: true }, { k: 'del', label: 'حذف هذه الفرقة نهائياً مع عمالها ومعداتها', type: 'check', val: false, wide: true }],
     (v) => { if (v.del) { DB.crews = DB.crews.filter((x) => x.id !== c.id); DB.jobs.forEach((j) => { if (j.crewId === c.id) j.crewId = ''; }); UI.sel = DB.crews[0] ? DB.crews[0].id : null; audit(CUR.name, 'حذف فرقة', c.id); return; }
@@ -2953,6 +3214,7 @@ const ACT = {
   'docs-crew': (d) => { const c = crewById(d.id); UI.person = c && c.eng ? c.eng.name : c ? c.sup.name : null; UI.view = 'docs'; render(); },
   'task-filter': (d) => { UI.tf = d.k; UI.task = null; render(); },
   'task-sel': (d) => { UI.task = d.id; render(); },
+  'task-kb': (d) => { UI.taskKb = !!d.k; render(); },
   'task-open': (d) => { const t = taskById(d.id); if (!t) return; UI.task = t.id; UI.tf = t.st === 'done' ? 'all' : 'open'; UI.view = 'tasks'; render(); },
   'task-add': () => { if (!need('edit')) return; openForm('مهمة جديدة', taskFields(null), (v) => { const e = taskValidate(v); if (e) return e; const t = newTask(Object.assign(taskFromForm(v), { workType: classifyWork(v.title) })); DB.jobs.unshift(t); ensureTeamForm(t); UI.task = t.id; UI.tf = 'open'; audit(CUR.name, 'إضافة مهمة', t.title); toast('أُضيفت المهمة، وأُنشئ طلب تأمين السلامة والإنارة تلقائياً قبل التنفيذ بيوم.'); }, { note: 'سيُنشأ تلقائياً طلب لقسم السلامة والإنارة لتأمين الموقع قبل يوم التنفيذ.' }); },
   'task-edit': (d) => { if (!need('edit')) return; const t = taskById(d.id); if (!t) return; openForm('تعديل المهمة', taskFields(t).concat([{ k: 'del', label: 'حذف هذه المهمة', type: 'check', val: false, wide: true }]), (v) => {
@@ -3077,6 +3339,7 @@ document.addEventListener('change', (e) => {
   if (k === 'stg-mode') { if (!need('settings')) return; if (el.value === 'server' || CLOUD) return; gcfg().mode = el.value; persistLocal(); if (el.value === 'local') { GW.status = ''; } render(); return; }
   if (k === 'cover-upload' && el.files && el.files[0]) { if (!need('settings')) return; const file = el.files[0]; el.value = ''; if (!/^image\/(png|jpeg|webp)$/.test(file.type) || file.size > 4 * 1024 * 1024) return toast('PNG أو JPG أو WEBP حتى 4 ميجابايت.', 'err');
     const fr = new FileReader(); fr.onload = () => { const url = String(fr.result); if (!/^data:image\/(png|jpeg|webp);base64,/.test(url)) return toast('صورة غير صالحة.', 'err'); const img = new Image(); img.onload = () => { const w = Math.min(1600, img.width), h = Math.round(img.height * (w / img.width)); const cv = document.createElement('canvas'); cv.width = w; cv.height = Math.min(h, 700); cv.getContext('2d').drawImage(img, 0, 0, w, h); let src = cv.toDataURL('image/webp', 0.72); if (!/^data:image\/webp/.test(src)) src = cv.toDataURL('image/jpeg', 0.75); if (!imgOk(src)) return toast('تعذّر معالجة الصورة.', 'err'); cfg().brand.cover = src; audit(CUR.name, 'تغيير صورة الهيدر', file.name); save(); render(); }; img.onerror = () => toast('صورة غير صالحة.', 'err'); img.src = url; }; fr.readAsDataURL(file); return; }
+  if (k === 'fl-dist') { UI.flDist = el.value; return render(); }
   if (k === 'inv-branch') { UI.invBranch = el.value; UI.invProj = ''; return render(); }
   if (k === 'inv-proj') { UI.invProj = el.value; return render(); }
   if (k === 'tx-done') { UI.txDone = el.checked; return render(); }
@@ -3095,9 +3358,10 @@ document.addEventListener('change', (e) => {
   }
 });
 Object.assign(ACT, FL_ACT); applyActRules(ACT);
-const INPUTS = { 'card-q': 'cardQ', 'eq-q': 'eqQ', 'tx-q': 'txQ', 'emp-q': 'empQ' };
+const INPUTS = { 'card-q': 'cardQ', 'eq-q': 'eqQ', 'tx-q': 'txQ', 'emp-q': 'empQ', 'fl-q': 'flQ', 'task-q': 'taskQ' };
 document.addEventListener('input', (e) => { const el = e.target.closest('[data-input]'); if (!el || !INPUTS[el.dataset.input]) return; UI[INPUTS[el.dataset.input]] = el.value; const pos = el.selectionStart; const sel = '[data-input="' + el.dataset.input + '"]'; render(); const n = $(sel); if (n) { n.focus(); n.setSelectionRange(pos, pos); } });
 // drag & drop ordering for jobs
+kbWire();
 document.addEventListener('dragstart', (e) => { const li = e.target.closest && e.target.closest('[data-job]'); if (!li) return; UI.dragId = li.dataset.job; li.classList.add('drag'); e.dataTransfer.effectAllowed = 'move'; });
 document.addEventListener('dragover', (e) => { if (UI.dragId && e.target.closest && e.target.closest('[data-job]')) e.preventDefault(); });
 document.addEventListener('drop', (e) => { const li = e.target.closest && e.target.closest('[data-job]'); if (!li || !UI.dragId) return; e.preventDefault(); const from = DB.jobs.findIndex((j) => j.id === UI.dragId), to = DB.jobs.findIndex((j) => j.id === li.dataset.job); if (from > -1 && to > -1 && from !== to) { const [it] = DB.jobs.splice(from, 1); DB.jobs.splice(to, 0, it); save(); } UI.dragId = null; render(); });
