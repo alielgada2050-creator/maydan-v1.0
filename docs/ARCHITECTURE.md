@@ -63,3 +63,21 @@
   - **Stage photos:** finishing the civil, electrical or asphalt stage requires a photo. The photo is geo-tagged and renamed `ID_STAGE_YYYYMMDD_SAP.ext`.
   - **QA checklist:** location, length, permit and its attachment, WO, SAP, and geo-tagged stage photos. It must be approved («اعتماد الجودة») before a file moves from the lab to PDC.
   - **Kanban drag and drop:** elements use `data-drag` / `data-drop`. A flow ticket can only be dropped on the next stage. Task columns map to the start / hold / resume / close actions.
+
+## Occupational health & safety (v9)
+`src/modules/40-hse.js` condenses the supplied SEC documents into a knowledge base:
+- DHSEM 01-012 (distribution safety rules)
+- DHSEM 01-002 (safety documents, durations and authority)
+- the Golden Rules
+- the LV work-permit training
+- the Contractor Team Work Form
+
+It feeds the following features:
+- **Recommendations per transaction:** required safety documents, PTW duration authority (120-day maximum), team authorization gaps, excavation depth, heat season, cranes, and library items.
+- **Site checklist before HSE approval:** EXC items plus library site items; every item is mandatory.
+- **Three bilingual generators (Arabic/English):** the Contractor Team Work Form (same layout as the SEC form), the Safe Work Procedure (JSP), and the Risk Assessment (5×5 matrix with residual risk).
+- **Procedure / risk-assessment analyser:**
+  - Accepts .docx, text-based PDF, txt, xlsx, or pasted text.
+  - Runs a local keyword analysis, plus the AI provider (FreeLLMAPI first) when one is configured. The AI returns JSON.
+  - The user picks the items to keep, and they are stored in `DB.hseLib[workType]`.
+- **Employee authorization:** `authCat` / `authType` / `authNo` fields, plus the «بطاقة التأهيل» card with its expiry date.

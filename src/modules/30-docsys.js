@@ -120,7 +120,7 @@ function viewPermits() {
   const ev = flJobs().filter(jobInScope).filter((j) => flActive(j) && flIdx(j) > flPath(j).indexOf('dig'));
   const evOk = ev.filter((j) => flQa(j)[6][1]).length;
   return html`<div class="ph"><div><h1 style="font-size:28px">تقرير الرخص الحرجة</h1><p>أقرب ${top.length} رخص للانتهاء من المهام والمعاملات الجارية، مع الإجراء المطلوب لكل رخصة. يُحدَّث تلقائياً.</p></div>
-    <div class="row no-print"><button class="btn" type="button" data-act="print">طباعة التقرير</button><button class="btn" type="button" data-act="nav" data-v="flow">دورة المعاملات</button></div></div>
+    <div class="row no-print"><button class="btn" type="button" data-act="print-page">طباعة التقرير</button><button class="btn" type="button" data-act="nav" data-v="flow">دورة المعاملات</button></div></div>
   <div class="flkpi"><div class="flk"><span>منتهية</span><b class="t-exp">${cnt('exp')}</b></div><div class="flk"><span>أقل من 5 أيام</span><b class="t-bad">${cnt('bad')}</b></div><div class="flk"><span>أقل من 14 يوماً</span><b class="t-warn">${cnt('warn')}</b></div><div class="flk"><span>سارية</span><b class="t-ok">${cnt('ok')}</b></div><div class="flk"><span>صور موثّقة بالموقع</span><b>${evOk}/${ev.length}</b></div></div>
   ${permitLegend()}
   ${top.length ? html`<div class="pgrid">${top.map((r, i) => { const j = r.j; const crew = crewById(j.crewId); return html`<article class="card pcrit pc-${r.s.c}"><div class="row" style="gap:12px;flex-wrap:nowrap">${ring(r.s.d, r.s.c)}

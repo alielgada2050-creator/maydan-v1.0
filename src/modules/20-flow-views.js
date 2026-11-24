@@ -79,6 +79,7 @@ function flDetail(j) {
         <span>مجلد Drive</span><b>${gf ? html`<a href="${'https://drive.google.com/drive/folders/' + gf.id}" target="_blank" rel="noopener noreferrer">فتح مجلد «${flFolderName(j)}»</a>` : gwOn() ? html`<button class="btn sm" type="button" data-act="fl-folder" data-id="${j.id}">إنشاء مجلد المعاملة</button>` : html`<span class="t-mut">يُنشأ عند الربط مع Google Drive</span>`}</b></div></div>
     ${flStageActions(j)}
     ${flQaBox(j)}
+    ${flHseBox(j)}
     ${j.gate && j.gate.mode === 'override' && !j.gate.fileId ? html`<p class="alert wr">تجاوز بواسطة ${j.gate.by}: ${j.gate.reason} — يجب إرفاق الرخصة قبل ${j.gate.due}. <button class="btn sm" type="button" data-act="fl-gate" data-id="${j.id}" data-k="late">إرفاق الرخصة الآن</button></p>` : ''}
     <div class="grid g2"><div><h3 style="font-size:15px">المعاملات القريبة (${nb.length}) — نطاق ${cfg().flow.r2} كم</h3>${nb.length ? html`<ul class="nb">${nb.map((x) => html`<li><button type="button" class="lnk" data-act="fl-open" data-id="${x.o.id}">${x.o.baseNo || x.o.id} — ${x.o.kind}</button><span class="t-mut">${x.o.district} · ${x.o.date}${x.dist != null ? ' · ' + x.dist.toFixed(1) + ' كم' : ''} · ${x.why.join('، ')}</span></li>`)}</ul>` : html`<p class="t-mut">لا توجد معاملات قريبة.</p>`}</div>
       <div><h3 style="font-size:15px">المستندات (${docs.length})</h3>${docs.length ? html`<ul class="nb">${docs.map((d) => html`<li><span>${d.type} — <span class="ltr">${d.fileName || d.title}</span>${d.geo ? html` <a class="pill ok" href="${'https://www.google.com/maps?q=' + d.geo.lat + ',' + d.geo.lng}" target="_blank" rel="noopener noreferrer" title="دقة ${d.geo.acc} م">GPS</a>` : ''}</span>${d.fileId ? html`<button class="btn sm" type="button" data-act="doc-file" data-id="${d.id}">تنزيل</button>` : ''}</li>`)}</ul>` : html`<p class="t-mut">لا مستندات بعد.</p>`}</div></div>
@@ -212,7 +213,7 @@ function flJobFields(j) {
     { k: 'permitExp', label: 'تاريخ انتهاء الرخصة', type: 'date', val: j.permitExp || '' }, { k: 'date', label: 'تاريخ التنفيذ', type: 'date', val: j.date || addDays(1) },
     { k: 'district', label: 'الحي (ابحث في أحياء الرياض)', type: 'combo', opts: districtOpts(), val: j.district || '', hint: 'اختر من القائمة أو اكتب حياً جديداً فيُضاف' }, { k: 'station', label: 'المحطة', val: j.station || '' }, { k: 'plan', label: 'المخطط', val: j.plan || '' }, { k: 'plot', label: 'القطعة', val: j.plot || '' },
     { k: 'lat', label: 'خط العرض', type: 'number', val: j.lat || '', ltr: true, hint: 'إن تُرك فارغاً يُملأ بمركز الحي تقريبياً' }, { k: 'lng', label: 'خط الطول', type: 'number', val: j.lng || '', ltr: true },
-    { k: 'lengthM', label: 'طول الحفر (م)', type: 'number', val: j.lengthM || '' }, { k: 'barrier', label: 'نوع الصبات', type: 'select', opts: [['صبات خرسانية', 'صبات خرسانية'], ['صبات بلاستيكية', 'صبات بلاستيكية']], val: (j.safety && j.safety.barrier) || 'صبات خرسانية' },
+    { k: 'lengthM', label: 'طول الحفر (م)', type: 'number', val: j.lengthM || '' }, { k: 'depthM', label: 'عمق الحفر (م)', type: 'number', val: j.depthM || '', hint: 'أكثر من 1.5 م يتطلب تدعيماً وسلّماً' }, { k: 'barrier', label: 'نوع الصبات', type: 'select', opts: [['صبات خرسانية', 'صبات خرسانية'], ['صبات بلاستيكية', 'صبات بلاستيكية']], val: (j.safety && j.safety.barrier) || 'صبات خرسانية' },
     { k: 'crewId', label: 'الفرقة المنفذة', type: 'select', opts: [['', '— بدون —']].concat(DB.crews.map((c) => [c.id, c.id + ' · ' + (TYPES[c.type] ? TYPES[c.type][0] : '') + ' · ' + c.sup.name])), val: j.crewId || '' },
     { k: 'note', label: 'ملاحظات', type: 'textarea', val: j.note || '' }];
 }
@@ -220,7 +221,7 @@ function flApply(j, v) {
   const oldCat = j.uid ? flCatOf(j) : '';
   ['kind', 'office', 'baseNo', 'txNo', 'permit', 'permitType', 'permitExp', 'date', 'district', 'station', 'plan', 'plot', 'crewId', 'note', 'woNo', 'sapNo'].forEach((k) => { j[k] = String(v[k] || '').trim().slice(0, 200); });
   j.district = rememberDistrict(j.district);
-  j.lat = parseFloat(v.lat) || 0; j.lng = parseFloat(v.lng) || 0; j.lengthM = Math.max(0, Math.round(+v.lengthM || 0));
+  j.lat = parseFloat(v.lat) || 0; j.lng = parseFloat(v.lng) || 0; j.lengthM = Math.max(0, Math.round(+v.lengthM || 0)); j.depthM = Math.max(0, Math.min(20, Math.round((+v.depthM || 0) * 10) / 10));
   if (!flHasXY(j) && DISTRICT_XY[j.district]) { j.lat = DISTRICT_XY[j.district][0]; j.lng = DISTRICT_XY[j.district][1]; j.xyApprox = true; } else if (v.lat) j.xyApprox = false;
   j.cat = FL_CATS[v.cat] ? v.cat : ''; const nc = flCatOf(j); flEnsureUid(j, !!oldCat && oldCat !== nc);
   j.safety = j.safety || {}; j.safety.barrier = v.barrier || 'صبات خرسانية';
@@ -297,6 +298,7 @@ const FL_ACT = {
     const j = DB.jobs.find((x) => x.id === d.id); if (!j || !need('edit')) return;
     if (d.k === 'req') { j.safety.reqAt = ''; flSafetyRequest(j); toast('أُرسل طلب التوريد لفريق السلامة وطلب فحص HSE.'); }
     if (d.k === 'delivered') { j.safety.delivered = nowIso(); flLog(j, j.stage, 'تأكيد توريد ' + (j.safety.barrier || 'الصبات') + ' والإنارة'); toast('سُجّل توريد السلامة والإنارة.'); }
+    if (d.k === 'hse' && !d.ok) { const L = hseSiteChecks(j); return openForm('فحص الموقع قبل اعتماد HSE', [{ k: 'c', label: 'قائمة الفحص (' + L.length + ' بنداً) — كل البنود إلزامية', type: 'checks', opts: L.map((x) => [x, x]), val: [] }], (v) => { const n = (v.c || []).filter((x) => L.includes(x)).length; if (n < L.length) return 'بقي ' + (L.length - n) + ' بنداً غير محقق — لا يُعتمد الفحص قبل استيفاء كل البنود.'; j.safety.checks = L.slice(); FL_ACT['fl-safety']({ id: j.id, k: 'hse', ok: 1 }); }, { ok: 'اعتماد فحص HSE', note: 'البنود من قائمة تصريح الحفر EXC وقواعد سلامة التوزيع ومكتبة إجراءات الشركة لهذا النوع من الأعمال.' }); }
     if (d.k === 'hse') { const crew = crewById(j.crewId); const q = crew ? flCrewQual(crew) : []; j.safety.hse = nowIso(); j.safety.hseNotes = q.slice(0, 10); flLog(j, j.stage, 'اعتماد فحص HSE' + (q.length ? ' مع ' + q.length + ' ملاحظات' : '')); toast(q.length ? 'اعتُمد الفحص مع ' + q.length + ' ملاحظات على البطاقات.' : 'اعتُمد فحص HSE.'); }
     save(); render();
   },
@@ -308,7 +310,7 @@ const FL_ACT = {
   'fl-ai': () => flAi(),
   'fl-qa': (d) => { const j = DB.jobs.find((x) => x.id === d.id); if (!j || !need('edit')) return; const miss = flQa(j).filter((x) => !x[1]); if (miss.length) return toast('ناقص: ' + miss.map((x) => x[0]).join('، '), 'err');
     j.qa = { by: CUR.name, tm: nowIso() }; flLog(j, j.stage, 'اعتماد قائمة التوثيق والجودة'); audit(CUR.name, 'اعتماد الجودة', flRef(j)); save(); toast('اعتُمدت قائمة التوثيق — يمكن الرفع للاستشاري.'); render(); },
-  'print': () => { document.body.classList.add('pp'); const off = () => { document.body.classList.remove('pp'); window.removeEventListener('afterprint', off); }; window.addEventListener('afterprint', off); window.print(); setTimeout(off, 1500); },
+  'print-page': () => { document.body.classList.add('pp'); const off = () => { document.body.classList.remove('pp'); window.removeEventListener('afterprint', off); }; window.addEventListener('afterprint', off); window.print(); setTimeout(off, 1500); },
   'fl-tick': () => { FL_TICKED = ''; const n = flTick(); FL_TICKED = today(); toast(n ? 'أُنشئ ' + n + ' تنبيهات جديدة.' : 'لا تنبيهات جديدة — كل شيء محدّث.'); render(); },
   'fl-fwd': (d) => {
     const it = DB.inbox.find((x) => x.id === d.id); if (!it || !need('notify')) return; const jobs = it.jobIds.map((id) => DB.jobs.find((j) => j.id === id)).filter(Boolean);
@@ -376,6 +378,8 @@ function seedFlow(d) {
   rows.forEach((j) => { j.st = j.stage === 'plan' || j.stage === 'gate' ? 'new' : 'prog'; d.jobs.push(j); });
   (d.employees || []).forEach((e, i) => { if (i % 4 === 3) return; e.docs = e.docs || {}; const sx = (exp) => ({ exp, fileId: '', fileName: '', size: 0, tm: nowIso(), by: 'بيانات تجريبية' });
     e.docs['صورة الإقامة'] = sx(T(180 + i)); e.docs['كارت الأمن الصناعي'] = sx(i % 5 === 0 ? T(-4) : i % 7 === 0 ? T(12) : T(150)); e.docs['كارت التأمين الطبي'] = sx(T(90 + i));
+    const jb = e.job || ''; e.authCat = /مراقب|مشرف|ملاحظ/.test(jb) ? 'receiver' : /مهندس/.test(jb) ? (i % 3 ? 'receiver' : 'issuer') : /سائق|مشغل/.test(jb) ? 'driver' : 'competent'; e.authType = /سائق|مشغل/.test(jb) ? '' : /عداد/.test(jb) ? 'METER' : e.authCat === 'competent' ? 'CABLE' : 'LV';
+    e.docs['بطاقة التأهيل'] = sx(i % 6 === 1 ? T(-6) : i % 5 === 2 ? T(20) : T(200 + i)); e.authNo = 'AC-' + (4100 + i);
     if (/سائق|مشغل/.test(e.job || '')) { e.docs['رخصة القيادة'] = sx(T(300)); if (i % 2) e.docs['شهادة TUV'] = sx(i % 3 ? T(70) : T(-10)); } });
   d.reports = [
     { id: uid('rp'), kind: 'ripc', kindName: FL_REPORT_KINDS.ripc[0], jobId: '', baseNo: 'R6812', permit: '2387011', district: 'النرجس', note: 'نقص صور ما بعد الانتهاء وتقرير المختبر', recv: T(-20), due: T(40), st: 'open', to: '', tm: nowIso(), by: 'بيانات تجريبية' },
