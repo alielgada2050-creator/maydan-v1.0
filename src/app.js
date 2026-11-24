@@ -914,6 +914,15 @@ function viewAuth() {
     <section class="pane"><div class="box">${box}</div></section></div>`;
 }
 
+// ---------- navigation drawer (tablet & phone) ----------
+const NAV_ICONS = { dash: 'M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-4H4zM14 4v4h6V4z', ops: 'M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21zM12 12a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z', cluster: 'M8 8a3 3 0 1 0 0-.1M17 9a2 2 0 1 0 0-.1M14 18a3 3 0 1 0 0-.1', flow: 'M4 6h5v12H4zM10 6h5v8h-5zM16 6h4v5h-4z', permits: 'M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h4', inbox: 'M4 13l3-8h10l3 8v6H4zM4 13h5l1 2h4l1-2h5', reports: 'M5 21V4M5 4h11l-2 4 2 4H5', hse: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM9 12l2 2 4-4', tasks: 'M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2', docs: 'M6 3h9l4 4v14H6zM15 3v4h4', crews: 'M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM3 20a6 6 0 0 1 12 0M16 11a3 3 0 1 0 0-6M21 20a6 6 0 0 0-4-5.6', cards: 'M3 6h18v12H3zM7 10h4M7 14h6M15 10h2', equip: 'M3 17h2l2-6h7l3 4h4v2M7 17a2 2 0 1 0 4 0M15 17a2 2 0 1 0 4 0', inv: 'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z', ai: 'M12 3v3M12 18v3M3 12h3M18 12h3M7 7h10v10H7zM10 10h4v4h-4z', users: 'M16 11a4 4 0 1 0-8 0M4 21a8 8 0 0 1 16 0', security: 'M6 11h12v10H6zM8 11V7a4 4 0 0 1 8 0v4', settings: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19 12l2-1-1-3-2 .3-1.5-1.5L17 5l-3-1-1 2h-2L10 4 7 5l.5 2.8L6 9.3 4 9 3 12l2 1v2l-2 1 1 3 2-.3 1.5 1.5L7 21l3 1 1-2h2l1 2 3-1-.5-2.7 1.5-1.5 2 .2 1-3-2-1z' };
+function navIcon(v) { const d = NAV_ICONS[v] || NAV_ICONS.docs; return new Safe('<svg class="nv-i" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + d + '"/></svg>'); }
+function navDrawer(open, quiet) {
+  const sh = $('.shell'); if (!sh) return; const btn = $('.mbar [data-act=nav-open]');
+  sh.classList.toggle('nav-on', !!open); document.documentElement.classList.toggle('nav-lock', !!open); if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (open) { const c = $('#sidenav [aria-current=page]') || $('#sidenav button'); if (c) setTimeout(() => { c.focus({ preventScroll: true }); c.scrollIntoView({ block: 'center' }); }, 60); } else if (!quiet && btn) btn.focus();
+}
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('.shell.nav-on')) { e.preventDefault(); navDrawer(false); } });
 function shell(inner) {
   const openN = DB.notifs.filter((n) => n.st === 'open').length;
   const pendingR = DB.reqs.filter((r) => r.st === 'pending').length;
@@ -923,8 +932,13 @@ function shell(inner) {
     ['المعاملات الميدانية', [['flow', 'دورة المعاملات', flN], ['permits', 'تقرير الرخص الحرجة', jobsV().filter((j) => j.permit && j.permitExp && j.st !== 'done' && daysTo(j.permitExp) < 5).length], ['inbox', 'مركز التنسيق', inN], ['reports', 'البلاغات والمعادات', repN], ['hse', 'السلامة والصحة المهنية', (DB.jobs || []).filter((j) => j.flow && j.stage !== 'closed' && hseRecs(j).some((x) => x.lvl === 'bad')).length], ['tasks', 'المهام والطلبات', DB.jobs.filter((j) => j.st !== 'done' && A.some((x) => x.task === j.id)).length], ['docs', 'الوثائق والمستندات', 0]]],
     ['الفرق والأصول', [['crews', 'الفرق ومعداتها', DB.crews.filter((c) => crewState(c).lvl === 'bad').length], ['cards', 'بطاقات الفريق', 0], ['equip', 'سجل المعدات', allEquipment().filter((x) => needsCare(x.u)).length], ['inv', 'الحصر والهيكل', hierarchyIssues().length]]],
     ['الإدارة', [['ai', 'الوكيل الذكي', 0]].concat(can('users') ? [['users', 'المستخدمون والطلبات', pendingR]] : []).concat(can('audit') ? [['security', 'الأمان وسجل الدخول', 0]] : []).concat(can('settings') ? [['settings', 'الإعدادات', 0]] : [])]];
-  return html`<div class="shell"><nav class="nav" aria-label="القائمة الرئيسية"><div class="brand">${svgLogo(32)}<b>ميدان</b></div>
-    ${groups.map((g) => html`<p class="navg">${g[0]}</p><ul>${g[1].map((i) => html`<li><button type="button" data-act="nav" data-v="${i[0]}" ${UI.view === i[0] ? new Safe('aria-current="page"') : ''}>${i[1]}${i[2] ? html`<span class="badge-n">${i[2]}</span>` : ''}</button></li>`)}</ul>`)}
+  const curItem = groups.flatMap((g) => g[1]).find((i) => i[0] === UI.view) || groups[0][1][0]; const totalN = groups.flatMap((g) => g[1]).reduce((s, i) => s + (+i[2] || 0), 0);
+  return html`<div class="shell"><header class="mbar" role="banner"><button type="button" class="mb-btn" data-act="nav-open" aria-controls="sidenav" aria-expanded="false" aria-label="فتح القائمة الرئيسية">${new Safe('<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10"/></svg>')}${totalN ? html`<i class="mb-dot" aria-hidden="true"></i>` : ''}</button>
+      <div class="mb-title"><span class="mb-brand">${svgLogo(22)}<b>ميدان</b></span><span class="mb-cur">${curItem[1]}</span></div>
+      <button type="button" class="mb-btn" data-act="nav-home" aria-label="لوحة الأداء">${new Safe('<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>')}</button></header>
+    <div class="nav-scrim" data-act="nav-close" aria-hidden="true"></div>
+    <nav class="nav" id="sidenav" aria-label="القائمة الرئيسية"><div class="brand">${svgLogo(32)}<b>ميدان</b><button type="button" class="nav-x" data-act="nav-close" aria-label="إغلاق القائمة">${new Safe('<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>')}</button></div>
+    ${groups.map((g) => html`<p class="navg">${g[0]}</p><ul>${g[1].map((i) => html`<li><button type="button" data-act="nav" data-v="${i[0]}" ${UI.view === i[0] ? new Safe('aria-current="page"') : ''}>${navIcon(i[0])}<span class="nv-t">${i[1]}</span>${i[2] ? html`<span class="badge-n">${i[2]}</span>` : ''}</button></li>`)}</ul>`)}
     <div class="me">${CUR.name}<br>${ROLES[CUR.role]} · جلسة نشطة<br><button class="btn sm" type="button" data-act="logout" style="margin-top:8px;background:transparent;color:#fff;border-color:#334155">تسجيل الخروج</button></div></nav>
     <main class="main" id="main">${brandBar()}${DEMO ? html`<div class="alert wr row between" role="status" style="font-weight:600"><span>وضع تجريبي — بيانات نموذجية لا تُحفظ. جرّب أي شيء بحرية.</span><button class="btn sm dark" type="button" data-act="logout">إنهاء التجربة</button></div>` : ''}${inner}</main></div>`;
 }
@@ -1808,7 +1822,8 @@ const editUnit = (u) => (v) => { const t = Object.assign({}, u); const e = apply
 function openMove(kind, crewId, id, label) { UI.move = { kind, from: crewId, id, label, target: null, withDriver: true }; if (UI.view !== 'equip') UI.view = 'crews'; render(); }
 
 const ACT = {
-  nav: (d) => { UI.view = d.v; UI.move = null; render(); $('#main') && $('#main').focus(); },
+  'nav-home': () => ACT.nav({ v: 'dash' }), 'nav-open': () => navDrawer(true), 'nav-close': () => navDrawer(false),
+  nav: (d) => { navDrawer(false, true); UI.view = d.v; UI.move = null; render(); window.scrollTo(0, 0); $('#main') && $('#main').focus(); },
   logout: () => logout('خروج'),
   demo: () => startDemo(),
   'auth-to': (d) => { Object.assign(AUTH, { step: d.step, err: '', note: '' }); render(); },
