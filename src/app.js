@@ -717,8 +717,9 @@ function startLive(crewId) {
   audit(CUR.name, 'بدء البث المباشر للموقع', crewId); toast('بدأ بث الموقع المباشر لـ ' + crewId + '.'); render();
 }
 
-// ---------- AI (OpenAI-compatible: OmniRoute / 9Router / OpenRouter / DeepSeek / Groq / Gemini) ----------
+// ---------- AI (OpenAI-compatible: FreeLLMAPI / OmniRoute / 9Router / OpenRouter / DeepSeek / Groq / Gemini) ----------
 const PROVIDERS_DEFAULT = [
+  { id: 'freellmapi', name: 'FreeLLMAPI — بوابة مجانية محلية', base: 'http://localhost:3001/v1', model: '', on: true, note: 'شغّل FreeLLMAPI على جهازك، والصق المفتاح الموحّد (freellmapi-…)، واكتب auto في خانة النموذج' },
   { id: 'omniroute', name: 'OmniRoute — بوابة مجانية محلية', base: 'http://localhost:20128/v1', model: '', on: true, note: 'شغّل OmniRoute على جهازك ثم اكتب اسم الـ Combo في خانة النموذج (مثل free-forever)' },
   { id: '9router', name: '9Router — بوابة محلية', base: 'http://localhost:20128/v1', model: '', on: true, note: 'موصى به: المفاتيح تبقى داخل البوابة' },
   { id: 'openai', name: 'OpenAI', base: 'https://api.openai.com/v1', model: '', on: false, note: 'نموذج من حسابك في OpenAI' },

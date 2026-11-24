@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-5KjL0MwI6QU23SciImEfDXSVjJaQP4UZottbHttzOCM=' https://unpkg.com https://accounts.google.com/gsi/client; style-src 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com https://accounts.google.com/gsi/style; frame-src https://accounts.google.com/gsi/; font-src https://fonts.gstatic.com; img-src data: https://unpkg.com https://*.tile.openstreetmap.org https://tile.googleapis.com https://maps.gstatic.com; connect-src https: http://localhost:* http://127.0.0.1:*; form-action 'none'; base-uri 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-CEdg9wVJAAWL0xBanJFSZQ5bQ1pWx35WuVcAEsCe1t0=' https://unpkg.com https://accounts.google.com/gsi/client; style-src 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com https://accounts.google.com/gsi/style; frame-src https://accounts.google.com/gsi/; font-src https://fonts.gstatic.com; img-src data: https://unpkg.com https://*.tile.openstreetmap.org https://tile.googleapis.com https://maps.gstatic.com; connect-src https: http://localhost:* http://127.0.0.1:*; form-action 'none'; base-uri 'none'; object-src 'none'">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex,nofollow">
 <meta name="maydan-server" content="0">
@@ -1727,8 +1727,9 @@ function startLive(crewId) {
   audit(CUR.name, 'بدء البث المباشر للموقع', crewId); toast('بدأ بث الموقع المباشر لـ ' + crewId + '.'); render();
 }
 
-// ---------- AI (OpenAI-compatible: OmniRoute / 9Router / OpenRouter / DeepSeek / Groq / Gemini) ----------
+// ---------- AI (OpenAI-compatible: FreeLLMAPI / OmniRoute / 9Router / OpenRouter / DeepSeek / Groq / Gemini) ----------
 const PROVIDERS_DEFAULT = [
+  { id: 'freellmapi', name: 'FreeLLMAPI — بوابة مجانية محلية', base: 'http://localhost:3001/v1', model: '', on: true, note: 'شغّل FreeLLMAPI على جهازك، والصق المفتاح الموحّد (freellmapi-…)، واكتب auto في خانة النموذج' },
   { id: 'omniroute', name: 'OmniRoute — بوابة مجانية محلية', base: 'http://localhost:20128/v1', model: '', on: true, note: 'شغّل OmniRoute على جهازك ثم اكتب اسم الـ Combo في خانة النموذج (مثل free-forever)' },
   { id: '9router', name: '9Router — بوابة محلية', base: 'http://localhost:20128/v1', model: '', on: true, note: 'موصى به: المفاتيح تبقى داخل البوابة' },
   { id: 'openai', name: 'OpenAI', base: 'https://api.openai.com/v1', model: '', on: false, note: 'نموذج من حسابك في OpenAI' },

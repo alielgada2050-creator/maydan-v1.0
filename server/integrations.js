@@ -37,6 +37,7 @@ async function sendOtp(channel, to, code) {
 
 // ---------- AI providers (all OpenAI-compatible chat/completions) ----------
 const AI_DEFS = [
+  ['FREELLMAPI', 'FreeLLMAPI', () => (env('FREELLMAPI_URL', '').replace(/\/$/, '') + '/v1')],
   ['OMNIROUTE', 'OmniRoute', () => (env('OMNIROUTE_URL', '').replace(/\/$/, '') + '/v1')],
   ['NINEROUTER', '9Router', () => (env('NINEROUTER_URL', '').replace(/\/$/, '') + '/v1')],
   ['OPENAI', 'OpenAI', () => 'https://api.openai.com/v1'],
@@ -46,8 +47,8 @@ const AI_DEFS = [
   ['GEMINI', 'Gemini', () => 'https://generativelanguage.googleapis.com/v1beta/openai']
 ];
 function aiProviders() {
-  const order = env('AI_ORDER', 'OMNIROUTE,NINEROUTER,OPENAI,GROQ,OPENROUTER,DEEPSEEK,GEMINI').split(',').map((x) => x.trim().toUpperCase());
-  return AI_DEFS.filter(([k]) => env(k + '_MODEL') && (k === 'NINEROUTER' ? env('NINEROUTER_URL') : k === 'OMNIROUTE' ? env('OMNIROUTE_URL') : env(k + '_API_KEY'))).sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0])).map(([k, name, base]) => ({ k, name, base: base(), model: env(k + '_MODEL'), key: env(k + '_API_KEY', '') }));
+  const order = env('AI_ORDER', 'FREELLMAPI,OMNIROUTE,NINEROUTER,OPENAI,GROQ,OPENROUTER,DEEPSEEK,GEMINI').split(',').map((x) => x.trim().toUpperCase());
+  return AI_DEFS.filter(([k]) => env(k + '_MODEL') && (k === 'NINEROUTER' ? env('NINEROUTER_URL') : k === 'OMNIROUTE' ? env('OMNIROUTE_URL') : k === 'FREELLMAPI' ? env('FREELLMAPI_URL') && env('FREELLMAPI_API_KEY') : env(k + '_API_KEY'))).sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0])).map(([k, name, base]) => ({ k, name, base: base(), model: env(k + '_MODEL'), key: env(k + '_API_KEY', '') }));
 }
 async function aiChat(messages) {
   for (const p of aiProviders()) {
