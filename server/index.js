@@ -15,8 +15,8 @@ const X = require('./integrations');
 const PORT = +process.env.PORT || 8080;
 const PROD = process.env.NODE_ENV === 'production';
 const IDLE = 30 * 60e3, ABS = 12 * 3600e3, OTP_TTL = 5 * 60e3, LOCK = 15 * 60e3, MAX_FAILS = 5;
-const ROLES = ['ops', 'admin', 'pm', 'eng', 'sup', 'viewer'];
-const PERMS = { ops: ['write', 'audit'], admin: ['users', 'write', 'audit', 'data'], pm: ['write', 'audit'], eng: ['write'], sup: ['write'], viewer: [] };
+const ROLES = ['ops', 'admin', 'pm', 'hr', 'eng', 'sup', 'viewer'];
+const PERMS = { ops: ['write', 'audit'], admin: ['users', 'write', 'audit', 'data'], pm: ['write', 'audit'], hr: ['write', 'audit'], eng: ['write'], sup: ['write'], viewer: [] };
 
 // ---------- role tree on the server: which parts of the shared state each role may change ----------
 const normDigits = (p) => { const d = String(p || '').replace(/\D/g, ''); return d.startsWith('05') ? '966' + d.slice(1) : d; };
@@ -30,8 +30,61 @@ function crewAllowed(c, u) {
   return false;
 }
 const J = (x) => JSON.stringify(x === undefined ? null : x);
+// ---------- what each user may see: the server sends only the user's part of the state ----------
+const scopeCount = (u) => ['offices', 'projects', 'crews'].reduce((n, k) => n + (((u.scope || {})[k]) || []).length, 0);
+const seesAll = (u) => ['admin', 'ops', 'hr'].includes(u.role) || (u.role === 'pm' && !scopeCount(u));
+function crewSeen(c, u) { if (!c) return false; if (seesAll(u)) return true; const s = u.scope || {}; if (u.role === 'pm' || u.role === 'viewer') return (s.offices || []).includes(c.branch) || (s.projects || []).includes(c.projectId) || (s.crews || []).includes(c.id); return crewAllowed(c, u); }
+function crewIdsSeen(S, u) { return new Set((S.crews || []).filter((c) => crewSeen(c, u)).map((c) => c.id)); }
+const grantOk = (j, u) => !!(j && j.grants && u.id && j.grants[u.id] && j.grants[u.id] > iso());
+function jobEditable(j, u, ids) {
+  if (!j) return false; if (seesAll(u)) return !['ops', 'hr'].includes(u.role); if (grantOk(j, u)) return true;
+  if (u.role === 'eng' && (u.scope || {}).spec === 'elec' && j.elecEng && isPerson(j.elecEng, u)) return true;
+  if (j.crewId) return ids.has(j.crewId);
+  return (u.role === 'pm' || (u.role === 'eng' && (u.scope || {}).spec !== 'elec')) && ((u.scope || {}).offices || []).includes(j.office);
+}
+function jobSeen(j, u, ids) { return seesAll(u) || jobEditable(j, u, ids) || (j.editors || []).includes(u.id) || (j.accessReq || []).some((r) => r.uid === u.id); }
+function peopleOf(S, ids) { const K = new Set(); (S.crews || []).filter((c) => ids.has(c.id)).forEach((c) => { const add = (p) => { if (p) { if (p.empId) K.add('e:' + p.empId); if (p.iqama) K.add('i:' + p.iqama); } }; add(c.eng); add(c.sup); (c.workers || []).forEach((w) => { add(w); if (w.dyna) add(w.dyna.driver); }); (c.eq || []).forEach((q) => add(q.driver)); }); return K; }
+const empSeen = (e, K) => K.has('e:' + e.id) || (e.iqama && K.has('i:' + e.iqama));
+// visibility predicates per collection, computed on one state
+function seenSets(S, u) {
+  const ids = crewIdsSeen(S, u); const jobs = new Set((S.jobs || []).filter((j) => jobSeen(j, u, ids)).map((j) => j.id)); const K = peopleOf(S, ids);
+  return { ids, jobs, K, crew: (c) => ids.has(c.id), job: (j) => jobs.has(j.id), emp: (e) => empSeen(e, K), doc: (d) => (d.taskId ? jobs.has(d.taskId) : d.crewId ? ids.has(d.crewId) : true), rep: (r) => !r.jobId || jobs.has(r.jobId) };
+}
+const PART = [['crews', 'crew'], ['jobs', 'job'], ['employees', 'emp'], ['docs', 'doc'], ['reports', 'rep']];
+function viewState(S, u) {
+  if (!S || seesAll(u)) return S; const V = seenSets(S, u); const out = Object.assign({}, S);
+  PART.forEach(([k, f]) => { if (Array.isArray(S[k])) out[k] = S[k].filter(V[f]); });
+  delete out.roster; out.partial = true; return out;
+}
+// a partial user's save: keep everything hidden from them exactly as stored
+function mergeState(cur, next, u) {
+  if (!cur || seesAll(u)) return next; const V = seenSets(cur, u); const out = Object.assign({}, next); delete out.partial;
+  PART.forEach(([k, f]) => { const old = Array.isArray(cur[k]) ? cur[k] : []; const hidden = old.filter((x) => !V[f](x)); const hid = new Set(hidden.map((x) => x.id)); out[k] = (Array.isArray(next[k]) ? next[k] : []).filter((x) => !(x && hid.has(x.id))).concat(hidden); });
+  if (cur.roster !== undefined) out.roster = cur.roster; else delete out.roster;
+  return out;
+}
+function guardJobs(me, oldS, newS) {
+  if (me.role === 'admin' || (me.role === 'pm' && !scopeCount(me))) return;
+  const ids = crewIdsSeen(oldS, me); const om = new Map((oldS.jobs || []).map((j) => [j.id, j])), nm = new Map((newS.jobs || []).map((j) => [j.id, j]));
+  for (const id of new Set([...om.keys(), ...nm.keys()])) {
+    const a = om.get(id), b = nm.get(id); if (J(a) === J(b)) continue;
+    if (a && b && J(a.grants) !== J(b.grants)) E(403, 'منح صلاحية التعديل لمدير المشروع أو مدير المنصة.');
+    if (!a) { if (b.crewId && !ids.has(b.crewId) && me.role !== 'pm') E(403, 'إنشاء معاملة لفرقة خارج نطاقك.'); continue; }
+    if (jobEditable(a, me, ids)) continue;
+    const strip = (j) => Object.assign({}, j || {}, { accessReq: null, editors: null });
+    const mineOnly = J(strip(a)) === J(strip(b)) && (b.accessReq || []).filter((r) => !(a.accessReq || []).some((x) => J(x) === J(r))).every((r) => r.uid === me.id && r.st === 'pending');
+    if (!mineOnly) E(403, 'المعاملة للعرض فقط — نُقلت لفرقة أخرى. اطلب صلاحية التعديل (' + id + ').');
+  }
+}
+function guardEmployees(me, oldS, newS) {
+  if (['admin', 'hr'].includes(me.role) || (me.role === 'pm' && !scopeCount(me))) return;
+  const K = peopleOf(oldS, crewIdsSeen(oldS, me)); const om = new Map((oldS.employees || []).map((e) => [e.id, e])), nm = new Map((newS.employees || []).map((e) => [e.id, e]));
+  for (const id of new Set([...om.keys(), ...nm.keys()])) { const a = om.get(id), b = nm.get(id); if (J(a) === J(b)) continue; if (!a || !b) E(403, 'إضافة الموظفين أو حذفهم للموارد البشرية أو مدير المشروع.'); if (!empSeen(a, K)) E(403, 'تعديل بطاقة موظف خارج نطاق فرقك.'); }
+}
 function guardState(me, oldS, newS) {
   if (me.role === 'admin') return;
+  if (me.role === 'hr') { const free = new Set(['employees', 'docs', 'inbox', 'notifs', 'audit', 'version', 'v', 'lists']); for (const k of new Set(Object.keys(oldS).concat(Object.keys(newS)))) if (!free.has(k) && J(oldS[k]) !== J(newS[k])) E(403, 'الموارد البشرية تعدّل بطاقات الموظفين ومستنداتهم فقط.'); return; }
+  guardJobs(me, oldS, newS); guardEmployees(me, oldS, newS);
   const pmScoped = me.role === 'pm' && ((me.scope || {}).offices || []).length + ((me.scope || {}).projects || []).length + ((me.scope || {}).crews || []).length > 0;
   if (me.role === 'pm' && !pmScoped) { if (J(oldS.settings) !== J(newS.settings)) E(403, 'تعديل الإعدادات لمدير المنصة فقط.'); return; }
   if (me.role === 'ops') { const free = new Set(['inbox', 'notifs', 'audit', 'version', 'v']); for (const k of new Set(Object.keys(oldS).concat(Object.keys(newS)))) if (!free.has(k) && J(oldS[k]) !== J(newS[k])) E(403, 'مدير العمليات يرسل التنبيهات فقط ولا يعدّل البيانات.'); return; }
@@ -180,7 +233,7 @@ route('POST', '/api/requests', async (req, res, b, ip) => {
   limit('req:' + ip, 5, 60 * 60e3);
   if (!validIqama(b.iqama) || !validPhone(b.phone) || clean(b.name).length < 3) E(400, 'تحقق من الاسم ورقم الإقامة والجوال.');
   if (await findByIqama(b.iqama) || (await store.list('requests', (r) => r.iqama === b.iqama && r.st === 'pending')).length) E(409, 'يوجد حساب أو طلب سابق لهذا الرقم.');
-  const r = { id: 'r-' + rid(9), name: clean(b.name, 80), iqama: b.iqama, phone: b.phone, email: clean(b.email, 120), role: ['eng', 'sup', 'pm', 'viewer'].includes(b.role) ? b.role : 'viewer', msg: clean(b.msg, 400), tm: iso(), st: 'pending' };
+  const r = { id: 'r-' + rid(9), name: clean(b.name, 80), iqama: b.iqama, phone: b.phone, email: clean(b.email, 120), role: ['eng', 'sup', 'pm', 'hr', 'viewer'].includes(b.role) ? b.role : 'viewer', msg: clean(b.msg, 400), tm: iso(), st: 'pending' };
   await store.set('requests', r.id, r); await audit(r.name, 'طلب حساب', r.role, ip); return { ok: true };
 });
 route('GET', '/api/requests', async (req) => { await requireUser(req, 'users'); return { requests: (await store.list('requests', (r) => r.st === 'pending')).sort((a, b) => b.tm.localeCompare(a.tm)) }; });
@@ -201,16 +254,16 @@ route('POST', '/api/users', async (req, res, b, ip) => {
 route('PATCH', '/api/users/:id', async (req, res, b, ip, prm) => {
   const me = await requireUser(req, 'users'); const u = await store.get('users', prm.id); if (!u) E(404, 'المستخدم غير موجود.'); if (u.id === me.id) E(400, 'لا يمكنك تعديل صلاحيتك أو إيقاف حسابك.');
   if (b.role != null) { if (!ROLES.includes(b.role)) E(400, 'صلاحية غير صالحة.'); u.role = b.role; }
-  if (b.scope != null) { const arr = (x, n) => (Array.isArray(x) ? x : []).map((v) => clean(String(v), 80)).filter(Boolean).slice(0, n); u.scope = { offices: arr(b.scope.offices, 50), projects: arr(b.scope.projects, 50), crews: arr(b.scope.crews, 200) }; } if (b.active != null && !u.activation) u.active = !!b.active;
+  if (b.scope != null) { const arr = (x, n) => (Array.isArray(x) ? x : []).map((v) => clean(String(v), 80)).filter(Boolean).slice(0, n); u.scope = { spec: ['civil', 'elec'].includes(b.scope.spec) ? b.scope.spec : '', offices: arr(b.scope.offices, 50), projects: arr(b.scope.projects, 50), crews: arr(b.scope.crews, 200) }; } if (b.active != null && !u.activation) u.active = !!b.active;
   await store.set('users', u.id, u); /* a deactivated user is rejected on the next request: currentUser() checks u.active */ await audit(me.name, 'تعديل مستخدم', u.name + ' ' + u.role + (u.active ? '' : ' (موقوف)'), ip); return { user: pub(u) };
 });
 route('POST', '/api/users/:id/activation', async (req, res, b, ip, prm) => { const me = await requireUser(req, 'users'); const u = await store.get('users', prm.id); if (!u) E(404, 'المستخدم غير موجود.'); if (u.id === me.id) E(400, 'لا يمكن إعادة تعيين حسابك من هنا.'); const code = await issueActivation(u); await audit(me.name, 'إصدار رمز تفعيل', u.name, ip); return { code }; });
 
-route('GET', '/api/state', async (req) => { await requireUser(req); const s = await store.get('state', 'main'); return { version: s ? s.version : 0, state: s ? JSON.parse(s.json) : null }; });
+route('GET', '/api/state', async (req) => { const me = await requireUser(req); const s = await store.get('state', 'main'); return { version: s ? s.version : 0, state: s ? viewState(JSON.parse(s.json), me) : null }; });
 route('PUT', '/api/state', async (req, res, b, ip) => {
   const me = await requireUser(req, 'write'); if (!b || typeof b.state !== 'object' || !Array.isArray(b.state.crews)) E(400, 'بيانات غير صالحة.');
-  const st = Object.assign({}, b.state, { users: [], locks: {}, audit: [] }); const json = JSON.stringify(st); if (json.length > 4.5 * 1024 * 1024) E(413, 'حجم البيانات كبير. أرسل الملفات عبر التخزين وليس داخل البيانات.');
-  const out = await store.tx('state', 'main', (cur) => { const v = cur ? cur.version : 0; if (+b.version !== v) E(409, 'تم تعديل البيانات من مستخدم آخر.'); if (cur && cur.json) guardState(me, JSON.parse(cur.json), st); return { version: v + 1, json, by: me.id, tm: iso() }; });
+  let st = Object.assign({}, b.state, { users: [], locks: {}, audit: [] }); if (JSON.stringify(st).length > 4.5 * 1024 * 1024) E(413, 'حجم البيانات كبير. أرسل الملفات عبر التخزين وليس داخل البيانات.');
+  const out = await store.tx('state', 'main', (cur) => { const v = cur ? cur.version : 0; if (+b.version !== v) E(409, 'تم تعديل البيانات من مستخدم آخر.'); if (cur && cur.json) { const old = JSON.parse(cur.json); st = mergeState(old, st, me); guardState(me, old, st); } return { version: v + 1, json: JSON.stringify(st), by: me.id, tm: iso() }; });
   X.pushErp({ event: 'state.updated', version: out.version, by: me.name, tm: iso(), state: st });
   return { version: out.version };
 });
@@ -286,4 +339,4 @@ const server = http.createServer(async (req, res) => {
 });
 server.headersTimeout = 20000; server.requestTimeout = 60000;
 if (require.main === module) server.listen(PORT, () => console.log('maydan listening on :' + PORT + (PROD ? ' (production)' : ' (development)')));
-module.exports = { server, store, guardState };
+module.exports = { server, store, guardState, viewState, mergeState };

@@ -203,7 +203,7 @@ function hseSiteChecks(j) {
 }
 function flHseBox(j) {
   if (!j.flow) return '';
-  const R = hseRecs(j); const bad = R.filter((x) => x.lvl === 'bad').length; const E = can('edit') && jobInScope(j);
+  const R = hseRecs(j); const bad = R.filter((x) => x.lvl === 'bad').length; const E = can('edit') && jobCanEdit(j);
   return html`<details class="gatebox hsebox" ${bad ? new Safe('open') : ''}><summary><b>توصيات السلامة والصحة المهنية</b> <span class="pill ${bad ? 'bad' : 'info'}">${bad ? bad + ' عاجل' : R.length + ' توصية'}</span></summary>
     <ul class="hsel">${R.map((x) => html`<li class="${x.lvl}"><span>${x.ar}</span>${x.src ? html`<small class="t-mut">${x.src}</small>` : ''}</li>`)}</ul>
     ${E ? html`<div class="row"><button class="btn sm" type="button" data-act="hse-ptw" data-id="${j.id}">تسجيل تصريح العمل PTW</button><button class="btn sm" type="button" data-act="hse-gen" data-k="twf" data-id="${j.id}">نموذج فريق العمل (SEC)</button><button class="btn sm" type="button" data-act="hse-gen" data-k="jsp" data-id="${j.id}">إجراءات العمل الآمن</button><button class="btn sm" type="button" data-act="hse-gen" data-k="ra" data-id="${j.id}">تقييم المخاطر</button></div>` : ''}</details>`;

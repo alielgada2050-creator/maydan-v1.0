@@ -141,7 +141,7 @@ function flQaBox(j) {
   if (!show && flPath(j).includes('lab')) return '';
   return html`<div class="gatebox qa"><div class="row between"><b>قائمة التوثيق والجودة قبل الرفع للاستشاري</b>${j.qa ? html`<span class="pill ok">اعتمد ${j.qa.by} · ${fmtT(j.qa.tm)}</span>` : html`<span class="pill ${ok ? 'info' : 'warn'}">${Q.filter((x) => x[1]).length}/${Q.length}</span>`}</div>
     <ul class="qal">${Q.map((x) => html`<li class="${x[1] ? 'y' : 'n'}">${x[1] ? '✓' : '✗'} ${x[0]}</li>`)}</ul>
-    ${!j.qa && can('edit') && jobInScope(j) ? html`<button class="btn sm ${ok ? 'pri' : ''}" type="button" data-act="fl-qa" data-id="${j.id}" ${ok ? '' : new Safe('aria-disabled="true"')}>اعتماد الجودة</button>` : ''}</div>`;
+    ${!j.qa && can('edit') && jobCanEdit(j) ? html`<button class="btn sm ${ok ? 'pri' : ''}" type="button" data-act="fl-qa" data-id="${j.id}" ${ok ? '' : new Safe('aria-disabled="true"')}>اعتماد الجودة</button>` : ''}</div>`;
 }
 
 // ---------- Kanban (drag & drop) ----------

@@ -158,3 +158,32 @@ test('role tree: supervisors and engineers can only change their own crews; ops 
   const pm = { role: 'pm', scope: { offices: ['مكتب الشرق'] } }; n = clone(); n.crews[0].workers = []; assert.throws(() => guardState(pm, S, n), /خارج نطاق/);
   guardState({ role: 'admin' }, S, Object.assign(clone(), { settings: {} }));
 });
+
+test('need-to-know: scoped users receive only their part; saves keep hidden data; transfers lock edits; HR edits cards only', () => {
+  const { guardState, viewState, mergeState } = require('../index.js');
+  const crew = (id, sup, eng, b) => ({ id, branch: b || 'مكتب الشمال', projectId: 'p1', sup, eng, workers: [{ id: id + 'w', name: 'عامل ' + id, iqama: id === 'X-1' ? '2333333333' : '2444444444' }], eq: [] });
+  const S = { crews: [crew('X-1', { name: 'أحمد', iqama: '2111111111' }, { name: 'م. سامي', iqama: '2555555555' }), crew('X-2', { name: 'سعيد', iqama: '2222222222' }, { name: 'م. ناصر', iqama: '2666666666' })],
+    jobs: [{ id: 'j1', crewId: 'X-1', kind: 'حفر' }, { id: 'j2', crewId: 'X-2', kind: 'حفر', editors: ['u-eng'] }, { id: 'j3', crewId: 'X-2', kind: 'كابل', elecEng: { name: 'م. خالد', iqama: '2777777777' } }],
+    employees: [{ id: 'e1', name: 'عامل X-1', iqama: '2333333333' }, { id: 'e2', name: 'عامل X-2', iqama: '2444444444' }], docs: [{ id: 'd1', crewId: 'X-2' }, { id: 'd2', taskId: 'j1' }], roster: [{ iqama: '2999999999' }], settings: {} };
+  const clone = () => JSON.parse(JSON.stringify(S));
+  const eng = { id: 'u-eng', role: 'eng', name: 'م. سامي', iqama: '2555555555', scope: { spec: 'civil' } }, elec = { id: 'u-el', role: 'eng', name: 'م. خالد', iqama: '2777777777', scope: { spec: 'elec' } }, hr = { id: 'u-hr', role: 'hr', name: 'HR' };
+  const v = viewState(clone(), eng);
+  assert.deepStrictEqual(v.crews.map((c) => c.id), ['X-1']); assert.deepStrictEqual(v.jobs.map((j) => j.id), ['j1', 'j2']);
+  assert.deepStrictEqual(v.employees.map((e) => e.id), ['e1']); assert.deepStrictEqual(v.docs.map((d) => d.id), ['d2']); assert.strictEqual(v.roster, undefined);
+  assert.deepStrictEqual(viewState(clone(), elec).jobs.map((j) => j.id), ['j3']);
+  // saving a partial state keeps hidden crews, jobs, people and the HR roster
+  const back = JSON.parse(JSON.stringify(v)); back.crews[0].workers.push({ name: 'new' });
+  const m = mergeState(clone(), back, eng); assert.deepStrictEqual(m.crews.map((c) => c.id).sort(), ['X-1', 'X-2']); assert.strictEqual(m.employees.length, 2); assert.strictEqual(m.roster.length, 1); guardState(eng, S, m);
+  // j2 moved away: view only; editing refused, an access request is allowed; forging a grant is refused
+  let n = clone(); n.jobs[1].kind = 'x'; assert.throws(() => guardState(eng, S, n), /للعرض فقط/);
+  n = clone(); n.jobs[1].accessReq = [{ uid: 'u-eng', name: 'م. سامي', note: 'صور', st: 'pending' }]; guardState(eng, S, n);
+  n = clone(); n.jobs[1].grants = { 'u-eng': '2999-01-01T00:00:00Z' }; assert.throws(() => guardState(eng, S, n), /مدير المشروع/);
+  const G = clone(); G.jobs[1].grants = { 'u-eng': '2999-01-01T00:00:00Z' }; n = JSON.parse(JSON.stringify(G)); n.jobs[1].kind = 'y'; guardState(eng, G, n);
+  n = clone(); n.jobs[2].kind = 'تمديد'; guardState(elec, S, n);
+  // cards: an engineer edits only people of his crews; HR edits every card but nothing else
+  n = clone(); n.employees[1].job = 'x'; assert.throws(() => guardState(eng, S, n), /خارج نطاق/);
+  n = clone(); n.employees[0].job = 'فني'; guardState(eng, S, n);
+  n = clone(); n.employees[1].docs = { a: 1 }; guardState(hr, S, n);
+  n = clone(); n.crews[0].workers = []; assert.throws(() => guardState(hr, S, n), /الموارد البشرية/);
+  assert.strictEqual(viewState(clone(), hr).crews.length, 2);
+});

@@ -40,7 +40,7 @@ function personIs(p, u) {
   if (p.phone && u.phone && normPhone(String(p.phone)) === normPhone(String(u.phone))) return true;
   return !!(p.name && u.name && normName(p.name).length > 3 && normName(p.name) === normName(u.name));
 }
-function scopeAll(u) { u = u || CUR; if (!u) return false; if (u.role === 'admin' || u.role === 'ops') return true; const s = u.scope || {}; return u.role === 'pm' && !(s.projects || []).length && !(s.offices || []).length && !(s.crews || []).length; }
+function scopeAll(u) { u = u || CUR; if (!u) return false; if (u.role === 'admin' || u.role === 'ops' || u.role === 'hr') return true; const s = u.scope || {}; return u.role === 'pm' && !(s.projects || []).length && !(s.offices || []).length && !(s.crews || []).length; }
 function crewInScope(c, u) {
   u = u || CUR; if (!u || !c) return false; if (scopeAll(u)) return true;
   const s = u.scope || {};
@@ -52,7 +52,8 @@ function crewInScope(c, u) {
 }
 function crewsV() { return DB.crews.filter((c) => crewInScope(c)); }
 function myOffices(u) { u = u || CUR; const s = (u && u.scope) || {}; return [...new Set((s.offices || []).concat(crewsV().map((c) => c.branch)))]; }
-function jobInScope(j) {
+function jobInScope(j) { return jobVisible(j); }
+function jobInScopeOld(j) {
   if (!CUR) return false; if (scopeAll()) return true;
   if (j.crewId) { const c = crewById(j.crewId); if (c) return crewInScope(c); }
   return (CUR.role === 'pm' || CUR.role === 'eng') && !!j.office && myOffices().includes(j.office);
@@ -76,9 +77,12 @@ function applyActRules(ACT) {
     g.__ruled = true; ACT[k] = g;
   });
   // field-transaction actions that name a job: the job must be inside the user's tree
-  Object.keys(ACT).filter((k) => /^fl-(adv|gate|safety|ret|edit|coord|folder|open|goto|qa)$/.test(k)).forEach((k) => {
-    const f = ACT[k]; if (f.__jobScoped) return;
-    const g = function (d) { const j = d && d.id && DB.jobs.find((x) => x.id === d.id); if (j && !jobInScope(j)) return toast('هذه المعاملة خارج نطاق فرقك.', 'err'); return f.apply(this, arguments); };
+  // view actions need the job visible; changing actions need edit rights (own tree or an approved grant)
+  Object.keys(ACT).filter((k) => /^(fl-(adv|gate|safety|ret|edit|coord|folder|open|goto|qa)|hse-(ptw|gen))$/.test(k)).forEach((k) => {
+    const f = ACT[k]; if (f.__jobScoped) return; const view = /^fl-(open|goto|coord)$/.test(k);
+    const g = function (d) { const j = d && d.id && DB.jobs.find((x) => x.id === d.id); if (j && !jobInScope(j)) return toast('هذه المعاملة خارج نطاق فرقك.', 'err');
+      if (j && !view) { if (!jobCanEdit(j)) return toast('المعاملة للعرض فقط — نُقلت لفرقة أخرى. اطلب صلاحية التعديل من مدير المشروع أو مدير المنصة.', 'err'); jobTouch(j); }
+      return f.apply(this, arguments); };
     g.__jobScoped = true; g.__ruled = f.__ruled; ACT[k] = g;
   });
 }
@@ -88,6 +92,7 @@ function moveTargetOk(m) { if (!m || !m.target || m.kind === 'crew') return true
 function scopeFields(u) {
   const s = u.scope || {};
   return [{ k: 'role', label: 'الدور الوظيفي', type: 'select', val: u.role, opts: Object.keys(ROLE_INFO).map((k) => [k, ROLE_INFO[k][0] + ' — ' + ROLE_INFO[k][1]]) },
+    { k: 'spec', label: 'تخصص المهندس (يحدد المعاملات التي يراها)', type: 'select', val: s.spec || '', opts: [['', '— غير محدد (مدني) —'], ['civil', 'مهندس مدني — معاملات فرقه وما عمل عليه'], ['elec', 'مهندس كهرباء — المعاملات المسندة إليه وفرقه']] },
     { k: 'offices', label: 'المكاتب / الفروع (لمدير المشروع)', type: 'checks', opts: [...new Set(DB.branches.concat(DB.lists.offices || []))].map((b) => [b, b]), val: s.offices || [] },
     { k: 'projects', label: 'المشاريع', type: 'checks', opts: (DB.projects || []).map((p) => [p.id, p.name]), val: s.projects || [] },
     { k: 'crews', label: 'فرق إضافية (يُربط المهندس والمراقب تلقائياً بفرقه بالإقامة أو الجوال)', type: 'checks', opts: DB.crews.map((c) => [c.id, c.id + ' · ' + c.name]), val: s.crews || [] }];

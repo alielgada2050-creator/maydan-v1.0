@@ -415,6 +415,21 @@ html[data-theme="dark"] .nav button[aria-current="page"]{background:color-mix(in
   .nav-x:active{background:color-mix(in srgb,var(--tx) 8%,var(--card))}
   .nav-scrim{background:rgba(15,23,42,.3)}html[data-theme="dark"] .nav-scrim{background:rgba(0,0,0,.5)}
 }
+/* v12 — access & privacy */
+.rv{padding:0 10px;min-height:32px;font-size:12.5px;color:var(--acc);border:1px dashed color-mix(in srgb,var(--acc) 45%,transparent);border-radius:8px;background:transparent}
+.rvbox{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin-top:6px;padding:8px 10px;border-radius:10px;background:color-mix(in srgb,var(--tx) 4%,var(--card));border:1px solid var(--line);font-size:13px}
+.pc-xfer{margin:6px 0 0;padding:6px 10px;border-radius:8px;font-size:12px;background:var(--info-bg);color:var(--info-tx)}
+.demo-as{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;flex-wrap:wrap;max-width:100%;min-width:0}.demo-as .in{min-height:36px;width:auto;max-width:min(320px,100%);min-width:0;font-size:13px}
+.alert.row:has(.demo-as){flex-wrap:wrap}
+/* v13 — team card header: personal photo, 25% larger */
+.pcard .pc-head{gap:13px;padding:18px 18px 15px}
+.pcard .pc-av{width:60px;height:60px;padding:0;border:0;background:none;border-radius:14px;cursor:default}
+button.pc-av{cursor:pointer;transition:transform 140ms cubic-bezier(.23,1,.32,1)}button.pc-av:active{transform:scale(.97)}button.pc-av:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.pcard .pc-av .pc-ini,.pcard .pc-av .pc-img{width:60px;height:60px;border-radius:14px}
+.pcard .pc-ini{background:color-mix(in srgb,var(--acc) 12%,var(--card));color:var(--acc2);border:1px solid color-mix(in srgb,var(--acc) 25%,transparent)}
+html[data-theme="dark"] .pcard .pc-ini{color:#E5E7EB}
+.pc-cam{position:absolute;z-index:2;bottom:-4px;inset-inline-end:-4px;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--acc);color:#fff;box-shadow:0 0 0 2px var(--card)}
+.pcard .pc-id b{font-size:19px}.pcard .pc-id span{font-size:14.5px}.pcard .pc-st{font-size:13px}
 </style>
 </head>
 <body>

@@ -81,3 +81,23 @@ It feeds the following features:
   - Runs a local keyword analysis, plus the AI provider (FreeLLMAPI first) when one is configured. The AI returns JSON.
   - The user picks the items to keep, and they are stored in `DB.hseLib[workType]`.
 - **Employee authorization:** `authCat` / `authType` / `authNo` fields, plus the «بطاقة التأهيل» card with its expiry date.
+
+## Need-to-know access (v10)
+- **Server (`server/index.js`)**
+  - `viewState`: a scoped user (engineer, supervisor, scoped project manager, viewer) receives only their crews, and the transactions, employees, documents and reports of those crews. The HR roster is never sent to them.
+  - `mergeState`: when such a user saves, everything hidden from them is put back exactly as it was stored.
+  - `guardJobs`: a transaction is edited only by those who own it now:
+    - its crew is in their tree;
+    - for an electrical engineer, it is assigned to them (`elecEng`);
+    - or they hold an approved, time-limited grant.
+    - Anyone else may only add their own access request. Only the project manager or the platform admin can grant access.
+  - `guardEmployees`: an engineer or supervisor edits only the cards of people in their own crews.
+  - New role `hr` (إدارة الموارد البشرية): sees every card and edits only employees, documents and lists.
+- **Client (`src/modules/50-access.js`)**
+  - Team cards are visible to the platform admin, operations manager, HR, project manager, and each engineer for his own crews only.
+  - An engineer edits the cards of the supervisor and the people under him, never another engineer's card.
+  - Moving a person to another engineer's crew records `xfer` on the person, and the renewal / file-update right moves with them.
+  - Supervisors are labelled `مراقب <trade> <n> · مكتب <office>` in place of the iqama.
+  - Contacts (iqama, phone, WhatsApp) are shown only on «بيانات التواصل». The reveal is audited.
+  - Equipment, cars and dynas are hidden behind «إظهار المعدات»; the choice is remembered on the device.
+  - In demo mode, a role switcher lets you try each permission level.

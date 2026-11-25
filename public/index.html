@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-qj0UGjID3yspXuMSZ3p+eJB6uxigscXYSbSqM1VXxRo=' https://unpkg.com https://accounts.google.com/gsi/client; style-src 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com https://accounts.google.com/gsi/style; frame-src https://accounts.google.com/gsi/; font-src https://fonts.gstatic.com; img-src data: https://unpkg.com https://*.tile.openstreetmap.org https://tile.googleapis.com https://maps.gstatic.com; connect-src https: http://localhost:* http://127.0.0.1:*; form-action 'none'; base-uri 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-ksDto8PPzj9dScH64TCxs92YS4Tzp/Z+9LgU9PqpiBI=' https://unpkg.com https://accounts.google.com/gsi/client; style-src 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com https://accounts.google.com/gsi/style; frame-src https://accounts.google.com/gsi/; font-src https://fonts.gstatic.com; img-src data: https://unpkg.com https://*.tile.openstreetmap.org https://tile.googleapis.com https://maps.gstatic.com; connect-src https: http://localhost:* http://127.0.0.1:*; form-action 'none'; base-uri 'none'; object-src 'none'">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex,nofollow">
 <meta name="maydan-server" content="0">
@@ -415,6 +415,21 @@ html[data-theme="dark"] .nav button[aria-current="page"]{background:color-mix(in
   .nav-x:active{background:color-mix(in srgb,var(--tx) 8%,var(--card))}
   .nav-scrim{background:rgba(15,23,42,.3)}html[data-theme="dark"] .nav-scrim{background:rgba(0,0,0,.5)}
 }
+/* v12 — access & privacy */
+.rv{padding:0 10px;min-height:32px;font-size:12.5px;color:var(--acc);border:1px dashed color-mix(in srgb,var(--acc) 45%,transparent);border-radius:8px;background:transparent}
+.rvbox{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin-top:6px;padding:8px 10px;border-radius:10px;background:color-mix(in srgb,var(--tx) 4%,var(--card));border:1px solid var(--line);font-size:13px}
+.pc-xfer{margin:6px 0 0;padding:6px 10px;border-radius:8px;font-size:12px;background:var(--info-bg);color:var(--info-tx)}
+.demo-as{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;flex-wrap:wrap;max-width:100%;min-width:0}.demo-as .in{min-height:36px;width:auto;max-width:min(320px,100%);min-width:0;font-size:13px}
+.alert.row:has(.demo-as){flex-wrap:wrap}
+/* v13 — team card header: personal photo, 25% larger */
+.pcard .pc-head{gap:13px;padding:18px 18px 15px}
+.pcard .pc-av{width:60px;height:60px;padding:0;border:0;background:none;border-radius:14px;cursor:default}
+button.pc-av{cursor:pointer;transition:transform 140ms cubic-bezier(.23,1,.32,1)}button.pc-av:active{transform:scale(.97)}button.pc-av:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.pcard .pc-av .pc-ini,.pcard .pc-av .pc-img{width:60px;height:60px;border-radius:14px}
+.pcard .pc-ini{background:color-mix(in srgb,var(--acc) 12%,var(--card));color:var(--acc2);border:1px solid color-mix(in srgb,var(--acc) 25%,transparent)}
+html[data-theme="dark"] .pcard .pc-ini{color:#E5E7EB}
+.pc-cam{position:absolute;z-index:2;bottom:-4px;inset-inline-end:-4px;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--acc);color:#fff;box-shadow:0 0 0 2px var(--card)}
+.pcard .pc-id b{font-size:19px}.pcard .pc-id span{font-size:14.5px}.pcard .pc-st{font-size:13px}
 </style>
 </head>
 <body>
@@ -471,8 +486,8 @@ const gdir = (a, b) => 'https://www.google.com/maps/dir/?api=1&origin=' + a.lat 
 const km = (a, b) => { const R = 6371, t = Math.PI / 180; const dLa = (b.lat - a.lat) * t, dLo = (b.lng - a.lng) * t; const x = Math.sin(dLa / 2) ** 2 + Math.cos(a.lat * t) * Math.cos(b.lat * t) * Math.sin(dLo / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(x)); };
 
 // ---------- constants ----------
-const ROLES = { ops: 'مدير العمليات', admin: 'مدير المنصة', pm: 'مدير المشروع', eng: 'المهندس المسؤول', sup: 'المراقب', viewer: 'مشاهد' };
-const PERMS = { ops: ['request', 'ai', 'audit', 'notify'], admin: ['users', 'settings', 'data', 'org', 'moveorg', 'crewcfg', 'tasks', 'permits', 'cards', 'edit', 'move', 'request', 'ai', 'audit', 'notify'], pm: ['org', 'moveorg', 'crewcfg', 'tasks', 'permits', 'cards', 'edit', 'move', 'request', 'ai', 'audit', 'notify', 'data'], eng: ['crewcfg', 'tasks', 'permits', 'cards', 'edit', 'move', 'request', 'ai', 'notify'], sup: ['cards', 'edit', 'request', 'ai'], viewer: [] }; // mirrored in modules/05-roles.js
+const ROLES = { ops: 'مدير العمليات', admin: 'مدير المنصة', pm: 'مدير المشروع', hr: 'إدارة الموارد البشرية', eng: 'المهندس المسؤول', sup: 'المراقب', viewer: 'مشاهد' };
+const PERMS = { ops: ['request', 'ai', 'audit', 'notify'], admin: ['users', 'settings', 'data', 'org', 'moveorg', 'crewcfg', 'tasks', 'permits', 'cards', 'edit', 'move', 'request', 'ai', 'audit', 'notify'], pm: ['org', 'moveorg', 'crewcfg', 'tasks', 'permits', 'cards', 'edit', 'move', 'request', 'ai', 'audit', 'notify', 'data'], eng: ['crewcfg', 'tasks', 'permits', 'cards', 'edit', 'move', 'request', 'ai', 'notify'], sup: ['cards', 'edit', 'request', 'ai'], hr: ['cards', 'request', 'ai', 'audit'], viewer: [] }; // mirrored in modules/05-roles.js
 // ---------- editable lists (every dropdown can grow) ----------
 const LIST_DEFAULTS = () => ({
   crewTypes: { excav: ['حفريات', '#1D4ED8'], elec: ['كهرباء', '#C2410C'], safety: ['سلامة', '#15803D'], supply: ['إمداد', '#6D28D9'] },
@@ -933,7 +948,7 @@ function personIs(p, u) {
   if (p.phone && u.phone && normPhone(String(p.phone)) === normPhone(String(u.phone))) return true;
   return !!(p.name && u.name && normName(p.name).length > 3 && normName(p.name) === normName(u.name));
 }
-function scopeAll(u) { u = u || CUR; if (!u) return false; if (u.role === 'admin' || u.role === 'ops') return true; const s = u.scope || {}; return u.role === 'pm' && !(s.projects || []).length && !(s.offices || []).length && !(s.crews || []).length; }
+function scopeAll(u) { u = u || CUR; if (!u) return false; if (u.role === 'admin' || u.role === 'ops' || u.role === 'hr') return true; const s = u.scope || {}; return u.role === 'pm' && !(s.projects || []).length && !(s.offices || []).length && !(s.crews || []).length; }
 function crewInScope(c, u) {
   u = u || CUR; if (!u || !c) return false; if (scopeAll(u)) return true;
   const s = u.scope || {};
@@ -945,7 +960,8 @@ function crewInScope(c, u) {
 }
 function crewsV() { return DB.crews.filter((c) => crewInScope(c)); }
 function myOffices(u) { u = u || CUR; const s = (u && u.scope) || {}; return [...new Set((s.offices || []).concat(crewsV().map((c) => c.branch)))]; }
-function jobInScope(j) {
+function jobInScope(j) { return jobVisible(j); }
+function jobInScopeOld(j) {
   if (!CUR) return false; if (scopeAll()) return true;
   if (j.crewId) { const c = crewById(j.crewId); if (c) return crewInScope(c); }
   return (CUR.role === 'pm' || CUR.role === 'eng') && !!j.office && myOffices().includes(j.office);
@@ -969,9 +985,12 @@ function applyActRules(ACT) {
     g.__ruled = true; ACT[k] = g;
   });
   // field-transaction actions that name a job: the job must be inside the user's tree
-  Object.keys(ACT).filter((k) => /^fl-(adv|gate|safety|ret|edit|coord|folder|open|goto|qa)$/.test(k)).forEach((k) => {
-    const f = ACT[k]; if (f.__jobScoped) return;
-    const g = function (d) { const j = d && d.id && DB.jobs.find((x) => x.id === d.id); if (j && !jobInScope(j)) return toast('هذه المعاملة خارج نطاق فرقك.', 'err'); return f.apply(this, arguments); };
+  // view actions need the job visible; changing actions need edit rights (own tree or an approved grant)
+  Object.keys(ACT).filter((k) => /^(fl-(adv|gate|safety|ret|edit|coord|folder|open|goto|qa)|hse-(ptw|gen))$/.test(k)).forEach((k) => {
+    const f = ACT[k]; if (f.__jobScoped) return; const view = /^fl-(open|goto|coord)$/.test(k);
+    const g = function (d) { const j = d && d.id && DB.jobs.find((x) => x.id === d.id); if (j && !jobInScope(j)) return toast('هذه المعاملة خارج نطاق فرقك.', 'err');
+      if (j && !view) { if (!jobCanEdit(j)) return toast('المعاملة للعرض فقط — نُقلت لفرقة أخرى. اطلب صلاحية التعديل من مدير المشروع أو مدير المنصة.', 'err'); jobTouch(j); }
+      return f.apply(this, arguments); };
     g.__jobScoped = true; g.__ruled = f.__ruled; ACT[k] = g;
   });
 }
@@ -981,6 +1000,7 @@ function moveTargetOk(m) { if (!m || !m.target || m.kind === 'crew') return true
 function scopeFields(u) {
   const s = u.scope || {};
   return [{ k: 'role', label: 'الدور الوظيفي', type: 'select', val: u.role, opts: Object.keys(ROLE_INFO).map((k) => [k, ROLE_INFO[k][0] + ' — ' + ROLE_INFO[k][1]]) },
+    { k: 'spec', label: 'تخصص المهندس (يحدد المعاملات التي يراها)', type: 'select', val: s.spec || '', opts: [['', '— غير محدد (مدني) —'], ['civil', 'مهندس مدني — معاملات فرقه وما عمل عليه'], ['elec', 'مهندس كهرباء — المعاملات المسندة إليه وفرقه']] },
     { k: 'offices', label: 'المكاتب / الفروع (لمدير المشروع)', type: 'checks', opts: [...new Set(DB.branches.concat(DB.lists.offices || []))].map((b) => [b, b]), val: s.offices || [] },
     { k: 'projects', label: 'المشاريع', type: 'checks', opts: (DB.projects || []).map((p) => [p.id, p.name]), val: s.projects || [] },
     { k: 'crews', label: 'فرق إضافية (يُربط المهندس والمراقب تلقائياً بفرقه بالإقامة أو الجوال)', type: 'checks', opts: DB.crews.map((c) => [c.id, c.id + ' · ' + c.name]), val: s.crews || [] }];
@@ -1209,7 +1229,7 @@ function flKpis() {
 function flKpiRow() { return html`<div class="flkpi">${flKpis().map((k) => html`<div class="flk"><span>${k[0]}</span><b class="${k[1] ? 't-' + k[2] : ''}">${k[1]}</b></div>`)}</div>`; }
 function flTicket(j) {
   const g = flGateLabel(j); const cl = UI.flSel === j.id ? ' on' : '';
-  const dr = can('edit') && jobInScope(j) && j.stage !== 'closed' ? new Safe(' draggable="true" data-drag="fl"') : '';
+  const dr = can('edit') && jobCanEdit(j) && j.stage !== 'closed' ? new Safe(' draggable="true" data-drag="fl"') : '';
   return html`<button type="button" class="flcard${cl}" data-act="fl-open" data-id="${j.id}"${dr} style="--sc:${FL_COLORS[j.stage]}">
     <span class="row between" style="gap:6px"><b class="ltr">${j.uid || j.baseNo || j.id}</b>${flPermitChip(j)}</span>
     <span class="flk-t">${j.kind}</span><span class="t-mut ltr" style="font-size:11px;text-align:start">${[j.baseNo, j.woNo ? 'WO ' + j.woNo : '', j.sapNo ? 'SAP ' + j.sapNo : ''].filter(Boolean).join(' · ')}</span>
@@ -1228,6 +1248,7 @@ function viewFlow() {
   <div class="row flfilter"><input class="in" type="search" style="flex:1 1 240px;max-width:340px" placeholder="بحث بالمعرّف أو الأساس أو الرخصة أو أمر العمل أو SAP" value="${UI.flQ || ''}" data-input="fl-q" aria-label="بحث في المعاملات">
     <select class="in" style="flex:0 1 220px" data-change="fl-dist" aria-label="تصفية حسب الحي"><option value="">كل الأحياء (${dists.length})</option>${dists.map((x) => html`<option value="${x}" ${dq === x ? new Safe('selected') : ''}>${x} — ${districtArea(x) || 'أُضيف يدوياً'}</option>`)}</select>
     ${permitLegend()}<span class="t-mut" style="font-size:12px">اسحب البطاقة إلى المرحلة التالية لإنهاء المرحلة الحالية.</span></div>
+  ${flAccessPanel()}
   ${sel ? flDetail(sel) : ''}
   <div class="board" aria-label="لوحة المراحل">${FL_FULL.map((s) => { const L = J.filter((j) => j.stage === s); return html`<section class="col" data-drop="fl" data-k="${s}"><h3 style="--sc:${FL_COLORS[s]}"><span>${FL_STAGES[s][0]}</span><span class="badge-n">${L.length}</span></h3>${L.length ? L.map(flTicket) : html`<p class="t-mut" style="font-size:12px;margin:6px">—</p>`}</section>`; })}</div>`;
 }
@@ -1236,7 +1257,7 @@ function flStepper(j) {
   return html`<ol class="stepper">${P.map((s, k) => html`<li class="${k < i ? 'done' : k === i ? 'cur' : ''}" style="--sc:${FL_COLORS[s]}"><b>${FL_STAGES[s][0]}</b><span>${FL_STAGES[s][1]}</span></li>`)}</ol>`;
 }
 function flStageActions(j) {
-  const E = can('edit') && jobInScope(j); const s = j.stage; const nx = flNext(j); const nxN = nx ? FL_STAGES[nx][0] : '';
+  const E = can('edit') && jobCanEdit(j); const s = j.stage; const nx = flNext(j); const nxN = nx ? FL_STAGES[nx][0] : '';
   if (!E) return html`<p class="t-mut">عرض فقط.</p>`;
   if (s === 'plan') return html`<div class="row"><button class="btn" type="button" data-act="fl-coord" data-id="${j.id}">إرسال تنبيه التنسيق الآن</button><button class="btn pri" type="button" data-act="fl-adv" data-id="${j.id}">الانتقال إلى ${nxN}</button></div>`;
   if (s === 'gate') {
@@ -1265,7 +1286,8 @@ function flDetail(j) {
   const gf = gwOn() && gcfg().jobFolders && gcfg().jobFolders[j.id];
   return html`<article class="card fldetail" style="--sc:${FL_COLORS[j.stage]}"><div class="row between"><div><h2 style="font-size:20px">${j.kind} — ${j.district || ''}</h2>
       <p class="t-mut ltr" style="margin:4px 0 0;text-align:start"><b>${j.uid || ''}</b> · ${flFolderName(j)}</p></div>
-      <div class="row">${flPermitChip(j)}<button class="btn sm" type="button" data-act="fl-edit" data-id="${j.id}">تعديل</button><a class="btn sm wa" href="${wa('', '«ميدان» — ' + flJobText(j) + (flNav(j) ? '\nالموقع: ' + flPin(j) : ''))}" target="_blank" rel="noopener noreferrer">واتساب</a>${flNav(j) ? html`<a class="btn sm" href="${flNav(j)}" target="_blank" rel="noopener noreferrer">الملاحة</a>` : ''}<button class="btn sm" type="button" data-act="fl-close-detail">إغلاق</button></div></div>
+      <div class="row">${flPermitChip(j)}${jobCanEdit(j) ? html`<button class="btn sm" type="button" data-act="fl-edit" data-id="${j.id}">تعديل</button>` : ''}<a class="btn sm wa" href="${wa('', '«ميدان» — ' + flJobText(j) + (flNav(j) ? '\nالموقع: ' + flPin(j) : ''))}" target="_blank" rel="noopener noreferrer">واتساب</a>${flNav(j) ? html`<a class="btn sm" href="${flNav(j)}" target="_blank" rel="noopener noreferrer">الملاحة</a>` : ''}<button class="btn sm" type="button" data-act="fl-close-detail">إغلاق</button></div></div>
+    ${flLockBox(j)}${j.elecEng ? html`<p class="t-mut" style="font-size:13px;margin:0">مهندس الكهرباء المسؤول: <b>${j.elecEng.name}</b></p>` : ''}
     ${flStepper(j)}
     <div class="grid g2"><div class="flkv"><span>المكتب</span><b>${j.office || '—'}</b><span>الحي</span><b>${j.district || '—'}</b><span>المحطة / المخطط / القطعة</span><b>${[j.station, j.plan, j.plot].filter(Boolean).join(' / ') || '—'}</b><span>التاريخ</span><b>${j.date}</b><span>طول الحفر</span><b>${j.lengthM ? j.lengthM + ' م' : '—'}</b><span>الفرقة</span><b>${crew ? crew.id + ' · ' + crew.sup.name : '—'}</b></div>
       <div class="flkv"><span>المعرّف الموحّد</span><b class="ltr">${j.uid || '—'} <span class="t-mut">(${FL_CATS[flCatOf(j)][0]})</span></b><span>أمر العمل / SAP</span><b class="ltr">${j.woNo || '—'} / ${j.sapNo || '—'}</b><span>رقم الأساس</span><b class="ltr">${j.baseNo || '—'}</b><span>رقم المعاملة</span><b class="ltr">${j.txNo || '—'}</b><span>الرخصة</span><b>${flPermitLine(j)}</b><span>بوابة الرخصة</span><b>${flGateLabel(j)[0]}</b>
@@ -1357,6 +1379,7 @@ function viewReports() {
 }
 
 // ---------- team cards (slider) ----------
+const PHOTO_DOC = 'الصورة الشخصية';
 const FL_CARD_DOCS = ['صورة الإقامة', 'كارت الأمن الصناعي', 'شهادة TUV', 'رخصة القيادة', 'كارت التأمين الطبي'];
 function viewCards() {
   const q = (UI.cardQ || '').trim(); const E = (DB.employees || []).filter(empInScope).filter((e) => !q || (e.name + ' ' + e.iqama + ' ' + (e.job || '')).includes(q));
@@ -1368,13 +1391,15 @@ function viewCards() {
   ${E.length ? '' : html`<p class="t-mut">لا موظفين. استورد سجل الموظفين من الإعدادات.</p>`}`;
 }
 function flPersonCard(e) {
-  const l = empLink(e); const iq = (e.docs || {})['صورة الإقامة']; const E = can('cards') && empInScope(e);
-  const ini = String(e.name || '؟').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('');
+  const l = empLink(e); const iq = (e.docs || {})['صورة الإقامة']; const E = cardEditable(e); const rk = 'e-' + e.id;
   const st = FL_CARD_DOCS.map((t) => empDocState(e, t)); const bad = st.filter((x) => x.lvl === 'bad' || x.lvl === 'miss').length;
   return html`<article class="pcard" aria-label="${e.name}">
-    <header class="pc-head"><span class="pc-av">${iq && iq.fileId ? html`<img alt="" data-thumb="${iq.fileId}" class="pc-img">` : ''}<span class="pc-ini" aria-hidden="true">${ini}</span></span>
-      <div class="pc-id"><b>${e.name}</b><span>${e.job || '—'}</span></div><span class="pc-st ${bad ? 'bad' : 'ok'}">${bad ? bad + ' يحتاج إجراء' : 'مكتمل'}</span></header>
-    <dl class="pc-meta"><div><dt>الإقامة</dt><dd class="ltr">${e.iqama || '—'}</dd></div><div><dt>الفرقة</dt><dd>${l ? l.crew.id + ' · ' + l.role : '—'}</dd></div></dl>
+    <header class="pc-head">${(() => { const ph = (e.docs || {})[PHOTO_DOC]; const fid = (ph && ph.fileId) || (iq && iq.fileId); const inner = html`${fid ? html`<img alt="صورة ${e.name}" data-thumb="${fid}" class="pc-img">` : ''}<span class="pc-ini" aria-hidden="true">${new Safe('<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8.5" r="3.8"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></svg>')}</span>${E ? html`<i class="pc-cam" aria-hidden="true">${new Safe('<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-2h6l2 2h3v11H4z"/><circle cx="12" cy="13" r="3.2"/></svg>')}</i>` : ''}`;
+      return E ? html`<button type="button" class="pc-av" data-act="card-photo" data-id="${e.id}" aria-label="${fid ? 'تغيير' : 'إضافة'} صورة ${e.name}" title="${fid ? 'تغيير الصورة' : 'إضافة صورة شخصية'}">${inner}</button>` : html`<span class="pc-av">${inner}</span>`; })()}
+      <div class="pc-id"><b>${e.name}</b><span>${l && l.role === 'مراقب' ? supTag(l.crew) : e.job || '—'}</span></div><span class="pc-st ${bad ? 'bad' : 'ok'}">${bad ? bad + ' يحتاج إجراء' : 'مكتمل'}</span></header>
+    <dl class="pc-meta"><div><dt>الفرقة</dt><dd>${l ? l.crew.id + ' · ' + l.role : '—'}</dd></div><div><dt>المهندس المسؤول</dt><dd>${l && l.crew.eng ? l.crew.eng.name : '—'}</dd></div></dl>
+    <div class="row" style="gap:6px">${contactBtn(rk, e.name)}${E ? '' : html`<span class="pill mutp" title="التعديل للمهندس المسؤول عن الفرقة أو الموارد البشرية أو مدير المشروع">عرض فقط</span>`}</div>${contactRow(rk, { iqama: e.iqama, phone: e.phone })}
+    ${e.xfer ? html`<p class="pc-xfer">نُقل من ${e.xfer.from}${e.xfer.fromEng ? ' (' + e.xfer.fromEng + ')' : ''} إلى ${e.xfer.to}${e.xfer.toEng ? ' (' + e.xfer.toEng + ')' : ''} · ${fmtD(e.xfer.tm.slice(0, 10))}. صلاحية التجديد وتحديث الملفات لدى المهندس الجديد.</p>` : ''}
     <ul class="pc-docs">${FL_CARD_DOCS.map((t, k) => { const s = st[k]; const d = s.d || {};
       return html`<li class="${s.lvl}"><i class="pc-dot" aria-hidden="true"></i><span class="pc-t">${t}</span><span class="pc-v">${s.lvl === 'na' ? 'غير مطلوب' : s.lvl === 'miss' ? 'غير مرفق' : d.exp ? (s.lvl === 'bad' ? 'منتهية ' : '') + d.exp : 'مرفق'}</span>
         <span class="pc-a">${d.fileId ? html`<button type="button" class="ib" data-act="emp-doc-file" data-id="${e.id}" data-k="${t}" aria-label="تنزيل ${t}" title="تنزيل">${new Safe('<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 4v11m0 0l-4-4m4 4l4-4M5 20h14"/></svg>')}</button>` : ''}${E && s.lvl !== 'na' ? html`<button type="button" class="ib" data-act="card-doc" data-id="${e.id}" data-k="${t}" aria-label="${d.fileId || d.exp ? 'تحديث' : 'رفع'} ${t}" title="${d.fileId || d.exp ? 'تحديث' : 'رفع'}">${new Safe('<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 20V9m0 0l-4 4m4-4l4 4M5 4h14"/></svg>')}</button>` : ''}</span></li>`; })}</ul>
@@ -1407,6 +1432,7 @@ function flJobFields(j) {
     { k: 'district', label: 'الحي (ابحث في أحياء الرياض)', type: 'combo', opts: districtOpts(), val: j.district || '', hint: 'اختر من القائمة أو اكتب حياً جديداً فيُضاف' }, { k: 'station', label: 'المحطة', val: j.station || '' }, { k: 'plan', label: 'المخطط', val: j.plan || '' }, { k: 'plot', label: 'القطعة', val: j.plot || '' },
     { k: 'lat', label: 'خط العرض', type: 'number', val: j.lat || '', ltr: true, hint: 'إن تُرك فارغاً يُملأ بمركز الحي تقريبياً' }, { k: 'lng', label: 'خط الطول', type: 'number', val: j.lng || '', ltr: true },
     { k: 'lengthM', label: 'طول الحفر (م)', type: 'number', val: j.lengthM || '' }, { k: 'depthM', label: 'عمق الحفر (م)', type: 'number', val: j.depthM || '', hint: 'أكثر من 1.5 م يتطلب تدعيماً وسلّماً' }, { k: 'barrier', label: 'نوع الصبات', type: 'select', opts: [['صبات خرسانية', 'صبات خرسانية'], ['صبات بلاستيكية', 'صبات بلاستيكية']], val: (j.safety && j.safety.barrier) || 'صبات خرسانية' },
+    { k: 'elecEng', label: 'مهندس الكهرباء المسؤول (يرى المعاملة ويعدّلها)', type: 'select', opts: [['', '— بدون —']].concat(DB.users.filter((u) => u.role === 'eng' && userSpec(u) === 'elec').map((u) => [u.id, u.name])), val: (DB.users.find((u) => j.elecEng && personIs(j.elecEng, u)) || {}).id || '' },
     { k: 'crewId', label: 'الفرقة المنفذة', type: 'select', opts: [['', '— بدون —']].concat(DB.crews.map((c) => [c.id, c.id + ' · ' + (TYPES[c.type] ? TYPES[c.type][0] : '') + ' · ' + c.sup.name])), val: j.crewId || '' },
     { k: 'note', label: 'ملاحظات', type: 'textarea', val: j.note || '' }];
 }
@@ -1414,6 +1440,8 @@ function flApply(j, v) {
   const oldCat = j.uid ? flCatOf(j) : '';
   ['kind', 'office', 'baseNo', 'txNo', 'permit', 'permitType', 'permitExp', 'date', 'district', 'station', 'plan', 'plot', 'crewId', 'note', 'woNo', 'sapNo'].forEach((k) => { j[k] = String(v[k] || '').trim().slice(0, 200); });
   j.district = rememberDistrict(j.district);
+  { const eu = DB.users.find((u) => u.id === v.elecEng && u.role === 'eng'); j.elecEng = eu ? { name: eu.name, iqama: eu.iqama || '', phone: eu.phone || '' } : null; }
+  jobTouch(j);
   j.lat = parseFloat(v.lat) || 0; j.lng = parseFloat(v.lng) || 0; j.lengthM = Math.max(0, Math.round(+v.lengthM || 0)); j.depthM = Math.max(0, Math.min(20, Math.round((+v.depthM || 0) * 10) / 10));
   if (!flHasXY(j) && DISTRICT_XY[j.district]) { j.lat = DISTRICT_XY[j.district][0]; j.lng = DISTRICT_XY[j.district][1]; j.xyApprox = true; } else if (v.lat) j.xyApprox = false;
   j.cat = FL_CATS[v.cat] ? v.cat : ''; const nc = flCatOf(j); flEnsureUid(j, !!oldCat && oldCat !== nc);
@@ -1442,8 +1470,17 @@ async function flAttach(j, kind, file, o) {
 }
 
 const FL_ACT = {
+  'card-photo': (d) => {
+    const e = empById(d.id); if (!e || !need('cards')) return; if (!cardEditable(e)) return toast('تحديث الصورة للمهندس المسؤول عن الفرقة أو الموارد البشرية أو مدير المشروع.', 'err');
+    openForm('الصورة الشخصية — ' + e.name, [{ k: 'file', label: 'صورة واضحة للوجه (JPG أو PNG أو WebP، حتى 5 ميجابايت)', type: 'file', capture: true, wide: true }], async (v) => {
+      const f = v.file && v.file.size ? v.file : null; if (!f) return 'اختر صورة.'; if (!/^image\/(jpeg|png|webp)$/.test(f.type)) return 'المسموح: صورة JPG أو PNG أو WebP.'; if (f.size > 5 * 1024 * 1024) return 'الصورة أكبر من 5 ميجابايت.';
+      const cur = (e.docs || {})[PHOTO_DOC] || {}; const x = { fileId: uid('f'), fileName: safeName(f.name), size: f.size, type: f.type, tm: nowIso(), by: CUR.name };
+      try { await filePut(x.fileId, f); } catch (err) { return 'تعذّر حفظ الصورة.'; } if (cur.fileId) fileDel(cur.fileId);
+      e.docs = e.docs || {}; e.docs[PHOTO_DOC] = x; audit(CUR.name, 'تحديث الصورة الشخصية', e.name); toast('حُفظت صورة ' + e.name + '.');
+    }, { ok: 'حفظ الصورة' });
+  },
   'card-doc': (d) => {
-    const e = empById(d.id); if (!e || !need('cards')) return; if (!empInScope(e)) return toast('هذا الموظف خارج نطاق فرقك.', 'err');
+    const e = empById(d.id); if (!e || !need('cards')) return; if (!cardEditable(e)) return toast('تجديد البطاقات وتحديث الملفات للمهندس المسؤول عن فرقة الموظف أو الموارد البشرية أو مدير المشروع.', 'err');
     const cur = (e.docs || {})[d.k] || {};
     openForm(d.k + ' — ' + e.name, [{ k: 'exp', label: 'تاريخ الانتهاء', type: 'date', val: cur.exp || '' }, { k: 'file', label: 'صورة أو PDF (حتى 10 ميجابايت)', type: 'file', capture: true, wide: true }], async (v) => {
       const f = v.file && v.file.size ? v.file : null; if (!f && !v.exp) return 'أرفق الملف أو أدخل تاريخ الانتهاء.';
@@ -1726,7 +1763,7 @@ function flQaBox(j) {
   if (!show && flPath(j).includes('lab')) return '';
   return html`<div class="gatebox qa"><div class="row between"><b>قائمة التوثيق والجودة قبل الرفع للاستشاري</b>${j.qa ? html`<span class="pill ok">اعتمد ${j.qa.by} · ${fmtT(j.qa.tm)}</span>` : html`<span class="pill ${ok ? 'info' : 'warn'}">${Q.filter((x) => x[1]).length}/${Q.length}</span>`}</div>
     <ul class="qal">${Q.map((x) => html`<li class="${x[1] ? 'y' : 'n'}">${x[1] ? '✓' : '✗'} ${x[0]}</li>`)}</ul>
-    ${!j.qa && can('edit') && jobInScope(j) ? html`<button class="btn sm ${ok ? 'pri' : ''}" type="button" data-act="fl-qa" data-id="${j.id}" ${ok ? '' : new Safe('aria-disabled="true"')}>اعتماد الجودة</button>` : ''}</div>`;
+    ${!j.qa && can('edit') && jobCanEdit(j) ? html`<button class="btn sm ${ok ? 'pri' : ''}" type="button" data-act="fl-qa" data-id="${j.id}" ${ok ? '' : new Safe('aria-disabled="true"')}>اعتماد الجودة</button>` : ''}</div>`;
 }
 
 // ---------- Kanban (drag & drop) ----------
@@ -1966,7 +2003,7 @@ function hseSiteChecks(j) {
 }
 function flHseBox(j) {
   if (!j.flow) return '';
-  const R = hseRecs(j); const bad = R.filter((x) => x.lvl === 'bad').length; const E = can('edit') && jobInScope(j);
+  const R = hseRecs(j); const bad = R.filter((x) => x.lvl === 'bad').length; const E = can('edit') && jobCanEdit(j);
   return html`<details class="gatebox hsebox" ${bad ? new Safe('open') : ''}><summary><b>توصيات السلامة والصحة المهنية</b> <span class="pill ${bad ? 'bad' : 'info'}">${bad ? bad + ' عاجل' : R.length + ' توصية'}</span></summary>
     <ul class="hsel">${R.map((x) => html`<li class="${x.lvl}"><span>${x.ar}</span>${x.src ? html`<small class="t-mut">${x.src}</small>` : ''}</li>`)}</ul>
     ${E ? html`<div class="row"><button class="btn sm" type="button" data-act="hse-ptw" data-id="${j.id}">تسجيل تصريح العمل PTW</button><button class="btn sm" type="button" data-act="hse-gen" data-k="twf" data-id="${j.id}">نموذج فريق العمل (SEC)</button><button class="btn sm" type="button" data-act="hse-gen" data-k="jsp" data-id="${j.id}">إجراءات العمل الآمن</button><button class="btn sm" type="button" data-act="hse-gen" data-k="ra" data-id="${j.id}">تقييم المخاطر</button></div>` : ''}</details>`;
@@ -2219,6 +2256,119 @@ if (!FL_CARD_DOCS.includes(AUTH_CARD)) FL_CARD_DOCS.splice(2, 0, AUTH_CARD);
 Object.assign(FL_ACT, HSE_ACT);
 Object.assign(ACT_RULES, { 'hse-gen': ['request'], 'hse-regen': ['request'], 'hse-ptw': ['permits'] });
 
+// ---- module: 50-access.js ----
+// ================================================================
+// Module: access rules — who sees and who edits (cards, transactions, contacts)
+//   • Team cards: platform admin, operations manager, HR, project manager, and each engineer for his
+//     own crews only. Editing a card: admin / HR / project manager in scope; an engineer edits only the
+//     supervisor and the people under him in his crews (never another engineer's card).
+//   • Moving a person to a crew of another engineer hands the renewal / file-update right to the new
+//     engineer; the move is recorded on the person (xfer) and the old engineer loses access.
+//   • Transactions: civil engineers see their crews' transactions and those they worked on; electrical
+//     engineers see transactions assigned to them (elecEng) and their own crews'. Editing needs the
+//     transaction to be in the user's current tree, or a time-limited grant approved by the project
+//     manager / platform admin (access requests).
+//   • Contacts (iqama, phones, WhatsApp) are hidden until the user presses «بيانات التواصل».
+// The same rules are enforced by the server (server/index.js: viewState / guardState).
+// ================================================================
+Object.assign(ROLE_INFO, { hr: ['إدارة الموارد البشرية', 'كل بطاقات الفريق ومستنداتهم وتأهيلهم — دون تعديل الفرق أو المعاملات'] });
+ROLE_PERMS.hr = ['cards', 'request', 'ai', 'audit'];
+const ENG_SPEC = { civil: 'مهندس مدني', elec: 'مهندس كهرباء' };
+const userSpec = (u) => ((u || CUR || {}).scope || {}).spec || '';
+
+// ---------- supervisors numbered per office ----------
+const officeName = (b) => 'مكتب ' + String(b || '—').replace(/^\s*(فرع|مكتب)\s+/, '');
+function supTag(c) {
+  if (!c) return '';
+  const same = DB.crews.filter((x) => x.branch === c.branch && x.sup && x.sup.name).sort((a, b) => a.id.localeCompare(b.id));
+  const n = Math.max(1, same.findIndex((x) => x.id === c.id) + 1); const t = TYPES[c.type] ? TYPES[c.type][0] : '';
+  return 'مراقب ' + t + ' ' + n + ' · ' + officeName(c.branch);
+}
+// what to show beside a name in selects and lists — never the iqama
+function personTag(e) {
+  const l = e && empLink(e); if (!l) return (e && e.job) || '';
+  if (l.role === 'مراقب') return supTag(l.crew);
+  if (l.role === 'مهندس') return 'مهندس · ' + officeName(l.crew.branch);
+  return (e.job || l.role) + ' · ' + l.crew.id;
+}
+
+// ---------- team cards ----------
+const canSeeCards = () => !!CUR && ['admin', 'ops', 'hr', 'pm', 'eng'].includes(CUR.role);
+function cardEditable(e) {
+  if (!CUR || !e || !can('cards')) return false;
+  if (CUR.role === 'admin' || CUR.role === 'hr') return true;
+  if (CUR.role === 'pm') return empInScope(e);
+  if (CUR.role === 'eng') { const l = empLink(e); return !!l && crewInScope(l.crew) && l.role !== 'مهندس'; }
+  return false;
+}
+function markTransfer(people, src, dst) {
+  if (!src || !dst || personIs(src.eng || {}, dst.eng || {})) return;
+  people.filter(Boolean).forEach((p) => { const e = (p.empId && empById(p.empId)) || empByIqama(p.iqama); if (!e) return;
+    e.xfer = { from: src.id, fromEng: src.eng ? src.eng.name : '', to: dst.id, toEng: dst.eng ? dst.eng.name : '', tm: nowIso(), by: CUR.name }; });
+  DB.notifs = DB.notifs || [];
+  DB.notifs.unshift({ id: uid('n'), tm: nowIso(), title: 'نقل بين مهندسين', body: 'نُقل أفراد من ' + src.id + ' (' + (src.eng ? src.eng.name : '—') + ') إلى ' + dst.id + ' (' + (dst.eng ? dst.eng.name : '—') + '). صلاحية تجديد البطاقات وتحديث الملفات انتقلت إلى المهندس الجديد.', to: 'eng' });
+}
+
+// ---------- transactions ----------
+function jobGrant(j, u) { u = u || CUR; const g = j.grants && j.grants[u && u.id]; return !!g && g > nowIso(); }
+function jobCanEdit(j, u) {
+  u = u || CUR; if (!u || !j) return false;
+  if (u.role === 'ops' || u.role === 'hr' || u.role === 'viewer') return false;
+  if (scopeAll(u)) return true;
+  if (jobGrant(j, u)) return true;
+  if (u.role === 'eng' && userSpec(u) === 'elec' && j.elecEng && personIs(j.elecEng, u)) return true;
+  if (j.crewId) { const c = crewById(j.crewId); if (c) return crewInScope(c, u); }
+  return (u.role === 'pm' || (u.role === 'eng' && userSpec(u) !== 'elec')) && !!j.office && myOffices(u).includes(j.office);
+}
+function jobVisible(j, u) {
+  u = u || CUR; if (!u || !j) return false; if (scopeAll(u) || u.role === 'hr') return true;
+  if (jobCanEdit(j, u)) return true;
+  if ((j.editors || []).includes(u.id)) return true;
+  return !!(j.accessReq || []).find((r) => r.uid === u.id);
+}
+function jobTouch(j) { if (!j || !CUR) return; j.editors = (j.editors || []).filter((x) => x !== CUR.id); j.editors.unshift(CUR.id); j.editors.length = Math.min(j.editors.length, 20); }
+function flLockBox(j) {
+  if (!j || jobCanEdit(j)) return '';
+  const mine = (j.accessReq || []).find((r) => r.uid === CUR.id && r.st === 'pending');
+  const c = crewById(j.crewId);
+  return html`<p class="alert wr" role="status" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span style="flex:1;min-width:200px"><b>للعرض فقط.</b> ${c ? 'المعاملة الآن لدى ' + c.id + (c.eng ? ' (' + c.eng.name + ')' : '') + '. ' : ''}التعديل بعد موافقة مدير المشروع أو مدير المنصة.</span>
+    ${mine ? html`<span class="pill info">طلبك قيد المراجعة</span>` : CUR.role === 'eng' || CUR.role === 'sup' || CUR.role === 'pm' ? html`<button class="btn sm" type="button" data-act="fl-access-req" data-id="${j.id}">طلب صلاحية تعديل</button>` : ''}</p>`;
+}
+function accessReqs() { return DB.jobs.flatMap((j) => (j.accessReq || []).filter((r) => r.st === 'pending').map((r) => ({ j, r }))).filter((x) => scopeAll() || jobCanEdit(x.j)); }
+function flAccessPanel() {
+  if (!CUR || !['admin', 'pm'].includes(CUR.role)) return ''; const L = accessReqs(); if (!L.length) return '';
+  return html`<div class="card"><h3 style="font-size:16px">طلبات صلاحية التعديل · ${L.length}</h3><ul class="nb">${L.map((x) => html`<li><span><b>${x.r.name}</b> يطلب تعديل <button type="button" class="lnk" data-act="fl-goto" data-id="${x.j.id}">${x.j.uid || x.j.baseNo}</button>${x.r.note ? ' — ' + x.r.note : ''} <span class="t-mut">· ${ago(x.r.tm)}</span></span>
+    <span class="row" style="gap:6px"><button class="btn sm pri" type="button" data-act="fl-access-ok" data-id="${x.j.id}" data-k="${x.r.uid}">موافقة 72 ساعة</button><button class="btn sm" type="button" data-act="fl-access-no" data-id="${x.j.id}" data-k="${x.r.uid}">رفض</button></span></li>`)}</ul></div>`;
+}
+const ACCESS_ACT = {
+  'fl-access-req': (d) => { const j = DB.jobs.find((x) => x.id === d.id); if (!j || !jobVisible(j) || jobCanEdit(j)) return;
+    openForm('طلب صلاحية تعديل — ' + (j.uid || j.baseNo), [{ k: 'note', label: 'سبب الطلب', type: 'textarea', max: 300 }], (v) => { const note = String(v.note || '').trim(); if (note.length < 5) return 'اكتب سبب الطلب.';
+      j.accessReq = (j.accessReq || []).filter((r) => r.uid !== CUR.id); j.accessReq.push({ uid: CUR.id, name: CUR.name, note: note.slice(0, 300), tm: nowIso(), st: 'pending' });
+      DB.notifs = DB.notifs || []; DB.notifs.unshift({ id: uid('n'), tm: nowIso(), title: 'طلب صلاحية تعديل', body: CUR.name + ' يطلب تعديل ' + (j.uid || j.baseNo) + ': ' + note.slice(0, 120), to: 'pm' });
+      audit(CUR.name, 'طلب صلاحية تعديل', (j.uid || j.baseNo)); toast('أُرسل الطلب لمدير المشروع ومدير المنصة.'); }, { ok: 'إرسال الطلب' }); },
+  'fl-access-ok': (d) => { if (!CUR || !['admin', 'pm'].includes(CUR.role)) return need('users'); const j = DB.jobs.find((x) => x.id === d.id); if (!j || !(scopeAll() || jobCanEdit(j))) return; const r = (j.accessReq || []).find((x) => x.uid === d.k && x.st === 'pending'); if (!r) return;
+    r.st = 'ok'; r.by = CUR.name; r.at = nowIso(); j.grants = j.grants || {}; j.grants[r.uid] = new Date(Date.now() + 72 * 3600e3).toISOString(); if (j.flow) flLog(j, j.stage, 'منح صلاحية تعديل مؤقتة لـ ' + r.name);
+    audit(CUR.name, 'منح صلاحية تعديل', r.name + ' · ' + (j.uid || j.baseNo)); save(); toast('مُنح ' + r.name + ' صلاحية التعديل 72 ساعة.'); render(); },
+  'fl-access-no': (d) => { if (!CUR || !['admin', 'pm'].includes(CUR.role)) return need('users'); const j = DB.jobs.find((x) => x.id === d.id); if (!j) return; const r = (j.accessReq || []).find((x) => x.uid === d.k && x.st === 'pending'); if (!r) return;
+    r.st = 'no'; r.by = CUR.name; r.at = nowIso(); audit(CUR.name, 'رفض صلاحية تعديل', r.name + ' · ' + (j.uid || j.baseNo)); save(); render(); },
+  'reveal': (d) => { UI.reveal = UI.reveal || {}; UI.reveal[d.k] = !UI.reveal[d.k]; if (UI.reveal[d.k]) audit(CUR.name, 'عرض بيانات التواصل', d.n || d.k); render(); },
+  'eq-show': () => { const on = !UI.layers.eq; Object.assign(UI.layers, { eq: on, drivers: on, dynas: on, cars: on }); try { localStorage.setItem('maydan_eq', on ? '1' : '0'); } catch (e) { /* private mode */ } render(); },
+  'demo-as': (d) => { if (!DEMO) return; const u = DB.users.find((x) => x.id === d.k); if (!u) return; CUR = u; if (UI.view === 'cards' && !canSeeCards()) UI.view = 'dash'; toast('تجربة المنصة بصلاحية: ' + ROLES[u.role] + (userSpec(u) ? ' (' + ENG_SPEC[userSpec(u)] + ')' : '')); render(); }
+};
+Object.assign(FL_ACT, ACCESS_ACT);
+
+// contacts hidden until asked
+const revealed = (k) => !!(UI.reveal && UI.reveal[k]);
+function contactBtn(k, name) { return html`<button type="button" class="btn sm ghost rv" data-act="reveal" data-k="${k}" data-n="${name || ''}" aria-expanded="${revealed(k)}">${revealed(k) ? 'إخفاء البيانات' : 'بيانات التواصل'}</button>`; }
+function contactRow(k, p) {
+  if (!p || !revealed(k)) return '';
+  return html`<div class="rvbox">${p.iqama ? html`<span>الإقامة <b class="ltr">${p.iqama}</b></span>` : ''}${p.phone ? html`<span>الجوال <b class="ltr">+${p.phone}</b></span><a class="lnk w" href="${safeUrl(wa(p.phone))}" target="_blank" rel="noopener noreferrer">واتساب</a><a class="lnk t" href="${safeUrl(tg(p.phone))}" target="_blank" rel="noopener noreferrer">تليجرام</a>` : ''}${!p.iqama && !p.phone ? html`<span class="t-mut">لا بيانات تواصل مسجلة.</span>` : ''}</div>`;
+}
+function demoSwitcher() {
+  if (!DEMO) return '';
+  return html`<label class="demo-as"><span>تجربة بصلاحية</span><select class="in" data-change="demo-as" aria-label="تجربة المنصة بصلاحية مستخدم آخر">${DB.users.map((u) => html`<option value="${u.id}" ${CUR && CUR.id === u.id ? new Safe('selected') : ''}>${ROLES[u.role]}${userSpec(u) ? ' (' + ENG_SPEC[userSpec(u)] + ')' : ''} — ${u.name}</option>`)}</select></label>`;
+}
+
 const freshDB = () => seedFlow(seedV3(migrate3(seed())));
 const PRELOAD_EMP = null; /* private builds only: employees injected by scripts/build.py --preload */
 const withPreload = (d) => { if (Array.isArray(PRELOAD_EMP) && PRELOAD_EMP.length) { d.employees = PRELOAD_EMP.map((e) => Object.assign({}, e)); PRELOAD_EMP.forEach((e) => { if (e.branch && /^فرع/.test(e.branch) && !d.branches.includes(e.branch)) d.branches.push(e.branch); }); } return d; };
@@ -2238,7 +2388,7 @@ let LANG = pref('maydan_lang', 'ar');
 const PALETTES = [['ember', 'برتقالي الميدان'], ['navy', 'كحلي وذهبي'], ['green', 'أخضر سعودي'], ['sec', 'أزرق الكهرباء']];
 let PALETTE_K = pref('maydan_palette', 'ember');
 function applyPrefs() { const h = document.documentElement; h.dataset.theme = THEME; h.dataset.palette = PALETTE_K; h.lang = LANG; h.dir = LANG === 'en' ? 'ltr' : 'rtl'; }
-const UI = { view: 'dash', sel: 'X-03', layers: { sup: true, cars: true, workers: true, dynas: true, eq: true, drivers: true }, move: null, eqFilter: 'all', eqQ: '', mapView: null, live: null, liveCrew: null, ai: { q: '', a: '', busy: false, via: '' }, reqFrom: 'E-07', reqSvc: 'gcb', lastReq: null, dragId: null };
+const UI = { view: 'dash', sel: 'X-03', layers: (() => { let on = false; try { on = localStorage.getItem('maydan_eq') === '1'; } catch (e) { /* private mode */ } return { sup: true, cars: on, workers: true, dynas: on, eq: on, drivers: on }; })(), move: null, eqFilter: 'all', eqQ: '', mapView: null, live: null, liveCrew: null, ai: { q: '', a: '', busy: false, via: '' }, reqFrom: 'E-07', reqSvc: 'gcb', lastReq: null, dragId: null };
 const AUTH = { step: DB.users.length ? 'creds' : 'setup', err: '', note: '', uid: null, channel: 'sms', otpHash: '', otpSalt: '', otpExp: 0, tries: 0, resendAt: 0, demo: '', iqama: '' };
 const AI_KEYS = {}; // provider id -> key, memory only, never persisted
 const can = (p) => !!CUR && (PERMS[CUR.role] || []).includes(p);
@@ -2246,8 +2396,9 @@ const dev = () => { const u = navigator.userAgent; const b = /Edg\//.test(u) ? '
 function audit(user, res, detail) { if (CLOUD && CUR && !DEMO) api('/audit', { method: 'POST', body: JSON.stringify({ res: String(res).slice(0, 80), detail: String(detail || '').slice(0, 300) }) }).catch(() => {}); DB.audit.unshift({ tm: nowIso(), user, dev: dev(), res, detail: detail || '' }); DB.audit = DB.audit.slice(0, 500); save(); }
 function startDemo() {
   DEMO = true; DB = freshDB(); ensureProviders(); seedForms();
-  const demoUsers = [['زائر تجريبي', 'admin'], ['م. عبدالله السيد', 'pm'], ['م/يحي الشريف', 'eng'], ['أحمد سالم', 'sup']];
-  DB.users = demoUsers.map((x, i) => ({ id: 'demo-' + i, name: x[0], iqama: '2' + String(100000000 + i), phone: '9665000009' + String(i).padStart(2, '0'), email: 'demo' + i + '@example.com', role: x[1], active: true, created: nowIso() }));
+  const demoUsers = [['زائر تجريبي', 'admin'], ['م. عبدالله السيد', 'pm'], ['م/يحي الشريف', 'eng', 'civil'], ['أحمد سالم', 'sup'], ['م. خالد العنزي', 'eng', 'elec'], ['نورة القحطاني', 'hr']];
+  DB.users = demoUsers.map((x, i) => ({ id: 'demo-' + i, name: x[0], iqama: '2' + String(100000000 + i), phone: '9665000009' + String(i).padStart(2, '0'), email: 'demo' + i + '@example.com', role: x[1], scope: x[2] ? { spec: x[2] } : {}, active: true, created: nowIso() }));
+  DB.jobs.filter((j) => j.flow && ['elec', 'asphalt', 'dig'].includes(j.stage)).slice(0, 4).forEach((j) => { j.elecEng = { name: 'م. خالد العنزي', iqama: '2100000004', phone: '966500000904' }; });
   DB.reqs = [{ id: uid('r'), name: 'فهد القحطاني', iqama: '1098765432', phone: '966500000777', email: '', role: 'eng', msg: 'طلب صلاحية مهندس تنفيذ — حساب تجريبي.', tm: nowIso(), st: 'pending' }];
   CUR = DB.users[0]; UI.view = 'dash'; UI.sel = 'E-07';
   audit(CUR.name, 'نجاح', 'دخول بالوضع التجريبي');
@@ -2477,6 +2628,7 @@ function doMove() {
   const src = crewById(m.from), dst = crewById(m.target); let msg = '';
   if (m.kind === 'eq') {
     const i = src.eq.findIndex((e) => e.id === m.id); if (i < 0) return; const it = src.eq.splice(i, 1)[0];
+    markTransfer([m.withDriver ? it.driver : null], src, dst);
     if (!m.withDriver && it.driver) { src.workers.push({ id: uid('w'), name: it.driver.name, role: 'سائق — بلا معدة', phone: it.driver.phone, dyna: null }); it.driver = null; }
     dst.eq.push(it); msg = 'نُقلت ' + it.kind + ' ' + it.code + (m.withDriver ? ' مع سائقها' : ' بدون سائق') + ' إلى ' + dst.name + '.';
   } else if (m.kind === 'dyna') {
@@ -2485,6 +2637,7 @@ function doMove() {
     if (free) { free.dyna = y; msg = 'نُقلت ديانة ' + y.code + ' بسائقها إلى ' + dst.name + ' وأُسندت لـ ' + free.name + '.'; } else { dst.eq.push(y); msg = 'نُقلت ديانة ' + y.code + ' بسائقها إلى معدات ' + dst.name + '.'; }
   } else {
     const i = src.workers.findIndex((w) => w.id === m.id); if (i < 0) return; const it = src.workers.splice(i, 1)[0];
+    markTransfer([it, m.withDriver && it.dyna ? it.dyna.driver : null], src, dst);
     if (!m.withDriver && it.dyna) { src.eq.push(it.dyna); it.dyna = null; }
     dst.workers.push(it); msg = 'نُقل ' + it.name + (m.withDriver && it.dyna ? ' مع ديانته وسائقها' : '') + ' إلى ' + dst.name + '.';
   }
@@ -2718,15 +2871,17 @@ function shell(inner) {
     ['المعاملات الميدانية', [['flow', 'دورة المعاملات', flN], ['permits', 'تقرير الرخص الحرجة', jobsV().filter((j) => j.permit && j.permitExp && j.st !== 'done' && daysTo(j.permitExp) < 5).length], ['inbox', 'مركز التنسيق', inN], ['reports', 'البلاغات والمعادات', repN], ['hse', 'السلامة والصحة المهنية', (DB.jobs || []).filter((j) => j.flow && j.stage !== 'closed' && hseRecs(j).some((x) => x.lvl === 'bad')).length], ['tasks', 'المهام والطلبات', DB.jobs.filter((j) => j.st !== 'done' && A.some((x) => x.task === j.id)).length], ['docs', 'الوثائق والمستندات', 0]]],
     ['الفرق والأصول', [['crews', 'الفرق ومعداتها', DB.crews.filter((c) => crewState(c).lvl === 'bad').length], ['cards', 'بطاقات الفريق', 0], ['equip', 'سجل المعدات', allEquipment().filter((x) => needsCare(x.u)).length], ['inv', 'الحصر والهيكل', hierarchyIssues().length]]],
     ['الإدارة', [['ai', 'الوكيل الذكي', 0]].concat(can('users') ? [['users', 'المستخدمون والطلبات', pendingR]] : []).concat(can('audit') ? [['security', 'الأمان وسجل الدخول', 0]] : []).concat(can('settings') ? [['settings', 'الإعدادات', 0]] : [])]];
+  const HIDE = { hr: ['flow', 'permits', 'inbox', 'reports', 'cluster', 'tasks', 'inv', 'ops'], sup: ['cards', 'inv'], viewer: ['cards'] }[CUR.role] || []; if (!canSeeCards()) HIDE.push('cards');
+  groups.forEach((g) => { g[1] = g[1].filter((i) => !HIDE.includes(i[0])); });
   const curItem = groups.flatMap((g) => g[1]).find((i) => i[0] === UI.view) || groups[0][1][0]; const totalN = groups.flatMap((g) => g[1]).reduce((s, i) => s + (+i[2] || 0), 0);
   return html`<div class="shell"><header class="mbar" role="banner"><button type="button" class="mb-btn" data-act="nav-open" aria-controls="sidenav" aria-expanded="false" aria-label="فتح القائمة الرئيسية">${new Safe('<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10"/></svg>')}${totalN ? html`<i class="mb-dot" aria-hidden="true"></i>` : ''}</button>
       <div class="mb-title"><span class="mb-brand">${svgLogo(22)}<b>ميدان</b></span><span class="mb-cur">${curItem[1]}</span></div>
       <button type="button" class="mb-btn" data-act="nav-home" aria-label="لوحة الأداء">${new Safe('<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>')}</button></header>
     <div class="nav-scrim" data-act="nav-close" aria-hidden="true"></div>
     <nav class="nav" id="sidenav" aria-label="القائمة الرئيسية"><div class="brand">${svgLogo(32)}<b>ميدان</b><button type="button" class="nav-x" data-act="nav-close" aria-label="إغلاق القائمة">${new Safe('<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>')}</button></div>
-    ${groups.map((g) => html`<p class="navg">${g[0]}</p><ul>${g[1].map((i) => html`<li><button type="button" data-act="nav" data-v="${i[0]}" ${UI.view === i[0] ? new Safe('aria-current="page"') : ''}>${navIcon(i[0])}<span class="nv-t">${i[1]}</span>${i[2] ? html`<span class="badge-n">${i[2]}</span>` : ''}</button></li>`)}</ul>`)}
+    ${groups.filter((g) => g[1].length).map((g) => html`<p class="navg">${g[0]}</p><ul>${g[1].map((i) => html`<li><button type="button" data-act="nav" data-v="${i[0]}" ${UI.view === i[0] ? new Safe('aria-current="page"') : ''}>${navIcon(i[0])}<span class="nv-t">${i[1]}</span>${i[2] ? html`<span class="badge-n">${i[2]}</span>` : ''}</button></li>`)}</ul>`)}
     <div class="me">${CUR.name}<br>${ROLES[CUR.role]} · جلسة نشطة<br><button class="btn sm" type="button" data-act="logout" style="margin-top:8px;background:transparent;color:#fff;border-color:#334155">تسجيل الخروج</button></div></nav>
-    <main class="main" id="main">${brandBar()}${DEMO ? html`<div class="alert wr row between" role="status" style="font-weight:600"><span>وضع تجريبي — بيانات نموذجية لا تُحفظ. جرّب أي شيء بحرية.</span><button class="btn sm dark" type="button" data-act="logout">إنهاء التجربة</button></div>` : ''}${inner}</main></div>`;
+    <main class="main" id="main">${brandBar()}${DEMO ? html`<div class="alert wr row between" role="status" style="font-weight:600"><span>وضع تجريبي — بيانات نموذجية لا تُحفظ. جرّب أي شيء بحرية.</span>${demoSwitcher()}<button class="btn sm dark" type="button" data-act="logout">إنهاء التجربة</button></div>` : ''}${inner}</main></div>`;
 }
 
 function viewOps() {
@@ -2807,13 +2962,13 @@ function renderSide() { const s = $('#opsSide'); if (s) { s.innerHTML = opsSide(
 function viewCrews() {
   if (!crewsV().length) return html`<div class="ph"><div><h1 style="font-size:28px">الفرق ومعداتها</h1><p>${scopeLabel()}</p></div></div><p class="alert note">لا توجد فرق ضمن نطاقك. يربطك مدير المشروع بفرقتك من «المستخدمون ← النطاق»، أو تُربط تلقائياً عندما يكون رقم إقامتك أو جوالك هو المراقب أو المهندس المسجّل للفرقة.</p>`;
   const c = crewById(UI.sel) || crewsV()[0]; UI.sel = c.id; const r = readiness(c); const L_ = UI.layers;
-  const layerDefs = [['sup', 'المراقبون'], ['cars', 'سيارات المراقبين'], ['workers', 'العمال'], ['dynas', 'الديانات وسائقوها'], ['eq', 'المعدات'], ['drivers', 'سائقو المعدات']];
+  const layerDefs = [['sup', 'المراقب'], ['workers', 'العمال والفنيون']];
   const car = c.sup.car, co = oilInfo(car.oil), ct = testInfo(car.tested);
   const kinds = c.eq.reduce((a, e) => { a[e.kind] = (a[e.kind] || 0) + 1; return a; }, {});
   const E = can('edit'), M = can('move');
   return html`<div class="ph"><div><h1 style="font-size:28px">الفرق ومعداتها</h1><p>المراقب وسيارته ← العمال وكل عامل مع سائق ديانته ← معدات الفرقة بسائقيها. فرقة بلا معدة عاملة لا تعمل.</p></div>
     ${can('org') ? html`<button class="btn pri" type="button" data-act="crew-add">+ فرقة جديدة</button>` : ''}</div>
-  <div class="chips" role="group" aria-label="الطبقات"><span style="font-size:13px;font-weight:600;color:#334155">الطبقات:</span>${layerDefs.map((l) => html`<button type="button" class="chip" aria-pressed="${!!L_[l[0]]}" data-act="layer" data-k="${l[0]}">${l[1]}</button>`)}</div>
+  <div class="chips" role="group" aria-label="العرض"><span style="font-size:13px;font-weight:600;color:var(--mut)">العرض:</span>${layerDefs.map((l) => html`<button type="button" class="chip" aria-pressed="${!!L_[l[0]]}" data-act="layer" data-k="${l[0]}">${l[1]}</button>`)}<button type="button" class="btn sm ${L_.eq ? '' : 'pri'}" data-act="eq-show" aria-pressed="${!!L_.eq}">${L_.eq ? 'إخفاء المعدات والسيارات' : 'إظهار المعدات والسيارات'}</button></div>
   ${movePanel()}
   <div class="split"><aside class="side" aria-label="الفرق" style="flex:1 1 280px">${crewsV().map((x) => { const rr = crewState(x); return html`<button type="button" class="crewbtn" aria-pressed="${x.id === c.id}" data-act="crew-sel" data-id="${x.id}"><span class="row between" style="width:100%"><span class="nm">${x.name}</span><span class="pill ${rr.lvl}">${rr.label}</span></span><span class="t-mut" style="font-size:13px">1 مراقب · ${x.workers.length} عمال · ${x.workers.filter((w) => w.dyna).length} ديانة · ${x.eq.length} معدات</span><span class="t-mut" style="font-size:12px">${x.branch} · ${x.site}</span></button>`; })}</aside>
   <section class="wide" aria-label="تفاصيل الفرقة">
@@ -2822,25 +2977,25 @@ function viewCrews() {
       <a class="btn sm wa" href="${safeUrl(wa(c.sup.phone))}" target="_blank" rel="noopener noreferrer">واتساب الفرقة</a><a class="btn sm tg" href="${safeUrl(tg(c.sup.phone))}" target="_blank" rel="noopener noreferrer">تليجرام الفرقة</a></div></div>
       <p class="alert ${r.lvl === 'ok' ? 'okk' : r.lvl === 'warn' ? 'wr' : 'err'}" role="status" style="font-weight:600">${r.text}</p>
       ${c.hold ? html`<p class="alert err" style="font-weight:600">متوقفة: ${c.hold.reason}${c.hold.note ? ' — ' + c.hold.note : ''} · منذ ${ago(c.hold.since)}</p>` : ''}
-      <div class="grid g3" style="font-size:13px"><div class="kv"><span>المهندس المسؤول</span><b>${c.eng ? c.eng.name : 'غير محدد'}</b><span>${contactLinks(c.eng)}</span></div><div class="kv"><span>المهام المفتوحة</span><b>${crewTasks(c.id).filter((j) => j.st !== 'done').length}</b><button class="btn ghost sm" type="button" data-act="nav" data-v="tasks" style="padding:0;width:max-content;color:var(--acc)">عرض المهام</button></div><div class="kv"><span>مستندات الفرقة</span><b>${DB.docs.filter((d) => d.crewId === c.id).length}</b><button class="btn ghost sm" type="button" data-act="docs-crew" data-id="${c.id}" style="padding:0;width:max-content;color:var(--acc)">عرض الوثائق</button></div></div></div>
+      <div class="grid g3" style="font-size:13px"><div class="kv"><span>المهندس المسؤول</span><b>${c.eng ? c.eng.name : 'غير محدد'}</b>${c.eng ? html`<span>${contactBtn('g-' + c.id, c.eng.name)}</span>${contactRow('g-' + c.id, c.eng)}` : ''}</div><div class="kv"><span>المهام المفتوحة</span><b>${crewTasks(c.id).filter((j) => j.st !== 'done').length}</b><button class="btn ghost sm" type="button" data-act="nav" data-v="tasks" style="padding:0;width:max-content;color:var(--acc)">عرض المهام</button></div><div class="kv"><span>مستندات الفرقة</span><b>${DB.docs.filter((d) => d.crewId === c.id).length}</b><button class="btn ghost sm" type="button" data-act="docs-crew" data-id="${c.id}" style="padding:0;width:max-content;color:var(--acc)">عرض الوثائق</button></div></div></div>
     ${L_.sup ? html`<div class="card"><div class="row between"><h3 style="font-size:16px;color:#334155">المراقب</h3>${E ? html`<button class="btn sm" type="button" data-act="sup-edit">تعديل المراقب وسيارته</button>` : ''}</div>
-      <div class="row between"><div class="row"><span class="avatar">${c.sup.name.replace('م/', '').charAt(0)}</span><div><b style="font-size:16px">${c.sup.name}</b><div class="t-mut ltr" style="font-size:13px">+${c.sup.phone}</div></div></div>
-      <div class="row"><a class="lnk w" href="${safeUrl(wa(c.sup.phone))}" target="_blank" rel="noopener noreferrer">واتساب</a><a class="lnk t" href="${safeUrl(tg(c.sup.phone))}" target="_blank" rel="noopener noreferrer">تليجرام</a></div></div>
+      <div class="row between"><div class="row"><span class="avatar">${c.sup.name.replace('م/', '').charAt(0)}</span><div><b style="font-size:16px">${c.sup.name}</b><div class="t-mut" style="font-size:13px">${supTag(c)}</div></div></div>
+      ${contactBtn('s-' + c.id, c.sup.name)}</div>${contactRow('s-' + c.id, c.sup)}
       ${L_.cars ? html`<div class="carbox"><div class="kv"><span>سيارة المراقب</span><b>${car.model}</b></div><div class="kv"><span>اللوحة / رقم المعدة</span><b>${car.code}</b></div><div class="kv"><span>الحالة</span><span class="pill ${ST[car.st][1]}">${ST[car.st][0]}</span></div><div class="kv"><span>غيار الزيت</span><span class="${co[1]}">${co[0]}</span></div><div class="kv"><span>تجربة التشغيل</span><span class="${ct[1]}">${ct[0]}</span></div></div>` : ''}</div>` : ''}
     ${L_.workers ? html`<div class="card"><div class="row between"><h3 style="font-size:16px;color:#334155">العمال تحت المراقب · ${c.workers.length}</h3>${E ? html`<button class="btn sm" type="button" data-act="w-add">+ إضافة عامل</button>` : ''}</div>
       ${c.workers.length ? html`<ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px">${c.workers.map((w) => workerRow(c, w, E, M))}</ul>` : html`<p class="empty">لا يوجد عمال في هذه الفرقة.</p>`}</div>` : ''}
     ${L_.eq ? html`<div class="card"><div class="row between"><h3 style="font-size:16px;color:#334155">معدات الفرقة والسائقون · ${Object.keys(kinds).map((k) => kinds[k] + ' ' + k).join(' · ') || 'لا معدات'}</h3>${can('crewcfg') ? html`<button class="btn sm" type="button" data-act="eq-add">+ إضافة معدة</button>` : ''}</div>
       ${c.eq.length ? html`<div class="tblw"><table style="min-width:760px"><thead><tr><th scope="col">المعدة</th><th scope="col">الرقم / اللوحة</th>${L_.drivers ? html`<th scope="col">السائق</th>` : ''}<th scope="col">الحالة</th><th scope="col">غيار الزيت</th><th scope="col">تجربة التشغيل</th><th scope="col">إجراء</th></tr></thead>
-      <tbody>${c.eq.map((e) => { const o = oilInfo(e.oil), t = testInfo(e.tested); return html`<tr><td><b>${e.kind}</b></td><td>${e.code}</td>${L_.drivers ? html`<td>${e.driver ? html`<span class="row" style="gap:8px">${e.driver.name}<a class="lnk w" href="${safeUrl(wa(e.driver.phone))}" target="_blank" rel="noopener noreferrer" aria-label="واتساب ${e.driver.name}">واتساب</a></span>` : html`<span class="pill bad">بدون سائق</span>`}</td>` : ''}<td><span class="pill ${ST[e.st][1]}">${ST[e.st][0]}</span></td><td><span class="${o[1]}">${o[0]}</span></td><td><span class="${t[1]}">${t[0]}</span></td>
+      <tbody>${c.eq.map((e) => { const o = oilInfo(e.oil), t = testInfo(e.tested); return html`<tr><td><b>${e.kind}</b></td><td>${e.code}</td>${L_.drivers ? html`<td>${e.driver ? html`<b>${e.driver.name}</b><div class="t-mut" style="font-size:12px">${e.driver.job || 'سائق ' + e.kind}</div>${contactBtn('q-' + e.id, e.driver.name)}${contactRow('q-' + e.id, e.driver)}` : html`<span class="pill bad">بدون سائق</span>`}</td>` : ''}<td><span class="pill ${ST[e.st][1]}">${ST[e.st][0]}</span></td><td><span class="${o[1]}">${o[0]}</span></td><td><span class="${t[1]}">${t[0]}</span></td>
         <td><div class="row" style="gap:6px">${E ? html`<button class="btn sm" type="button" data-act="eq-edit" data-id="${e.id}">تعديل</button>` : ''}${M ? html`<button class="btn sm" type="button" data-act="move-eq" data-id="${e.id}">نقل</button>` : ''}</div></td></tr>`; })}</tbody></table></div>` : html`<p class="empty">لا توجد معدات — الفرقة لا تستطيع العمل.</p>`}</div>` : ''}
   </section></div>`;
 }
 function workerRow(c, w, E, M) {
   const y = w.dyna;
-  return html`<li class="worker"><div class="top"><div style="flex:1 1 200px;min-width:0"><b style="font-size:15px">${w.name}</b><div class="t-mut" style="font-size:12px">${w.role}</div></div>
-    <a class="lnk w" href="${safeUrl(wa(w.phone))}" target="_blank" rel="noopener noreferrer" aria-label="واتساب ${w.name}">واتساب</a><a class="lnk t" href="${safeUrl(tg(w.phone))}" target="_blank" rel="noopener noreferrer" aria-label="تليجرام ${w.name}">تليجرام</a>
-    ${E ? html`<button class="btn sm" type="button" data-act="w-edit" data-id="${w.id}">تعديل</button>` : ''}${M ? html`<button class="btn sm" type="button" data-act="move-w" data-id="${w.id}">نقل العامل</button>` : ''}</div>
-    ${UI.layers.dynas ? (y ? (() => { const o = oilInfo(y.oil), t = testInfo(y.tested); return html`<div class="dyna"><div class="kv"><span>سائق الديانة</span><b>${y.driver ? y.driver.name : 'بدون سائق'}</b>${y.driver ? html`<a class="lnk w" href="${safeUrl(wa(y.driver.phone))}" target="_blank" rel="noopener noreferrer">واتساب السائق</a>` : ''}</div><div class="kv"><span>رقم الديانة</span><b>${y.code}</b></div><div class="kv"><span>الحالة</span><span class="pill ${ST[y.st][1]}">${ST[y.st][0]}</span></div><div class="kv"><span>غيار الزيت</span><span class="${o[1]}">${o[0]}</span></div><div class="kv"><span>تجربة التشغيل</span><span class="${t[1]}">${t[0]}</span></div>
+  return html`<li class="worker"><div class="top"><div style="flex:1 1 200px;min-width:0"><b style="font-size:15px">${w.name}</b><div class="t-mut" style="font-size:12px">${w.role || 'عامل'}${y && y.driver && !UI.layers.dynas ? ' · سائق الديانة: ' + y.driver.name : ''}</div></div>
+    ${contactBtn('w-' + w.id, w.name)}
+    ${E ? html`<button class="btn sm" type="button" data-act="w-edit" data-id="${w.id}">تعديل</button>` : ''}${M ? html`<button class="btn sm" type="button" data-act="move-w" data-id="${w.id}">نقل العامل</button>` : ''}</div>${contactRow('w-' + w.id, w)}
+    ${UI.layers.dynas ? (y ? (() => { const o = oilInfo(y.oil), t = testInfo(y.tested); return html`<div class="dyna"><div class="kv"><span>سائق الديانة</span><b>${y.driver ? y.driver.name : 'بدون سائق'}</b>${y.driver ? html`<span class="t-mut" style="font-size:12px">${y.driver.job || 'سائق ديانة'}</span>${contactBtn('d-' + w.id, y.driver.name)}${contactRow('d-' + w.id, y.driver)}` : ''}</div><div class="kv"><span>رقم الديانة</span><b>${y.code}</b></div><div class="kv"><span>الحالة</span><span class="pill ${ST[y.st][1]}">${ST[y.st][0]}</span></div><div class="kv"><span>غيار الزيت</span><span class="${o[1]}">${o[0]}</span></div><div class="kv"><span>تجربة التشغيل</span><span class="${t[1]}">${t[0]}</span></div>
       <div class="row" style="gap:6px">${E ? html`<button class="btn sm" type="button" data-act="dy-edit" data-id="${w.id}">تعديل</button>` : ''}${M ? html`<button class="btn sm" type="button" data-act="move-dy" data-id="${w.id}">نقل الديانة</button>` : ''}</div></div>`; })()
       : html`<div class="nody"><span>بلا ديانة مُسندة — العامل بلا نقل.</span>${E ? html`<button class="btn sm" type="button" data-act="dy-add" data-id="${w.id}">إسناد ديانة بسائقها</button>` : ''}</div>`) : ''}</li>`;
 }
@@ -3242,7 +3397,7 @@ function peopleMgmt() {
     ${DB.projects.map((p) => html`<tr><td><b>${p.name}</b></td><td class="ltr">${p.code || '—'}</td><td>${p.branch || html`<span class="pill bad">بلا فرع</span>`}</td><td>${p.manager || '—'}</td><td>${DB.crews.filter((c) => c.projectId === p.id).map((c) => c.id).join('، ') || '—'}</td><td>${E ? html`<button class="btn sm" type="button" data-act="proj-edit" data-id="${p.id}">تعديل</button>` : ''}</td></tr>`)}</tbody></table></div></div></section>
   <aside class="side" style="flex:1 1 420px"><div class="card"><div class="row between"><h2 style="font-size:17px">المهندسون والمراقبون · ${P.length}</h2>${E ? html`<div class="row" style="gap:6px"><button class="btn sm" type="button" data-act="assign-person" data-role="eng">تعيين مهندس</button><button class="btn sm" type="button" data-act="assign-person" data-role="sup">تعيين مراقب</button></div>` : ''}</div>
     <div class="tblw"><table><thead><tr><th scope="col">الاسم</th><th scope="col">الدور</th><th scope="col">الفرق</th><th scope="col">تواصل</th><th scope="col">إجراء</th></tr></thead><tbody>
-    ${P.map((x) => { const e = x.crews.map(crewById).find(Boolean); const per = e ? (x.role === 'مهندس' ? e.eng : e.sup) : null; return html`<tr><td><b>${x.name}</b>${per && per.iqama ? html`<div class="t-mut ltr" style="font-size:12px">${maskIqama(per.iqama)}</div>` : html`<div><span class="pill warn">بلا إقامة</span></div>`}</td><td><span class="pill ${x.role === 'مهندس' ? 'info' : 'mutp'}">${x.role}</span></td><td>${x.crews.join('، ')}</td><td>${contactLinks(x)}</td><td>${E ? html`<button class="btn sm" type="button" data-act="person-edit" data-role="${x.role === 'مهندس' ? 'eng' : 'sup'}" data-name="${x.name}">تعديل</button>` : ''}</td></tr>`; })}</tbody></table></div></div></aside></div>`;
+    ${P.map((x) => { const e = x.crews.map(crewById).find(Boolean); const per = e ? (x.role === 'مهندس' ? e.eng : e.sup) : null; return html`<tr><td><b>${x.name}</b><div class="t-mut" style="font-size:12px">${e ? (x.role === 'مهندس' ? 'مهندس · ' + officeName(e.branch) : supTag(e)) : ''}</div>${per && per.iqama ? '' : html`<div><span class="pill warn">بلا إقامة</span></div>`}</td><td><span class="pill ${x.role === 'مهندس' ? 'info' : 'mutp'}">${x.role}</span></td><td>${x.crews.join('، ')}</td><td>${contactBtn('p-' + x.name, x.name)}${contactRow('p-' + x.name, per ? { iqama: per.iqama, phone: per.phone || x.phone } : x)}</td><td>${E ? html`<button class="btn sm" type="button" data-act="person-edit" data-role="${x.role === 'مهندس' ? 'eng' : 'sup'}" data-name="${x.name}">تعديل</button>` : ''}</td></tr>`; })}</tbody></table></div></div></aside></div>`;
 }
 function invRows() {
   const rows = [['الفرع', 'المشروع', 'المهندس', 'المراقب', 'سيارة المراقب', 'الفرقة', 'النوع', 'المعدة', 'الرقم / اللوحة', 'السائق', 'إقامة السائق', 'الحالة', 'العداد (كم)', 'صيانة متأخرة']];
@@ -3550,7 +3705,7 @@ function viewEquip3() {
 const eqRows = () => [['الفرقة', 'المعدة', 'الرقم', 'السائق', 'الحالة', 'العداد', 'الزيت', 'الاستمارة'].concat(cfg().maintPlan.map((p) => p.label))].concat(allEquipment().map((x) => [x.crew.id, x.where === 'car' ? 'سيارة مراقب' : x.u.kind, x.u.code, x.driver ? x.driver.name : '', ST[x.u.st][0], x.u.odo || 0, oilInfo(x.u.oil)[0], x.u.regExp || ''].concat(cfg().maintPlan.map((p) => { const m = maintStatus(x.u).find((s) => s.p.key === p.key); return m ? m.text.replace(p.label + ': ', '') : ''; }))));
 
 // ---------- employee pickers (link crew members to the employee register) ----------
-const empOpts = () => [['', '— إدخال يدوي —']].concat(DB.employees.slice().sort((a, b) => a.name.localeCompare(b.name)).map((e) => [e.id, e.name + (e.job ? ' — ' + e.job : '') + (e.iqama ? ' — ' + maskIqama(e.iqama) : '')]));
+const empOpts = () => [['', '— إدخال يدوي —']].concat(DB.employees.slice().sort((a, b) => a.name.localeCompare(b.name)).map((e) => [e.id, e.name + ' — ' + (personTag(e) || e.job || 'غير مربوط بفرقة')]));
 function personFrom(v, keyName, keyPhone, keyEmp, keyIq, old) {
   const e = v[keyEmp] && empById(v[keyEmp]);
   const name = (e ? e.name : (v[keyName] || '').trim()).slice(0, 80); if (!name) return { p: null };
@@ -3574,6 +3729,7 @@ function render() {
   const app = $('#app');
   if (!CUR) { if (MAP) { MAP.remove(); MAP = null; } app.innerHTML = viewAuth().s; translateUI(app); mountGoogleBtn(); const f = app.querySelector('input'); if (f) f.focus(); return; }
   if (!can('users') && UI.view === 'users') UI.view = 'ops';
+  if ((UI.view === 'cards' && !canSeeCards()) || (CUR.role === 'hr' && ['flow', 'permits', 'inbox', 'reports', 'cluster', 'tasks', 'inv', 'ops'].includes(UI.view))) UI.view = 'dash';
   const v = { flow: viewFlow, permits: viewPermits, hse: viewHse, cluster: viewCluster, inbox: viewInbox, reports: viewReports, cards: viewCards, dash: viewDash, tasks: viewTasks, docs: viewDocs3, inv: viewInv, ops: viewOps, crews: viewCrews, equip: viewEquip3, ai: viewAI, users: viewUsers3, security: viewSecurity, settings: viewSettings3 }[UI.view] || viewDash;
   if (MAP) { MAP.remove(); MAP = null; }
   flBeforeRender();
@@ -3722,7 +3878,7 @@ const ACT = {
   'maint-plan-del': (d) => { if (!need('settings')) return; cfg().maintPlan = cfg().maintPlan.filter((x) => x.key !== d.k); save(); render(); },
   'emp-export': (d) => exportRows(empRows(), 'hr.employee-maydan-' + today(), d.fmt),
   'emp-add': () => ACT['emp-edit']({}),
-  'emp-edit': (d) => { if (!need('cards')) return; { const e0 = empById(d.id); if (e0 && !empInScope(e0) && !can('org')) return toast('هذا الموظف خارج نطاق فرقك.', 'err'); } const e = d.id ? empById(d.id) : { name: '', iqama: '', job: '', branch: '', phone: '', email: '', empNo: '', notes: '', docs: {} }; if (!e) return;
+  'emp-edit': (d) => { if (!need('cards')) return; { const e0 = empById(d.id); if (e0 && !cardEditable(e0)) return toast('تعديل هذه البطاقة لمسؤولها: المهندس المسؤول عن فرقته، أو الموارد البشرية، أو مدير المشروع.', 'err'); if (!e0 && !['admin', 'hr', 'pm'].includes(CUR.role)) return toast('إضافة الموظفين للموارد البشرية أو مدير المشروع.', 'err'); } const e = d.id ? empById(d.id) : { name: '', iqama: '', job: '', branch: '', phone: '', email: '', empNo: '', notes: '', docs: {} }; if (!e) return;
     const types = DB.lists.empDocs; const docFields = []; types.forEach((t, i) => { const x = (e.docs || {})[t] || {}; docFields.push({ k: 'dx' + i, label: t + ' — تاريخ الانتهاء', type: 'date', val: x.exp || '', ltr: true }, { k: 'df' + i, label: t + (x.fileName ? ' — مرفق: ' + x.fileName + ' (اختر ملفاً لاستبداله)' : ' — صورة أو PDF'), type: 'file' }); });
     openForm(d.id ? 'ملف الموظف: ' + e.name : 'موظف جديد', [{ k: 'name', label: 'الاسم', val: e.name, req: true }, { k: 'iqama', label: 'رقم الإقامة / الهوية', val: e.iqama, ltr: true }, { k: 'job', label: 'المهنة', val: e.job }, { k: 'branch', label: 'الفرع', type: 'select', val: e.branch || DB.branches[0], list: 'branches' }, { k: 'phone', label: 'الجوال', val: e.phone, ltr: true, ph: '05xxxxxxxx' }, { k: 'email', label: 'البريد', val: e.email, ltr: true }, { k: 'empNo', label: 'الرقم الوظيفي', val: e.empNo, ltr: true },
       { k: 'authCat', label: 'فئة التأهيل — Authorization Category', type: 'select', opts: AUTH_CAT_OPTS, val: e.authCat || '' }, { k: 'authType', label: 'نوع التأهيل — Authorization Type', type: 'select', opts: AUTH_TYPE_OPTS, val: e.authType || '' }, { k: 'authNo', label: 'رقم بطاقة التأهيل', val: e.authNo || '', ltr: true },
@@ -3825,7 +3981,7 @@ const ACT = {
   'r-no': async (d) => { if (!need('users')) return; const r = DB.reqs.find((x) => x.id === d.id); if (!r) return; if (CLOUD) { try { await api('/requests/' + encodeURIComponent(r.id) + '/reject', { method: 'POST', body: '{}' }); await cloudLoad(); } catch (err) { toast(err.message, 'err'); } return render(); } r.st = 'rejected'; audit(CUR.name, 'رفض طلب حساب', r.name); save(); render(); },
   'u-role': (d) => { if (!need('users')) return; const u = DB.users.find((x) => x.id === d.id); if (!u) return;
     openForm('الدور والنطاق — ' + u.name, scopeFields(u), async (v) => { if (!ROLES[v.role]) return 'صلاحية غير صالحة.';
-      const sc = { offices: [].concat(v.offices || []).slice(0, 50), projects: [].concat(v.projects || []).filter((x) => projById(x)).slice(0, 50), crews: [].concat(v.crews || []).filter((x) => crewById(x)).slice(0, 200) };
+      const sc = { spec: ENG_SPEC[v.spec] ? v.spec : '', offices: [].concat(v.offices || []).slice(0, 50), projects: [].concat(v.projects || []).filter((x) => projById(x)).slice(0, 50), crews: [].concat(v.crews || []).filter((x) => crewById(x)).slice(0, 200) };
       if (CLOUD) { try { await api('/users/' + encodeURIComponent(u.id), { method: 'PATCH', body: JSON.stringify({ role: v.role, scope: sc }) }); await cloudLoad(); } catch (err) { return err.message; } return; }
       u.role = v.role; u.scope = sc; if (CUR && CUR.id === u.id) CUR = u; audit(CUR.name, 'تغيير الدور والنطاق', u.name + ' → ' + ROLES[v.role]); }, { ok: 'حفظ' }); },
   'u-reset': async (d) => { if (!need('users')) return; const u = DB.users.find((x) => x.id === d.id); if (!u) return; if (CLOUD) { try { const r = await api('/users/' + encodeURIComponent(u.id) + '/activation', { method: 'POST', body: '{}' }); UI.lastCode = { name: u.name, phone: u.phone, code: r.code }; await cloudLoad(); } catch (err) { toast(err.message, 'err'); } return render(); } UI.lastCode = { name: u.name, phone: u.phone, code: await issueActivation(u) }; audit(CUR.name, 'إصدار رمز تفعيل', u.name); save(); render(); },
@@ -3877,6 +4033,7 @@ document.addEventListener('change', (e) => {
   if (k === 'cover-upload' && el.files && el.files[0]) { if (!need('settings')) return; const file = el.files[0]; el.value = ''; if (!/^image\/(png|jpeg|webp)$/.test(file.type) || file.size > 4 * 1024 * 1024) return toast('PNG أو JPG أو WEBP حتى 4 ميجابايت.', 'err');
     const fr = new FileReader(); fr.onload = () => { const url = String(fr.result); if (!/^data:image\/(png|jpeg|webp);base64,/.test(url)) return toast('صورة غير صالحة.', 'err'); const img = new Image(); img.onload = () => { const w = Math.min(1600, img.width), h = Math.round(img.height * (w / img.width)); const cv = document.createElement('canvas'); cv.width = w; cv.height = Math.min(h, 700); cv.getContext('2d').drawImage(img, 0, 0, w, h); let src = cv.toDataURL('image/webp', 0.72); if (!/^data:image\/webp/.test(src)) src = cv.toDataURL('image/jpeg', 0.75); if (!imgOk(src)) return toast('تعذّر معالجة الصورة.', 'err'); cfg().brand.cover = src; audit(CUR.name, 'تغيير صورة الهيدر', file.name); save(); render(); }; img.onerror = () => toast('صورة غير صالحة.', 'err'); img.src = url; }; fr.readAsDataURL(file); return; }
   if (k === 'fl-dist') { UI.flDist = el.value; return render(); }
+  if (k === 'demo-as') return ACT['demo-as']({ k: el.value });
   if (k === 'hse-wt') { UI.hseWt = el.value; UI.hseAn = null; return render(); }
   if (k === 'inv-branch') { UI.invBranch = el.value; UI.invProj = ''; return render(); }
   if (k === 'inv-proj') { UI.invProj = el.value; return render(); }

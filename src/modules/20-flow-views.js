@@ -16,7 +16,7 @@ function flKpis() {
 function flKpiRow() { return html`<div class="flkpi">${flKpis().map((k) => html`<div class="flk"><span>${k[0]}</span><b class="${k[1] ? 't-' + k[2] : ''}">${k[1]}</b></div>`)}</div>`; }
 function flTicket(j) {
   const g = flGateLabel(j); const cl = UI.flSel === j.id ? ' on' : '';
-  const dr = can('edit') && jobInScope(j) && j.stage !== 'closed' ? new Safe(' draggable="true" data-drag="fl"') : '';
+  const dr = can('edit') && jobCanEdit(j) && j.stage !== 'closed' ? new Safe(' draggable="true" data-drag="fl"') : '';
   return html`<button type="button" class="flcard${cl}" data-act="fl-open" data-id="${j.id}"${dr} style="--sc:${FL_COLORS[j.stage]}">
     <span class="row between" style="gap:6px"><b class="ltr">${j.uid || j.baseNo || j.id}</b>${flPermitChip(j)}</span>
     <span class="flk-t">${j.kind}</span><span class="t-mut ltr" style="font-size:11px;text-align:start">${[j.baseNo, j.woNo ? 'WO ' + j.woNo : '', j.sapNo ? 'SAP ' + j.sapNo : ''].filter(Boolean).join(' · ')}</span>
@@ -35,6 +35,7 @@ function viewFlow() {
   <div class="row flfilter"><input class="in" type="search" style="flex:1 1 240px;max-width:340px" placeholder="بحث بالمعرّف أو الأساس أو الرخصة أو أمر العمل أو SAP" value="${UI.flQ || ''}" data-input="fl-q" aria-label="بحث في المعاملات">
     <select class="in" style="flex:0 1 220px" data-change="fl-dist" aria-label="تصفية حسب الحي"><option value="">كل الأحياء (${dists.length})</option>${dists.map((x) => html`<option value="${x}" ${dq === x ? new Safe('selected') : ''}>${x} — ${districtArea(x) || 'أُضيف يدوياً'}</option>`)}</select>
     ${permitLegend()}<span class="t-mut" style="font-size:12px">اسحب البطاقة إلى المرحلة التالية لإنهاء المرحلة الحالية.</span></div>
+  ${flAccessPanel()}
   ${sel ? flDetail(sel) : ''}
   <div class="board" aria-label="لوحة المراحل">${FL_FULL.map((s) => { const L = J.filter((j) => j.stage === s); return html`<section class="col" data-drop="fl" data-k="${s}"><h3 style="--sc:${FL_COLORS[s]}"><span>${FL_STAGES[s][0]}</span><span class="badge-n">${L.length}</span></h3>${L.length ? L.map(flTicket) : html`<p class="t-mut" style="font-size:12px;margin:6px">—</p>`}</section>`; })}</div>`;
 }
@@ -43,7 +44,7 @@ function flStepper(j) {
   return html`<ol class="stepper">${P.map((s, k) => html`<li class="${k < i ? 'done' : k === i ? 'cur' : ''}" style="--sc:${FL_COLORS[s]}"><b>${FL_STAGES[s][0]}</b><span>${FL_STAGES[s][1]}</span></li>`)}</ol>`;
 }
 function flStageActions(j) {
-  const E = can('edit') && jobInScope(j); const s = j.stage; const nx = flNext(j); const nxN = nx ? FL_STAGES[nx][0] : '';
+  const E = can('edit') && jobCanEdit(j); const s = j.stage; const nx = flNext(j); const nxN = nx ? FL_STAGES[nx][0] : '';
   if (!E) return html`<p class="t-mut">عرض فقط.</p>`;
   if (s === 'plan') return html`<div class="row"><button class="btn" type="button" data-act="fl-coord" data-id="${j.id}">إرسال تنبيه التنسيق الآن</button><button class="btn pri" type="button" data-act="fl-adv" data-id="${j.id}">الانتقال إلى ${nxN}</button></div>`;
   if (s === 'gate') {
@@ -72,7 +73,8 @@ function flDetail(j) {
   const gf = gwOn() && gcfg().jobFolders && gcfg().jobFolders[j.id];
   return html`<article class="card fldetail" style="--sc:${FL_COLORS[j.stage]}"><div class="row between"><div><h2 style="font-size:20px">${j.kind} — ${j.district || ''}</h2>
       <p class="t-mut ltr" style="margin:4px 0 0;text-align:start"><b>${j.uid || ''}</b> · ${flFolderName(j)}</p></div>
-      <div class="row">${flPermitChip(j)}<button class="btn sm" type="button" data-act="fl-edit" data-id="${j.id}">تعديل</button><a class="btn sm wa" href="${wa('', '«ميدان» — ' + flJobText(j) + (flNav(j) ? '\nالموقع: ' + flPin(j) : ''))}" target="_blank" rel="noopener noreferrer">واتساب</a>${flNav(j) ? html`<a class="btn sm" href="${flNav(j)}" target="_blank" rel="noopener noreferrer">الملاحة</a>` : ''}<button class="btn sm" type="button" data-act="fl-close-detail">إغلاق</button></div></div>
+      <div class="row">${flPermitChip(j)}${jobCanEdit(j) ? html`<button class="btn sm" type="button" data-act="fl-edit" data-id="${j.id}">تعديل</button>` : ''}<a class="btn sm wa" href="${wa('', '«ميدان» — ' + flJobText(j) + (flNav(j) ? '\nالموقع: ' + flPin(j) : ''))}" target="_blank" rel="noopener noreferrer">واتساب</a>${flNav(j) ? html`<a class="btn sm" href="${flNav(j)}" target="_blank" rel="noopener noreferrer">الملاحة</a>` : ''}<button class="btn sm" type="button" data-act="fl-close-detail">إغلاق</button></div></div>
+    ${flLockBox(j)}${j.elecEng ? html`<p class="t-mut" style="font-size:13px;margin:0">مهندس الكهرباء المسؤول: <b>${j.elecEng.name}</b></p>` : ''}
     ${flStepper(j)}
     <div class="grid g2"><div class="flkv"><span>المكتب</span><b>${j.office || '—'}</b><span>الحي</span><b>${j.district || '—'}</b><span>المحطة / المخطط / القطعة</span><b>${[j.station, j.plan, j.plot].filter(Boolean).join(' / ') || '—'}</b><span>التاريخ</span><b>${j.date}</b><span>طول الحفر</span><b>${j.lengthM ? j.lengthM + ' م' : '—'}</b><span>الفرقة</span><b>${crew ? crew.id + ' · ' + crew.sup.name : '—'}</b></div>
       <div class="flkv"><span>المعرّف الموحّد</span><b class="ltr">${j.uid || '—'} <span class="t-mut">(${FL_CATS[flCatOf(j)][0]})</span></b><span>أمر العمل / SAP</span><b class="ltr">${j.woNo || '—'} / ${j.sapNo || '—'}</b><span>رقم الأساس</span><b class="ltr">${j.baseNo || '—'}</b><span>رقم المعاملة</span><b class="ltr">${j.txNo || '—'}</b><span>الرخصة</span><b>${flPermitLine(j)}</b><span>بوابة الرخصة</span><b>${flGateLabel(j)[0]}</b>
@@ -164,6 +166,7 @@ function viewReports() {
 }
 
 // ---------- team cards (slider) ----------
+const PHOTO_DOC = 'الصورة الشخصية';
 const FL_CARD_DOCS = ['صورة الإقامة', 'كارت الأمن الصناعي', 'شهادة TUV', 'رخصة القيادة', 'كارت التأمين الطبي'];
 function viewCards() {
   const q = (UI.cardQ || '').trim(); const E = (DB.employees || []).filter(empInScope).filter((e) => !q || (e.name + ' ' + e.iqama + ' ' + (e.job || '')).includes(q));
@@ -175,13 +178,15 @@ function viewCards() {
   ${E.length ? '' : html`<p class="t-mut">لا موظفين. استورد سجل الموظفين من الإعدادات.</p>`}`;
 }
 function flPersonCard(e) {
-  const l = empLink(e); const iq = (e.docs || {})['صورة الإقامة']; const E = can('cards') && empInScope(e);
-  const ini = String(e.name || '؟').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('');
+  const l = empLink(e); const iq = (e.docs || {})['صورة الإقامة']; const E = cardEditable(e); const rk = 'e-' + e.id;
   const st = FL_CARD_DOCS.map((t) => empDocState(e, t)); const bad = st.filter((x) => x.lvl === 'bad' || x.lvl === 'miss').length;
   return html`<article class="pcard" aria-label="${e.name}">
-    <header class="pc-head"><span class="pc-av">${iq && iq.fileId ? html`<img alt="" data-thumb="${iq.fileId}" class="pc-img">` : ''}<span class="pc-ini" aria-hidden="true">${ini}</span></span>
-      <div class="pc-id"><b>${e.name}</b><span>${e.job || '—'}</span></div><span class="pc-st ${bad ? 'bad' : 'ok'}">${bad ? bad + ' يحتاج إجراء' : 'مكتمل'}</span></header>
-    <dl class="pc-meta"><div><dt>الإقامة</dt><dd class="ltr">${e.iqama || '—'}</dd></div><div><dt>الفرقة</dt><dd>${l ? l.crew.id + ' · ' + l.role : '—'}</dd></div></dl>
+    <header class="pc-head">${(() => { const ph = (e.docs || {})[PHOTO_DOC]; const fid = (ph && ph.fileId) || (iq && iq.fileId); const inner = html`${fid ? html`<img alt="صورة ${e.name}" data-thumb="${fid}" class="pc-img">` : ''}<span class="pc-ini" aria-hidden="true">${new Safe('<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8.5" r="3.8"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></svg>')}</span>${E ? html`<i class="pc-cam" aria-hidden="true">${new Safe('<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-2h6l2 2h3v11H4z"/><circle cx="12" cy="13" r="3.2"/></svg>')}</i>` : ''}`;
+      return E ? html`<button type="button" class="pc-av" data-act="card-photo" data-id="${e.id}" aria-label="${fid ? 'تغيير' : 'إضافة'} صورة ${e.name}" title="${fid ? 'تغيير الصورة' : 'إضافة صورة شخصية'}">${inner}</button>` : html`<span class="pc-av">${inner}</span>`; })()}
+      <div class="pc-id"><b>${e.name}</b><span>${l && l.role === 'مراقب' ? supTag(l.crew) : e.job || '—'}</span></div><span class="pc-st ${bad ? 'bad' : 'ok'}">${bad ? bad + ' يحتاج إجراء' : 'مكتمل'}</span></header>
+    <dl class="pc-meta"><div><dt>الفرقة</dt><dd>${l ? l.crew.id + ' · ' + l.role : '—'}</dd></div><div><dt>المهندس المسؤول</dt><dd>${l && l.crew.eng ? l.crew.eng.name : '—'}</dd></div></dl>
+    <div class="row" style="gap:6px">${contactBtn(rk, e.name)}${E ? '' : html`<span class="pill mutp" title="التعديل للمهندس المسؤول عن الفرقة أو الموارد البشرية أو مدير المشروع">عرض فقط</span>`}</div>${contactRow(rk, { iqama: e.iqama, phone: e.phone })}
+    ${e.xfer ? html`<p class="pc-xfer">نُقل من ${e.xfer.from}${e.xfer.fromEng ? ' (' + e.xfer.fromEng + ')' : ''} إلى ${e.xfer.to}${e.xfer.toEng ? ' (' + e.xfer.toEng + ')' : ''} · ${fmtD(e.xfer.tm.slice(0, 10))}. صلاحية التجديد وتحديث الملفات لدى المهندس الجديد.</p>` : ''}
     <ul class="pc-docs">${FL_CARD_DOCS.map((t, k) => { const s = st[k]; const d = s.d || {};
       return html`<li class="${s.lvl}"><i class="pc-dot" aria-hidden="true"></i><span class="pc-t">${t}</span><span class="pc-v">${s.lvl === 'na' ? 'غير مطلوب' : s.lvl === 'miss' ? 'غير مرفق' : d.exp ? (s.lvl === 'bad' ? 'منتهية ' : '') + d.exp : 'مرفق'}</span>
         <span class="pc-a">${d.fileId ? html`<button type="button" class="ib" data-act="emp-doc-file" data-id="${e.id}" data-k="${t}" aria-label="تنزيل ${t}" title="تنزيل">${new Safe('<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 4v11m0 0l-4-4m4 4l4-4M5 20h14"/></svg>')}</button>` : ''}${E && s.lvl !== 'na' ? html`<button type="button" class="ib" data-act="card-doc" data-id="${e.id}" data-k="${t}" aria-label="${d.fileId || d.exp ? 'تحديث' : 'رفع'} ${t}" title="${d.fileId || d.exp ? 'تحديث' : 'رفع'}">${new Safe('<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 20V9m0 0l-4 4m4-4l4 4M5 4h14"/></svg>')}</button>` : ''}</span></li>`; })}</ul>
@@ -214,6 +219,7 @@ function flJobFields(j) {
     { k: 'district', label: 'الحي (ابحث في أحياء الرياض)', type: 'combo', opts: districtOpts(), val: j.district || '', hint: 'اختر من القائمة أو اكتب حياً جديداً فيُضاف' }, { k: 'station', label: 'المحطة', val: j.station || '' }, { k: 'plan', label: 'المخطط', val: j.plan || '' }, { k: 'plot', label: 'القطعة', val: j.plot || '' },
     { k: 'lat', label: 'خط العرض', type: 'number', val: j.lat || '', ltr: true, hint: 'إن تُرك فارغاً يُملأ بمركز الحي تقريبياً' }, { k: 'lng', label: 'خط الطول', type: 'number', val: j.lng || '', ltr: true },
     { k: 'lengthM', label: 'طول الحفر (م)', type: 'number', val: j.lengthM || '' }, { k: 'depthM', label: 'عمق الحفر (م)', type: 'number', val: j.depthM || '', hint: 'أكثر من 1.5 م يتطلب تدعيماً وسلّماً' }, { k: 'barrier', label: 'نوع الصبات', type: 'select', opts: [['صبات خرسانية', 'صبات خرسانية'], ['صبات بلاستيكية', 'صبات بلاستيكية']], val: (j.safety && j.safety.barrier) || 'صبات خرسانية' },
+    { k: 'elecEng', label: 'مهندس الكهرباء المسؤول (يرى المعاملة ويعدّلها)', type: 'select', opts: [['', '— بدون —']].concat(DB.users.filter((u) => u.role === 'eng' && userSpec(u) === 'elec').map((u) => [u.id, u.name])), val: (DB.users.find((u) => j.elecEng && personIs(j.elecEng, u)) || {}).id || '' },
     { k: 'crewId', label: 'الفرقة المنفذة', type: 'select', opts: [['', '— بدون —']].concat(DB.crews.map((c) => [c.id, c.id + ' · ' + (TYPES[c.type] ? TYPES[c.type][0] : '') + ' · ' + c.sup.name])), val: j.crewId || '' },
     { k: 'note', label: 'ملاحظات', type: 'textarea', val: j.note || '' }];
 }
@@ -221,6 +227,8 @@ function flApply(j, v) {
   const oldCat = j.uid ? flCatOf(j) : '';
   ['kind', 'office', 'baseNo', 'txNo', 'permit', 'permitType', 'permitExp', 'date', 'district', 'station', 'plan', 'plot', 'crewId', 'note', 'woNo', 'sapNo'].forEach((k) => { j[k] = String(v[k] || '').trim().slice(0, 200); });
   j.district = rememberDistrict(j.district);
+  { const eu = DB.users.find((u) => u.id === v.elecEng && u.role === 'eng'); j.elecEng = eu ? { name: eu.name, iqama: eu.iqama || '', phone: eu.phone || '' } : null; }
+  jobTouch(j);
   j.lat = parseFloat(v.lat) || 0; j.lng = parseFloat(v.lng) || 0; j.lengthM = Math.max(0, Math.round(+v.lengthM || 0)); j.depthM = Math.max(0, Math.min(20, Math.round((+v.depthM || 0) * 10) / 10));
   if (!flHasXY(j) && DISTRICT_XY[j.district]) { j.lat = DISTRICT_XY[j.district][0]; j.lng = DISTRICT_XY[j.district][1]; j.xyApprox = true; } else if (v.lat) j.xyApprox = false;
   j.cat = FL_CATS[v.cat] ? v.cat : ''; const nc = flCatOf(j); flEnsureUid(j, !!oldCat && oldCat !== nc);
@@ -249,8 +257,17 @@ async function flAttach(j, kind, file, o) {
 }
 
 const FL_ACT = {
+  'card-photo': (d) => {
+    const e = empById(d.id); if (!e || !need('cards')) return; if (!cardEditable(e)) return toast('تحديث الصورة للمهندس المسؤول عن الفرقة أو الموارد البشرية أو مدير المشروع.', 'err');
+    openForm('الصورة الشخصية — ' + e.name, [{ k: 'file', label: 'صورة واضحة للوجه (JPG أو PNG أو WebP، حتى 5 ميجابايت)', type: 'file', capture: true, wide: true }], async (v) => {
+      const f = v.file && v.file.size ? v.file : null; if (!f) return 'اختر صورة.'; if (!/^image\/(jpeg|png|webp)$/.test(f.type)) return 'المسموح: صورة JPG أو PNG أو WebP.'; if (f.size > 5 * 1024 * 1024) return 'الصورة أكبر من 5 ميجابايت.';
+      const cur = (e.docs || {})[PHOTO_DOC] || {}; const x = { fileId: uid('f'), fileName: safeName(f.name), size: f.size, type: f.type, tm: nowIso(), by: CUR.name };
+      try { await filePut(x.fileId, f); } catch (err) { return 'تعذّر حفظ الصورة.'; } if (cur.fileId) fileDel(cur.fileId);
+      e.docs = e.docs || {}; e.docs[PHOTO_DOC] = x; audit(CUR.name, 'تحديث الصورة الشخصية', e.name); toast('حُفظت صورة ' + e.name + '.');
+    }, { ok: 'حفظ الصورة' });
+  },
   'card-doc': (d) => {
-    const e = empById(d.id); if (!e || !need('cards')) return; if (!empInScope(e)) return toast('هذا الموظف خارج نطاق فرقك.', 'err');
+    const e = empById(d.id); if (!e || !need('cards')) return; if (!cardEditable(e)) return toast('تجديد البطاقات وتحديث الملفات للمهندس المسؤول عن فرقة الموظف أو الموارد البشرية أو مدير المشروع.', 'err');
     const cur = (e.docs || {})[d.k] || {};
     openForm(d.k + ' — ' + e.name, [{ k: 'exp', label: 'تاريخ الانتهاء', type: 'date', val: cur.exp || '' }, { k: 'file', label: 'صورة أو PDF (حتى 10 ميجابايت)', type: 'file', capture: true, wide: true }], async (v) => {
       const f = v.file && v.file.size ? v.file : null; if (!f && !v.exp) return 'أرفق الملف أو أدخل تاريخ الانتهاء.';
