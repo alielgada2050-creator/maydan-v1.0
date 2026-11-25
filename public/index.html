@@ -389,6 +389,32 @@ html[data-theme="dark"] .hh-logos{background:#fff}
 }
 @media (max-width:1024px) and (prefers-reduced-motion:reduce){.nav,.shell.nav-on .nav,.nav-scrim{transition:none}}
 @media print{.mbar,.nav-scrim{display:none!important}}
+/* v11 — header bar & navigation follow the page theme (light in light mode, dark in dark mode) */
+.nav{background:var(--card);color:var(--tx);border-inline-end:1px solid var(--line)}
+.nav .brand b{color:var(--tx)}
+.nav button{color:var(--tx);font-size:15.5px;font-weight:500}
+.nav button[aria-current="page"]{background:color-mix(in srgb,var(--acc) 12%,var(--card));color:var(--acc2);font-weight:700}
+html[data-theme="dark"] .nav button[aria-current="page"]{background:color-mix(in srgb,var(--acc) 22%,var(--card));color:#fff}
+.nav button[aria-current="page"] .nv-i{color:var(--acc)}
+@media (hover:hover) and (pointer:fine){.nav button:hover{background:color-mix(in srgb,var(--tx) 6%,var(--card))}}
+.navg{color:var(--mut)}
+.nav .me{background:color-mix(in srgb,var(--tx) 4%,var(--card));border:1px solid var(--line);color:var(--tx)}
+.nav-x{color:var(--mut)}
+.nav .nav-x{display:none}
+@media (max-width:1024px){
+  .mbar{height:64px;background:var(--card);color:var(--tx);border-bottom:1px solid var(--line);box-shadow:0 4px 14px rgba(15,23,42,.06)}
+  html[data-theme="dark"] .mbar{box-shadow:0 4px 14px rgba(0,0,0,.35)}
+  .mb-btn{width:46px;height:46px;color:var(--tx);border:1px solid var(--line);background:color-mix(in srgb,var(--tx) 3%,var(--card))}
+  .mb-btn:active{background:color-mix(in srgb,var(--tx) 8%,var(--card))}.mb-btn:focus-visible{outline-color:var(--acc)}
+  .mb-dot{box-shadow:0 0 0 2px var(--card);background:var(--acc)}
+  .mb-brand{font-size:13px;font-weight:600;color:var(--acc)}.mb-cur{font-size:19px;color:var(--tx)}
+  .nav{box-shadow:-16px 0 40px rgba(15,23,42,.18)}
+  .nav .brand{background:var(--card);border-bottom:1px solid var(--line);margin-bottom:6px}.nav .brand b{font-size:22px}
+  .nav button{min-height:50px;font-size:16px;border-radius:12px}
+  .nav .nav-x{display:grid;width:40px;min-height:40px;padding:0;justify-content:center}
+  .nav-x:active{background:color-mix(in srgb,var(--tx) 8%,var(--card))}
+  .nav-scrim{background:rgba(15,23,42,.3)}html[data-theme="dark"] .nav-scrim{background:rgba(0,0,0,.5)}
+}
 </style>
 </head>
 <body>
