@@ -101,3 +101,14 @@ It feeds the following features:
   - Contacts (iqama, phone, WhatsApp) are shown only on «بيانات التواصل». The reveal is audited.
   - Equipment, cars and dynas are hidden behind «إظهار المعدات»; the choice is remembered on the device.
   - In demo mode, a role switcher lets you try each permission level.
+
+## Field documentation (v11) — `src/modules/60-field.js`
+- **Uploads:** new field type `files` (multiple; images, PDF, Word, Excel). `flAttachMany` geo-tags images and names each file `ID_STAGE_DATE_SAP.ext`.
+- **Pledge:** every stage move or closing of a transaction asks for «أتعهد» (`PLEDGE_FIELD`), logged with the user's name.
+- **Leaving the site:** at least 5 photos, a confirmation that the open site is secured, and the pledge.
+- **Returns:**
+  - Lab report number and test type, consultant and reviewer name, and reason of return or failure. The report and photos are attached.
+  - Can link finished transactions too. By default, lab, 940 and violation returns send the transaction back to asphalt & repairs.
+- **Fonts:** three per-device choices (IBM Plex Sans Arabic, Tajawal, Cairo), set from Settings.
+- **Team cards:** the header shows the full three-part name, with the status badge under it.
+- **Task details:** selecting a task card scrolls its details into view.

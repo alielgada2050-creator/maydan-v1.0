@@ -451,7 +451,8 @@ let THEME = pref('maydan_theme', (window.matchMedia && matchMedia('(prefers-colo
 let LANG = pref('maydan_lang', 'ar');
 const PALETTES = [['ember', 'برتقالي الميدان'], ['navy', 'كحلي وذهبي'], ['green', 'أخضر سعودي'], ['sec', 'أزرق الكهرباء']];
 let PALETTE_K = pref('maydan_palette', 'ember');
-function applyPrefs() { const h = document.documentElement; h.dataset.theme = THEME; h.dataset.palette = PALETTE_K; h.lang = LANG; h.dir = LANG === 'en' ? 'ltr' : 'rtl'; }
+let FONT_K = pref('maydan_font', 'plex');
+function applyPrefs() { const h = document.documentElement; h.dataset.font = FONT_K; h.dataset.theme = THEME; h.dataset.palette = PALETTE_K; h.lang = LANG; h.dir = LANG === 'en' ? 'ltr' : 'rtl'; }
 const UI = { view: 'dash', sel: 'X-03', layers: (() => { let on = false; try { on = localStorage.getItem('maydan_eq') === '1'; } catch (e) { /* private mode */ } return { sup: true, cars: on, workers: true, dynas: on, eq: on, drivers: on }; })(), move: null, eqFilter: 'all', eqQ: '', mapView: null, live: null, liveCrew: null, ai: { q: '', a: '', busy: false, via: '' }, reqFrom: 'E-07', reqSvc: 'gcb', lastReq: null, dragId: null };
 const AUTH = { step: DB.users.length ? 'creds' : 'setup', err: '', note: '', uid: null, channel: 'sms', otpHash: '', otpSalt: '', otpExp: 0, tries: 0, resendAt: 0, demo: '', iqama: '' };
 const AI_KEYS = {}; // provider id -> key, memory only, never persisted
@@ -518,11 +519,12 @@ function fieldHtml(f) {
   if (f.type === 'select') return html`<div class="fld"${wide}><label for="${id}">${f.label}</label><select class="in" id="${id}" name="${f.k}" ${f.list ? new Safe('data-change="addable"') : ''}>${opts.map((o) => html`<option value="${o[0]}" ${String(o[0]) === String(f.val) ? new Safe('selected') : ''}>${o[1]}</option>`)}${f.list ? html`<option value="__new__">+ إضافة خيار جديد…</option>` : ''}</select>
     ${f.list ? html`<input class="in" name="${f.k}__new" placeholder="اكتب الخيار الجديد" hidden aria-label="خيار جديد لـ ${f.label}" maxlength="60">` : ''}${f.hint ? html`<span class="hint">${f.hint}</span>` : ''}</div>`;
   if (f.type === 'combo') { const lid = 'dl_' + f.k; return html`<div class="fld"${wide}><label for="${id}">${f.label}</label><input class="in" id="${id}" name="${f.k}" list="${lid}" value="${f.val == null ? '' : f.val}" placeholder="${f.ph || 'ابحث أو اكتب…'}" autocomplete="off" maxlength="60" data-combo="1"><datalist id="${lid}">${opts.map((o) => html`<option value="${o[0]}">${o[1] || ''}</option>`)}</datalist>${f.hint ? html`<span class="hint">${f.hint}</span>` : ''}</div>`; }
-  if (f.type === 'check') return html`<label class="row" style="min-height:44px;font-size:14px${f.wide ? ';grid-column:1/-1' : ''}"><input type="checkbox" name="${f.k}" ${f.val ? new Safe('checked') : ''} style="width:20px;height:20px;accent-color:var(--acc)"> ${f.label}</label>`;
+  if (f.type === 'check') return html`<label class="row${f.k === 'pledge' ? ' pledge' : ''}" style="min-height:44px;font-size:14px${f.wide ? ';grid-column:1/-1' : ''}"><input type="checkbox" id="${id}" name="${f.k}" ${f.val ? new Safe('checked') : ''} style="width:20px;height:20px;accent-color:var(--acc)"> ${f.label}</label>`;
   if (f.type === 'checks') { const vals = f.val || []; const all = opts.map((o) => o[0]).concat(vals.filter((v) => !opts.some((o) => o[0] === v))); return html`<fieldset class="fld" style="grid-column:1/-1;border:1px solid var(--line2);border-radius:12px;padding:12px"><legend style="font-size:13px;font-weight:600;padding:0 6px">${f.label}</legend>
     <div class="chips">${all.map((o) => html`<label class="chip" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" name="${f.k}" value="${o}" ${vals.includes(o) ? new Safe('checked') : ''} style="accent-color:var(--acc)">${o}</label>`)}</div>
     ${f.list ? html`<input class="in" name="${f.k}__new" placeholder="إضافة بنود أخرى (افصل بفاصلة)" maxlength="200" style="margin-top:8px">` : ''}</fieldset>`; }
   if (f.type === 'textarea') return html`<div class="fld" style="grid-column:1/-1"><label for="${id}">${f.label}</label><textarea class="in" id="${id}" name="${f.k}" maxlength="${f.max || 1500}">${f.val || ''}</textarea></div>`;
+  if (f.type === 'files') return html`<div class="fld"${wide}><label for="${id}">${f.label}</label><input class="in" id="${id}" name="${f.k}" type="file" multiple accept="${f.accept || 'image/*,.pdf,.docx,.xlsx'}" style="padding:8px">${f.hint ? html`<span class="hint">${f.hint}</span>` : ''}</div>`;
   if (f.type === 'file') return html`<div class="fld"${wide}><label for="${id}">${f.label}</label><input class="in" id="${id}" name="${f.k}" type="file" ${f.capture ? new Safe('accept="image/*" capture="environment"') : new Safe('accept=".pdf,.jpg,.jpeg,.png,.webp,.docx,.xlsx"')} style="padding:8px">${f.hint ? html`<span class="hint">${f.hint}</span>` : ''}</div>`;
   return html`<div class="fld"${wide}><label for="${id}">${f.label}</label><input class="in ${f.ltr ? 'ltr' : ''}" id="${id}" name="${f.k}" type="${f.type || 'text'}" value="${f.val == null ? '' : f.val}" ${f.req ? new Safe('required') : ''} ${f.ph ? html`placeholder="${f.ph}"` : ''} autocomplete="off">${f.hint ? html`<span class="hint">${f.hint}</span>` : ''}</div>`;
 }
@@ -1301,7 +1303,7 @@ function viewTasks() {
 function taskDetail(t) {
   const E = can('edit'), R = can('request'); const c = crewById(t.crewId); const al = smartAlerts().filter((a) => a.task === t.id); const ds = docStatus(t);
   const docs = DB.docs.filter((d) => d.taskId === t.id || (CREW_LEVEL_DOCS.includes(d.type) && !d.taskId && d.crewId === t.crewId));
-  return html`<div class="card"><div class="row between"><div><h2 style="font-size:21px">${t.title}</h2><span class="t-mut" style="font-size:13px">${t.dept} · التنفيذ ${fmtD(t.date)} (${t.date}) · ${t.site}</span></div><span class="pill ${JOB_ST[t.st][1]}">${JOB_ST[t.st][0]}${t.st === 'hold' && t.hold ? ' — ' + t.hold.reason : ''}</span></div>
+  return html`<div class="card" id="taskdetail" tabindex="-1" style="scroll-margin-top:76px"><div class="row between"><div><h2 style="font-size:21px">${t.title}</h2><span class="t-mut" style="font-size:13px">${t.dept} · التنفيذ ${fmtD(t.date)} (${t.date}) · ${t.site}</span></div><span class="pill ${JOB_ST[t.st][1]}">${JOB_ST[t.st][0]}${t.st === 'hold' && t.hold ? ' — ' + t.hold.reason : ''}</span></div>
     <div class="grid g4"><div class="kv"><span>التصريح</span><b>${t.permit || '—'}</b>${t.permitExp ? html`<span class="pill ${permitState(t.permitExp, true).c}" style="font-size:12px;width:max-content">${permitState(t.permitExp, true).label} · ${t.permitExp}</span>` : ''}${t.woNo || t.uid ? html`<span class="t-mut ltr" style="font-size:12px">${[t.uid, t.woNo ? 'WO ' + t.woNo : ''].filter(Boolean).join(' · ')}</span>` : ''}</div>
       <div class="kv"><span>الفرقة</span><b>${c ? c.name : 'غير مُسندة'}</b>${c ? html`<span class="pill ${crewState(c).lvl}" style="width:max-content">${crewState(c).label}</span>` : ''}</div>
       <div class="kv"><span>المهندس</span><b>${c && c.eng ? c.eng.name : '—'}</b><span>${c ? contactLinks(c.eng) : ''}</span></div>
@@ -1728,7 +1730,7 @@ function viewSettings3() {
   else if (tab === 'lists') body = listsManager();
   else if (tab === 'storage') body = storagePanel();
   else if (tab === 'data') body = dataPanel();
-  else body = html`<form class="card" data-form="settings"><h2 style="font-size:17px">القواعد</h2><div class="grid g3">
+  else body = html`${fontPicker()}<form class="card" data-form="settings"><h2 style="font-size:17px">القواعد</h2><div class="grid g3">
     ${fieldHtml({ k: 'radiusKm', label: 'نطاق البحث عن الفرقة القريبة (كم)', type: 'number', val: s.radiusKm })}${fieldHtml({ k: 'oilWarn', label: 'تنبيه غيار الزيت قبل (كم)', type: 'number', val: s.oilWarn })}${fieldHtml({ k: 'kmPerDay', label: 'متوسط السير اليومي (كم)', type: 'number', val: s.kmPerDay })}</div>
     ${CLOUD ? html`<p class="alert note">خرائط Google وتسجيل الدخول بحساب Google مضبوطان على الخادم (GOOGLE_MAPS_KEY و GOOGLE_CLIENT_ID).${CLOUD.mapsKey ? ' خرائط Google: مفعّلة.' : ' خرائط Google: غير مفعّلة.'}${CLOUD.googleClientId ? ' دخول Google: مفعّل.' : ' دخول Google: غير مفعّل.'}</p>` : fieldHtml({ k: 'mapsKey', label: 'مفتاح خرائط Google (Map Tiles API) — للنسخة المحلية', ltr: true, val: s.mapsKey || '', ph: 'AIza…', hint: 'فعّل Map Tiles API في Google Cloud وقيّد المفتاح بعنوان موقعك. اتركه فارغاً لاستخدام OpenStreetMap.' })}
     ${CLOUD ? html`<p class="alert note">يعمل الآن على الخادم: إرسال رمز التحقق يتم من الخادم عبر مزود الرسائل المضبوط في متغيرات البيئة.</p>` : fieldHtml({ k: 'otpGateway', label: 'بوابة إرسال رمز التحقق (https) — للنسخة المحلية فقط', ltr: true, val: s.otpGateway, ph: 'https://api.your-company.sa/otp', hint: 'في النشر على Google Cloud يُرسل الرمز من الخادم ولا حاجة لهذا الحقل.' })}
@@ -1970,7 +1972,7 @@ const ACT = {
   'alerts-all': () => { UI.allAlerts = !UI.allAlerts; render(); },
   'docs-crew': (d) => { const c = crewById(d.id); UI.person = c && c.eng ? c.eng.name : c ? c.sup.name : null; UI.view = 'docs'; render(); },
   'task-filter': (d) => { UI.tf = d.k; UI.task = null; render(); },
-  'task-sel': (d) => { UI.task = d.id; render(); },
+  'task-sel': (d) => { UI.task = d.id; render(); const el = $('#taskdetail'); if (el) { el.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); el.focus({ preventScroll: true }); } },
   'task-kb': (d) => { UI.taskKb = !!d.k; render(); },
   'task-open': (d) => { const t = taskById(d.id); if (!t) return; UI.task = t.id; UI.tf = t.st === 'done' ? 'all' : 'open'; UI.view = 'tasks'; render(); },
   'task-add': () => { if (!need('edit')) return; openForm('مهمة جديدة', taskFields(null), (v) => { const e = taskValidate(v); if (e) return e; const t = newTask(Object.assign(taskFromForm(v), { workType: classifyWork(v.title) })); DB.jobs.unshift(t); ensureTeamForm(t); UI.task = t.id; UI.tf = 'open'; audit(CUR.name, 'إضافة مهمة', t.title); toast('أُضيفت المهمة، وأُنشئ طلب تأمين السلامة والإنارة تلقائياً قبل التنفيذ بيوم.'); }, { note: 'سيُنشأ تلقائياً طلب لقسم السلامة والإنارة لتأمين الموقع قبل يوم التنفيذ.' }); },
@@ -2073,6 +2075,7 @@ const FORMS = {
       if (x.type === 'check') v[x.k] = !!form.elements[x.k].checked;
       else if (x.type === 'checks') { v[x.k] = Array.from(form.querySelectorAll('input[type=checkbox]')).filter((i) => i.name === x.k && i.checked).map((i) => i.value); const nn = form.elements[x.k + '__new']; if (nn && nn.value.trim()) nn.value.split(/[،,]/).map((q) => q.trim()).filter(Boolean).slice(0, 10).forEach((q) => { const val = x.list ? addToList(x.list, q) : q.slice(0, 60); if (!v[x.k].includes(val)) v[x.k].push(val); }); }
       else if (x.type === 'file') v[x.k] = form.elements[x.k].files[0] || null;
+      else if (x.type === 'files') v[x.k] = Array.from(form.elements[x.k].files || []).slice(0, 20);
       else { v[x.k] = String(form.elements[x.k].value); if (v[x.k] === '__new__') { const nv = String((form.elements[x.k + '__new'] || {}).value || '').trim(); if (!nv) bad = 'اكتب الخيار الجديد في «' + x.label + '».'; else v[x.k] = addToList(x.list, nv, x.listExtra); } }
     });
     if (bad) { errEl.hidden = false; errEl.textContent = bad; return; }

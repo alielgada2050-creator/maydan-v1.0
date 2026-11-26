@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-ksDto8PPzj9dScH64TCxs92YS4Tzp/Z+9LgU9PqpiBI=' https://unpkg.com https://accounts.google.com/gsi/client; style-src 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com https://accounts.google.com/gsi/style; frame-src https://accounts.google.com/gsi/; font-src https://fonts.gstatic.com; img-src data: https://unpkg.com https://*.tile.openstreetmap.org https://tile.googleapis.com https://maps.gstatic.com; connect-src https: http://localhost:* http://127.0.0.1:*; form-action 'none'; base-uri 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-10i1CQlQBqyZ+CUwRqPl8YAVcdJ392dEwkLFNP7Bru8=' https://unpkg.com https://accounts.google.com/gsi/client; style-src 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com https://accounts.google.com/gsi/style; frame-src https://accounts.google.com/gsi/; font-src https://fonts.gstatic.com; img-src data: https://unpkg.com https://*.tile.openstreetmap.org https://tile.googleapis.com https://maps.gstatic.com; connect-src https: http://localhost:* http://127.0.0.1:*; form-action 'none'; base-uri 'none'; object-src 'none'">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex,nofollow">
 <meta name="maydan-server" content="0">
 <title>ميدان | إدارة الفرق والمعدات والخدمات اللوجستية</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Readex+Pro:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Readex+Pro:wght@500;600;700&family=Tajawal:wght@400;500;700;800&family=Cairo:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous">
 <style>
 :root{
@@ -430,6 +430,14 @@ button.pc-av{cursor:pointer;transition:transform 140ms cubic-bezier(.23,1,.32,1)
 html[data-theme="dark"] .pcard .pc-ini{color:#E5E7EB}
 .pc-cam{position:absolute;z-index:2;bottom:-4px;inset-inline-end:-4px;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--acc);color:#fff;box-shadow:0 0 0 2px var(--card)}
 .pcard .pc-id b{font-size:19px}.pcard .pc-id span{font-size:14.5px}.pcard .pc-st{font-size:13px}
+/* v14 — fonts, card header, field documentation */
+html[data-font="tajawal"] :is(body,h1,h2,h3,h4,.hh-title b,.brand b,.flk b,button,input,select,textarea){font-family:'Tajawal',system-ui,sans-serif}
+html[data-font="cairo"] :is(body,h1,h2,h3,h4,.hh-title b,.brand b,.flk b,button,input,select,textarea){font-family:'Cairo',system-ui,sans-serif}
+.fontpick{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}.fontpick button{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;gap:4px;padding:14px;border-radius:12px;border:1px solid var(--line);background:var(--card)}
+.fontpick button[aria-pressed="true"]{border-color:var(--acc);box-shadow:0 0 0 2px color-mix(in srgb,var(--acc) 30%,transparent)}.fontpick b{font-size:19px}.fontpick span{font-size:13px;color:var(--mut)}.fontpick button:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.pcard .pc-id b{white-space:normal;overflow:visible;text-overflow:clip;line-height:1.35}.pcard .pc-id .pc-st{align-self:flex-start;margin-top:5px;font-size:11px;padding:2px 8px}
+.pledge{padding:10px 12px;border-radius:10px;border:1px solid color-mix(in srgb,var(--acc) 35%,transparent);background:color-mix(in srgb,var(--acc) 6%,var(--card))}
+.thumbs{display:flex;flex-wrap:wrap;gap:6px}.thumbs img{width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
 </style>
 </head>
 <body>
@@ -1372,7 +1380,7 @@ function viewReports() {
   return html`<div class="ph"><div><h1 style="font-size:28px">البلاغات والمعادات</h1><p>معالجة المعاد من المختبر URS والاستشاري PDC ومركز المشاريع RIPC، وبلاغات البلدية 940 ومخالفات المركز، مع عدّاد المهلة والتوجيه للأسفلت أو المختبر أو التنفيذ المدني.</p></div>${can('edit') ? html`<button class="btn pri" type="button" data-act="fl-rep" data-id="">+ بلاغ / معاد</button>` : ''}</div>
   <div class="flkpi">${Object.keys(FL_REPORT_KINDS).map((k) => html`<button type="button" class="flk ${kf === k ? 'on' : ''}" data-act="rep-k" data-k="${kf === k ? '' : k}"><span>${FL_REPORT_KINDS[k][0]}</span><b>${DB.reports.filter((r) => r.kind === k && r.st !== 'resolved').length}</b></button>`)}</div>
   <div class="tblw"><table><thead><tr><th scope="col">النوع</th><th scope="col">الأساس / الرخصة</th><th scope="col">الحي</th><th scope="col">الملاحظة</th><th scope="col">المهلة</th><th scope="col">الحالة</th><th scope="col">توجيه</th></tr></thead><tbody>
-  ${L.map((r) => { const dl = daysTo(r.due); return html`<tr><td>${r.kindName}</td><td class="ltr">${[r.baseNo, r.permit].filter(Boolean).join(' / ') || '—'}</td><td>${r.district || '—'}</td><td style="max-width:280px">${r.note || ''}</td>
+  ${L.map((r) => { const dl = daysTo(r.due); return html`<tr><td>${r.kindName}</td><td class="ltr">${[r.baseNo, r.permit].filter(Boolean).join(' / ') || '—'}</td><td>${r.district || '—'}</td><td style="max-width:320px">${r.reason ? html`<b>${r.reason}</b><br>` : ''}${r.note || ''}${r.labNo || r.consultant ? html`<div class="t-mut" style="font-size:12px">${[r.labNo ? 'تقرير المختبر ' + r.labNo + (r.labType ? ' (' + r.labType + ')' : '') : '', r.consultant ? 'الاستشاري: ' + r.consultant + (r.consultantName ? ' — ' + r.consultantName : '') : ''].filter(Boolean).join(' · ')}</div>` : ''}${(r.files || []).length ? html`<div class="row" style="gap:4px;margin-top:4px">${r.files.map((fid, i) => html`<button class="btn sm" type="button" data-act="doc-file" data-id="${fid}">مرفق ${i + 1}</button>`)}</div>` : ''}</td>
     <td><span class="pill ${r.st === 'resolved' ? 'mutp' : dl < 0 ? 'bad' : dl <= 3 ? 'warn' : 'info'}">${r.st === 'resolved' ? '—' : dl < 0 ? 'متأخر ' + -dl + ' يوم' : dl + ' يوم'}</span></td>
     <td><span class="pill ${r.st === 'resolved' ? 'ok' : r.st === 'routed' ? 'info' : 'warn'}">${r.st === 'resolved' ? 'تمت المعالجة' : r.st === 'routed' ? 'موجّه: ' + (FL_ROLES[r.to] || '') : 'مفتوح'}</span></td>
     <td><div class="row" style="gap:4px">${r.st !== 'resolved' && can('edit') ? html`${['asphalt', 'lab', 'civil'].map((t) => html`<button class="btn sm" type="button" data-act="fl-rep-to" data-id="${r.id}" data-k="${t}">${FL_ROLES[t]}</button>`)}<button class="btn sm" type="button" data-act="fl-rep-done" data-id="${r.id}">تمت</button>` : ''}${r.jobId ? html`<button class="btn sm" type="button" data-act="fl-goto" data-id="${r.jobId}">المعاملة</button>` : ''}</div></td></tr>`; })}</tbody></table></div>${L.length ? '' : html`<p class="t-mut">لا بلاغات.</p>`}`;
@@ -1396,7 +1404,7 @@ function flPersonCard(e) {
   return html`<article class="pcard" aria-label="${e.name}">
     <header class="pc-head">${(() => { const ph = (e.docs || {})[PHOTO_DOC]; const fid = (ph && ph.fileId) || (iq && iq.fileId); const inner = html`${fid ? html`<img alt="صورة ${e.name}" data-thumb="${fid}" class="pc-img">` : ''}<span class="pc-ini" aria-hidden="true">${new Safe('<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8.5" r="3.8"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></svg>')}</span>${E ? html`<i class="pc-cam" aria-hidden="true">${new Safe('<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-2h6l2 2h3v11H4z"/><circle cx="12" cy="13" r="3.2"/></svg>')}</i>` : ''}`;
       return E ? html`<button type="button" class="pc-av" data-act="card-photo" data-id="${e.id}" aria-label="${fid ? 'تغيير' : 'إضافة'} صورة ${e.name}" title="${fid ? 'تغيير الصورة' : 'إضافة صورة شخصية'}">${inner}</button>` : html`<span class="pc-av">${inner}</span>`; })()}
-      <div class="pc-id"><b>${e.name}</b><span>${l && l.role === 'مراقب' ? supTag(l.crew) : e.job || '—'}</span></div><span class="pc-st ${bad ? 'bad' : 'ok'}">${bad ? bad + ' يحتاج إجراء' : 'مكتمل'}</span></header>
+      <div class="pc-id"><b title="${e.name}">${triName(e.name)}</b><span>${l && l.role === 'مراقب' ? supTag(l.crew) : e.job || '—'}</span><span class="pc-st ${bad ? 'bad' : 'ok'}">${bad ? bad + ' يحتاج إجراء' : 'مكتمل'}</span></div></header>
     <dl class="pc-meta"><div><dt>الفرقة</dt><dd>${l ? l.crew.id + ' · ' + l.role : '—'}</dd></div><div><dt>المهندس المسؤول</dt><dd>${l && l.crew.eng ? l.crew.eng.name : '—'}</dd></div></dl>
     <div class="row" style="gap:6px">${contactBtn(rk, e.name)}${E ? '' : html`<span class="pill mutp" title="التعديل للمهندس المسؤول عن الفرقة أو الموارد البشرية أو مدير المشروع">عرض فقط</span>`}</div>${contactRow(rk, { iqama: e.iqama, phone: e.phone })}
     ${e.xfer ? html`<p class="pc-xfer">نُقل من ${e.xfer.from}${e.xfer.fromEng ? ' (' + e.xfer.fromEng + ')' : ''} إلى ${e.xfer.to}${e.xfer.toEng ? ' (' + e.xfer.toEng + ')' : ''} · ${fmtD(e.xfer.tm.slice(0, 10))}. صلاحية التجديد وتحديث الملفات لدى المهندس الجديد.</p>` : ''}
@@ -1464,7 +1472,7 @@ async function flAttach(j, kind, file, o) {
   if (!file || !file.size) return 'اختر ملفاً.'; if (file.size > 10 * 1024 * 1024) return 'الملف أكبر من 10 ميجابايت.'; if (!ALLOWED_FILES[file.type] || /officedocument/.test(file.type)) return 'المسموح: صورة أو PDF.';
   o = o || {}; const stage = o.stage || j.stage; const name = flDocName(j, stage, file.name);
   let blob = file; try { blob = new File([file], name, { type: file.type }); } catch (e) { /* old browsers: keep the original name on the blob */ }
-  const doc = { id: uid('d'), type: kind, title: kind + ' — ' + flFolderName(j), crewId: j.crewId, taskId: j.id, workType: '', person: CUR.name, exp: kind === 'تصريح' ? j.permitExp || '' : '', url: '', fileId: uid('f'), fileName: name, orig: safeName(file.name), stage, geo: o.geo || null, size: file.size, form: null, tm: nowIso(), by: CUR.name };
+  const doc = { id: uid('d'), type: kind, title: kind + ' — ' + flFolderName(j), crewId: j.crewId, taskId: j.id, workType: '', person: CUR.name, exp: kind === 'تصريح' ? j.permitExp || '' : '', url: '', fileId: uid('f'), fileName: name, orig: safeName(file.name), mime: file.type, stage, geo: o.geo || null, size: file.size, form: null, tm: nowIso(), by: CUR.name };
   try { await filePut(doc.fileId, blob, j.id); } catch (e) { return 'تعذّر حفظ الملف.'; }
   DB.docs.unshift(doc); return doc;
 }
@@ -1505,10 +1513,10 @@ const FL_ACT = {
     if (flIdx(j) < flPath(j).indexOf('gate') + 1 && nx !== 'gate' && !flGateOk(j)) return toast('أرفق الرخصة أولاً.', 'err');
     if (j.stage === 'safety' && !(j.safety.delivered && j.safety.hse)) return toast('أكّد توريد الصبات والإنارة واعتماد فحص HSE قبل الحفر.', 'err');
     if (j.stage === 'lab' && nx === 'pdc' && !j.qa) return toast('اعتمد قائمة التوثيق والجودة أولاً (الموقع، الطول، الرخصة، أمر العمل، SAP، صور المراحل الموثّقة).', 'err');
-    if (['dig', 'elec', 'asphalt'].includes(j.stage)) { const st = j.stage; const had = flStageDocs(j, st).length; return openForm('إنهاء «' + FL_STAGES[st][0] + '»', [{ k: 'note', label: 'ملاحظة التنفيذ', type: 'textarea' }, { k: 'photo', label: had ? 'صورة إضافية (اختياري — يوجد ' + had + ')' : 'صورة التنفيذ (إلزامية — تُوثَّق بالموقع)', type: 'file', capture: true, wide: true, hint: 'تُسمّى تلقائياً ' + flDocName(j, st, 'x.jpg') }], async (v) => {
-      if (!(v.photo && v.photo.size) && !had) return 'أرفق صورة التنفيذ — لا تُغلق المرحلة دون دليل مرئي.';
-      if (v.photo && v.photo.size) { if (!/^image\//.test(v.photo.type)) return 'صورة التنفيذ يجب أن تكون صورة.'; const geo = await geoNow(4000); const r = await flAttach(j, 'صور التنفيذ', v.photo, { stage: st, geo }); if (typeof r === 'string') return r; if (!geo) toast('حُفظت الصورة دون موقع جغرافي — فعّل خدمة الموقع لتوثيقها.', 'err'); } flSetStage(j, nx, v.note); audit(CUR.name, 'تقدم معاملة', flFolderName(j) + ' → ' + FL_STAGES[nx][0]); toast('انتقلت إلى «' + FL_STAGES[nx][0] + '» وأُرسل التنبيه للمسؤول.'); }, { ok: 'إنهاء والانتقال' }); }
-    flSetStage(j, nx); audit(CUR.name, 'تقدم معاملة', flFolderName(j) + ' → ' + FL_STAGES[nx][0]); save(); toast('انتقلت إلى «' + FL_STAGES[nx][0] + '».'); render();
+    if (['dig', 'elec', 'asphalt'].includes(j.stage)) { const st = j.stage; const had = flStageDocs(j, st).filter((x) => /^image\//.test(x.mime || 'image/')).length; return openForm('إنهاء «' + FL_STAGES[st][0] + '»', [{ k: 'note', label: 'ملاحظة التنفيذ', type: 'textarea' }, { k: 'photo', label: had ? 'صور أو ملفات إضافية (اختياري — يوجد ' + had + ')' : 'صور التنفيذ (صورة واحدة على الأقل — تُوثَّق بالموقع)', type: 'files', accept: 'image/*,.pdf,.docx,.xlsx', wide: true, hint: 'يمكن اختيار عدة صور وملفات PDF أو Word أو Excel معاً · تُسمّى تلقائياً ' + flDocName(j, st, 'x.jpg') }, PLEDGE_FIELD], async (v) => {
+      const F = (v.photo || []).filter((f) => f && f.size); if (!F.some((f) => /^image\//.test(f.type)) && !had) return 'أرفق صورة تنفيذ واحدة على الأقل — لا تُغلق المرحلة دون دليل مرئي.'; if (!v.pledge) return PLEDGE_ERR;
+      const r = await flAttachMany(j, 'صور التنفيذ', F, st); if (typeof r === 'string') return r; flSetStage(j, nx, v.note); flLog(j, st, 'تعهد ' + CUR.name + ' بصحة البيانات وتأمين الموقع'); audit(CUR.name, 'تقدم معاملة', flFolderName(j) + ' → ' + FL_STAGES[nx][0]); toast('انتقلت إلى «' + FL_STAGES[nx][0] + '» وأُرسل التنبيه للمسؤول.'); }, { ok: 'إنهاء والانتقال' }); }
+    return openForm('نقل المعاملة إلى «' + FL_STAGES[nx][0] + '»', [{ k: 'note', label: 'ملاحظة (اختياري)', type: 'textarea' }, PLEDGE_FIELD], (v) => { if (!v.pledge) return PLEDGE_ERR; flSetStage(j, nx, v.note); flLog(j, j.stage, 'تعهد ' + CUR.name + ' بصحة البيانات'); audit(CUR.name, 'تقدم معاملة', flFolderName(j) + ' → ' + FL_STAGES[nx][0]); toast('انتقلت إلى «' + FL_STAGES[nx][0] + '».'); }, { ok: nx === 'closed' ? 'إغلاق المعاملة' : 'نقل' });
   },
   'fl-gate': (d) => {
     const j = DB.jobs.find((x) => x.id === d.id); if (!j || !need('edit')) return;
@@ -1682,7 +1690,7 @@ const PERMIT_LEGEND = [['exp', 'منتهية'], ['bad', 'أقل من 5 أيام'
 function permitLegend() { return html`<div class="row plegend" aria-label="دليل ألوان الرخص">${PERMIT_LEGEND.map((x) => html`<span class="pill ${x[0]}">${x[1]}</span>`)}</div>`; }
 
 // ---------- documentation (naming + GPS) ----------
-const STAGE_CODE = { gate: 'PERMIT', safety: 'SAFETY', dig: 'CIVIL', elec: 'ELEC', asphalt: 'ASPHALT', lab: 'LAB', pdc: 'PDC', ripc: 'RIPC', plan: 'PLAN', closed: 'CLOSE' };
+const STAGE_CODE = { ret: 'RETURN', close: 'SITE', gate: 'PERMIT', safety: 'SAFETY', dig: 'CIVIL', elec: 'ELEC', asphalt: 'ASPHALT', lab: 'LAB', pdc: 'PDC', ripc: 'RIPC', plan: 'PLAN', closed: 'CLOSE' };
 function flDocName(j, stage, orig) {
   const ext = (String(orig || '').match(/\.([a-z0-9]{2,5})$/i) || [, 'jpg'])[1].toLowerCase();
   const part = (s) => String(s || '').replace(/[^A-Za-z0-9\-]/g, '');
@@ -2369,6 +2377,110 @@ function demoSwitcher() {
   return html`<label class="demo-as"><span>تجربة بصلاحية</span><select class="in" data-change="demo-as" aria-label="تجربة المنصة بصلاحية مستخدم آخر">${DB.users.map((u) => html`<option value="${u.id}" ${CUR && CUR.id === u.id ? new Safe('selected') : ''}>${ROLES[u.role]}${userSpec(u) ? ' (' + ENG_SPEC[userSpec(u)] + ')' : ''} — ${u.name}</option>`)}</select></label>`;
 }
 
+// ---- module: 60-field.js ----
+// ================================================================
+// Module: field documentation — multi-file uploads, pledge before closing/moving,
+// site photos before leaving, documented returns (lab / consultant / RIPC), fonts.
+// Loaded before the DB is created, so only declarations live at top level.
+// ================================================================
+const PLEDGE_FIELD = { k: 'pledge', label: 'أتعهد بصحة البيانات والمرفقات، وبأن الموقع مؤمَّن (حواجز وإنارة وأغطية) عند المغادرة', type: 'check', val: false, wide: true };
+const PLEDGE_ERR = 'اختر «أتعهد» قبل الإغلاق أو النقل — يُسجَّل التعهد باسمك.';
+const SITE_PHOTOS_MIN = 5;
+const triName = (n) => String(n || '').trim().split(/\s+/).slice(0, 3).join(' ');
+
+// attach several files (images / PDF / Word / Excel); images are geo-tagged
+async function flAttachMany(j, kind, files, stage) {
+  const ids = []; let geo = null; let noGeo = false;
+  for (const f of files || []) {
+    if (!f || !f.size) continue;
+    const img = /^image\//.test(f.type); if (img && !geo && !noGeo) { geo = await geoNow(4000); if (!geo) noGeo = true; }
+    const r = await flAttachAny(j, kind, f, { stage, geo: img ? geo : null }); if (typeof r === 'string') return r + ' (' + f.name + ')'; ids.push(r.id);
+  }
+  if (noGeo && ids.length) toast('حُفظت الصور دون موقع جغرافي — فعّل خدمة الموقع لتوثيقها.', 'err');
+  return ids;
+}
+const FIELD_TYPES = /^(image\/(jpeg|png|webp|heic|heif)|application\/pdf|application\/vnd\.openxmlformats-officedocument\.(wordprocessingml\.document|spreadsheetml\.sheet))$/;
+async function flAttachAny(j, kind, file, o) {
+  if (!file || !file.size) return 'ملف فارغ.'; if (file.size > 15 * 1024 * 1024) return 'الملف أكبر من 15 ميجابايت.'; if (!FIELD_TYPES.test(file.type)) return 'المسموح: صور، PDF، Word، Excel.';
+  o = o || {}; const stage = o.stage || j.stage || 'doc'; const name = flDocName(j, stage, file.name);
+  let blob = file; try { blob = new File([file], name, { type: file.type }); } catch (e) { /* keep original */ }
+  const doc = { id: uid('d'), type: kind, title: kind + ' — ' + (j.flow ? flFolderName(j) : j.title), crewId: j.crewId, taskId: j.id, workType: j.workType || '', person: CUR.name, exp: '', url: '', fileId: uid('f'), fileName: name, orig: safeName(file.name), mime: file.type, stage, geo: o.geo || null, size: file.size, form: null, tm: nowIso(), by: CUR.name };
+  try { await filePut(doc.fileId, blob, j.id); } catch (e) { return 'تعذّر حفظ الملف.'; }
+  DB.docs.unshift(doc); return doc;
+}
+
+// ---------- returns: lab / consultant / RIPC / 940 / violations ----------
+const LAB_TYPES = ['دمك الردم (Compaction)', 'سماكة الأسفلت (Core)', 'كثافة الأسفلت', 'جودة المواد', 'مستويات وتسوية', 'أخرى'];
+const RETURN_REASONS = ['رسوب فحص الدمك', 'رسوب سماكة أو كثافة الأسفلت', 'هبوط أو تشققات في السفلتة', 'نقص صور أو مستندات', 'عدم مطابقة المخططات', 'مخلفات أو عدم تنظيف الموقع', 'غطاء أو منسوب غير مطابق', 'أخرى'];
+const RETURN_TO_ASPHALT = ['lab', 'b940', 'viol'];
+function flReportForm(d) {
+  if (!need('edit')) return; const J = flJobs().filter(jobInScope).sort((a, b) => (a.stage === 'closed') - (b.stage === 'closed') || String(b.date).localeCompare(String(a.date)));
+  const jl = (j) => (j.uid || j.baseNo) + ' · رخصة ' + (j.permit || '—') + ' · ' + j.district + (j.stage === 'closed' ? ' (منتهية)' : ' (' + FL_STAGES[j.stage][0] + ')');
+  openForm('تسجيل بلاغ / معاد', [
+    { k: 'kind', label: 'النوع', type: 'select', opts: Object.keys(FL_REPORT_KINDS).map((k) => [k, FL_REPORT_KINDS[k][0]]), val: d.k || 'lab' },
+    { k: 'jobId', label: 'المعاملة والرخصة (الجارية والمنتهية)', type: 'select', opts: [['', '— غير مربوط —']].concat(J.map((j) => [j.id, jl(j)])), val: d.job || '', wide: true },
+    { k: 'baseNo', label: 'رقم الأساس (إن لم تُربط)', ltr: true }, { k: 'permit', label: 'رقم الرخصة (إن لم تُربط)', ltr: true },
+    { k: 'labNo', label: 'رقم تقرير المختبر', ltr: true }, { k: 'labType', label: 'نوع الفحص', type: 'select', opts: [['', '—']].concat(LAB_TYPES.map((x) => [x, x])) },
+    { k: 'consultant', label: 'الاستشاري / الجهة', val: '' }, { k: 'consultantName', label: 'اسم المهندس المراجع', val: '' },
+    { k: 'reason', label: 'سبب الإعادة أو الرسوب', type: 'select', opts: RETURN_REASONS.map((x) => [x, x]) },
+    { k: 'district', label: 'الحي (إن لم تُربط)', type: 'combo', opts: districtOpts() }, { k: 'recv', label: 'تاريخ الاستلام', type: 'date', val: today() },
+    { k: 'note', label: 'تفاصيل الملاحظة', type: 'textarea', wide: true },
+    { k: 'files', label: 'تقرير المختبر والصور أو الملف المعاد', type: 'files', wide: true, hint: 'يمكن اختيار عدة ملفات معاً: صور، PDF، Word، Excel' },
+    { k: 'toAsphalt', label: 'إرجاع المعاملة لقسم الأسفلت والإصلاحات (ولو كانت منتهية)', type: 'check', val: !['pdc', 'ripc'].includes(d.k || 'lab'), wide: true }
+  ], async (v) => {
+    const K = FL_REPORT_KINDS[v.kind]; if (!K) return 'اختر النوع.'; const j = J.find((x) => x.id === v.jobId); if (!j && !v.baseNo.trim() && !v.permit.trim()) return 'اربط المعاملة أو أدخل رقم الأساس/الرخصة.';
+    if (v.kind === 'lab' && !v.labNo.trim()) return 'أدخل رقم تقرير المختبر.'; if (v.labNo && !/^[A-Za-z0-9\-\/ ]{2,30}$/.test(v.labNo.trim())) return 'رقم تقرير المختبر غير صالح.';
+    const F = (v.files || []).filter((f) => f && f.size); if (v.kind === 'lab' && !F.length) return 'أرفق تقرير المختبر (صورة أو PDF).';
+    let files = []; if (F.length) { if (!j) return 'اربط المعاملة لإرفاق الملفات بها.'; const r = await flAttachMany(j, 'معاد — ' + K[0], F, 'ret'); if (typeof r === 'string') return r; files = r; }
+    const r = { id: uid('rp'), kind: v.kind, kindName: K[0], jobId: j ? j.id : '', baseNo: j ? j.baseNo : v.baseNo.trim(), permit: j ? j.permit : v.permit.trim(), district: j ? j.district : rememberDistrict(v.district),
+      labNo: v.labNo.trim().slice(0, 30), labType: v.labType || '', consultant: v.consultant.trim().slice(0, 80), consultantName: v.consultantName.trim().slice(0, 80), reason: v.reason || '', files,
+      note: String(v.note || '').trim().slice(0, 500), recv: v.recv || today(), due: addDays(K[1], v.recv || today()), st: 'open', to: '', tm: nowIso(), by: CUR.name };
+    DB.reports.unshift(r);
+    if (j) {
+      const was = j.stage; const why = K[0] + ' — ' + r.reason + (r.labNo ? ' · تقرير ' + r.labNo : '');
+      if (v.toAsphalt) { j.qa = null; flSetStage(j, 'asphalt', 'إرجاع للأسفلت والإصلاحات: ' + why); r.st = 'routed'; r.to = 'asphalt'; flNotify('report', ['asphalt'], 'إصلاح مطلوب — ' + (j.uid || j.baseNo), flJobText(j) + '\n' + why + '\nالمهلة حتى ' + r.due, [j], { nav: flNav(j) }); }
+      else if (v.kind === 'pdc' || v.kind === 'ripc') flSetStage(j, 'pdc', why);
+      if (was === 'closed') flLog(j, 'asphalt', 'أُعيد فتح المعاملة المنتهية بسبب ' + K[0]);
+    }
+    flNotify('report', ['permits_sup', 'civil'], K[0] + (r.baseNo ? ' — ' + r.baseNo : ''), (j ? flJobText(j) + '\n' : '') + r.reason + (r.note ? '\n' + r.note : '') + '\nالمهلة حتى ' + r.due, j ? [j] : []);
+    audit(CUR.name, 'تسجيل ' + K[0], (r.baseNo || r.permit) + (r.labNo ? ' · ' + r.labNo : '')); UI.view = 'reports';
+  }, { ok: 'تسجيل' });
+}
+
+// ---------- site status before leaving: photos + securing + pledge ----------
+function taskCloseForm(d) {
+  const t = taskById(d.id); if (!t || !need('request')) return;
+  const before = DB.docs.filter((x) => x.taskId === t.id && x.type === 'صور الموقع قبل المغادرة').length;
+  openForm('تحديث حالة الموقع قبل المغادرة', [
+    { k: 'finished', label: 'تم الانتهاء من جميع الأعمال في هذا الموقع', type: 'check', val: false, wide: true },
+    { k: 'remaining', label: 'المتبقي في الموقع (إن لم يكتمل)', type: 'checks', list: 'remaining', val: t.close && !t.close.finished ? t.close.remaining : [] },
+    { k: 'secured', label: 'الموقع المفتوح مؤمَّن: حواجز وإنارة ليلية وأغطية ولوحات تحذيرية', type: 'check', val: false, wide: true },
+    { k: 'photos', label: 'صور الموقع قبل المغادرة (' + SITE_PHOTOS_MIN + ' صور على الأقل' + (before ? ' — مرفوع سابقاً ' + before : '') + ')', type: 'files', accept: 'image/*', wide: true, hint: 'اختر عدة صور معاً من الكاميرا أو المعرض — تُوثَّق بالموقع الجغرافي' },
+    { k: 'note', label: 'ملاحظات', type: 'textarea' }, PLEDGE_FIELD
+  ], async (v) => {
+    if (!v.finished && !v.remaining.length) return 'حدّد ما تبقّى في الموقع، أو أكّد الانتهاء من الأعمال.'; if (v.finished && v.remaining.length) return 'لا يمكن تأكيد الانتهاء مع وجود بنود متبقية.';
+    if (!v.finished && !v.secured) return 'أكّد تأمين الموقع المفتوح قبل المغادرة.';
+    const P = (v.photos || []).filter((f) => f && f.size && /^image\//.test(f.type)); if (P.length + before < SITE_PHOTOS_MIN) return 'أرفق ' + SITE_PHOTOS_MIN + ' صور للموقع على الأقل (المرفق الآن ' + (P.length + before) + ').';
+    if (!v.pledge) return PLEDGE_ERR;
+    const ids = await flAttachMany(t, 'صور الموقع قبل المغادرة', P, 'close'); if (typeof ids === 'string') return ids;
+    t.close = { tm: nowIso(), finished: v.finished, remaining: v.remaining, secured: !!v.secured || v.finished, photos: ids.length + before, pledge: { by: CUR.name, tm: nowIso() }, note: v.note.trim().slice(0, 400), by: CUR.name };
+    if (v.finished) { t.st = 'done'; t.doneAt = nowIso(); if (!t.reqs.some((r) => r.type === SAFE_OUT)) t.reqs.push({ id: uid('rq'), type: SAFE_OUT, dept: REQ_DEPT[SAFE_OUT], due: today(), st: 'open', auto: true, tm: nowIso() }); toast('أُغلقت المهمة، وأُرسل طلب إزالة السلامة والإنارة لقسم السلامة.'); }
+    else { if (t.st === 'new') t.st = 'prog'; toast('حُفظت حالة الموقع: متبقٍ ' + v.remaining.join('، ') + '.'); }
+    audit(CUR.name, 'تحديث حالة الموقع مع تعهد', t.title + ': ' + (v.finished ? 'منتهٍ' : 'متبقٍ ' + v.remaining.join('، ')) + ' · ' + (ids.length + before) + ' صور');
+  }, { ok: 'حفظ حالة الموقع', note: 'تُحفظ الصور في مجلد المعاملة ويُسجَّل التعهد باسمك ووقته.' });
+}
+
+// ---------- fonts ----------
+const FONTS = [['plex', 'IBM Plex Sans Arabic', 'رسمي وواضح — الافتراضي'], ['tajawal', 'Tajawal', 'عصري ومضغوط — مناسب للجوال'], ['cairo', 'Cairo', 'عريض وسهل القراءة في الميدان']];
+function fontPicker() {
+  return html`<div class="card"><h2 style="font-size:17px">خط المنصة</h2><p class="t-mut" style="font-size:13px;margin:0">يُحفظ على هذا الجهاز لكل مستخدم.</p>
+    <div class="fontpick" role="group" aria-label="اختيار الخط">${FONTS.map((f) => html`<button type="button" data-act="font" data-k="${f[0]}" aria-pressed="${FONT_K === f[0]}" style="font-family:'${f[1]}',system-ui,sans-serif"><b>ميدان — العمليات الميدانية 2026</b><span>${f[1]} · ${f[2]}</span></button>`)}</div></div>`;
+}
+Object.assign(FL_ACT, {
+  'fl-rep': flReportForm, 'task-close': taskCloseForm,
+  font: (d) => { if (!FONTS.some((f) => f[0] === d.k)) return; FONT_K = d.k; setPref('maydan_font', FONT_K); applyPrefs(); toast('الخط: ' + FONTS.find((f) => f[0] === d.k)[1]); render(); }
+});
+
 const freshDB = () => seedFlow(seedV3(migrate3(seed())));
 const PRELOAD_EMP = null; /* private builds only: employees injected by scripts/build.py --preload */
 const withPreload = (d) => { if (Array.isArray(PRELOAD_EMP) && PRELOAD_EMP.length) { d.employees = PRELOAD_EMP.map((e) => Object.assign({}, e)); PRELOAD_EMP.forEach((e) => { if (e.branch && /^فرع/.test(e.branch) && !d.branches.includes(e.branch)) d.branches.push(e.branch); }); } return d; };
@@ -2387,7 +2499,8 @@ let THEME = pref('maydan_theme', (window.matchMedia && matchMedia('(prefers-colo
 let LANG = pref('maydan_lang', 'ar');
 const PALETTES = [['ember', 'برتقالي الميدان'], ['navy', 'كحلي وذهبي'], ['green', 'أخضر سعودي'], ['sec', 'أزرق الكهرباء']];
 let PALETTE_K = pref('maydan_palette', 'ember');
-function applyPrefs() { const h = document.documentElement; h.dataset.theme = THEME; h.dataset.palette = PALETTE_K; h.lang = LANG; h.dir = LANG === 'en' ? 'ltr' : 'rtl'; }
+let FONT_K = pref('maydan_font', 'plex');
+function applyPrefs() { const h = document.documentElement; h.dataset.font = FONT_K; h.dataset.theme = THEME; h.dataset.palette = PALETTE_K; h.lang = LANG; h.dir = LANG === 'en' ? 'ltr' : 'rtl'; }
 const UI = { view: 'dash', sel: 'X-03', layers: (() => { let on = false; try { on = localStorage.getItem('maydan_eq') === '1'; } catch (e) { /* private mode */ } return { sup: true, cars: on, workers: true, dynas: on, eq: on, drivers: on }; })(), move: null, eqFilter: 'all', eqQ: '', mapView: null, live: null, liveCrew: null, ai: { q: '', a: '', busy: false, via: '' }, reqFrom: 'E-07', reqSvc: 'gcb', lastReq: null, dragId: null };
 const AUTH = { step: DB.users.length ? 'creds' : 'setup', err: '', note: '', uid: null, channel: 'sms', otpHash: '', otpSalt: '', otpExp: 0, tries: 0, resendAt: 0, demo: '', iqama: '' };
 const AI_KEYS = {}; // provider id -> key, memory only, never persisted
@@ -2454,11 +2567,12 @@ function fieldHtml(f) {
   if (f.type === 'select') return html`<div class="fld"${wide}><label for="${id}">${f.label}</label><select class="in" id="${id}" name="${f.k}" ${f.list ? new Safe('data-change="addable"') : ''}>${opts.map((o) => html`<option value="${o[0]}" ${String(o[0]) === String(f.val) ? new Safe('selected') : ''}>${o[1]}</option>`)}${f.list ? html`<option value="__new__">+ إضافة خيار جديد…</option>` : ''}</select>
     ${f.list ? html`<input class="in" name="${f.k}__new" placeholder="اكتب الخيار الجديد" hidden aria-label="خيار جديد لـ ${f.label}" maxlength="60">` : ''}${f.hint ? html`<span class="hint">${f.hint}</span>` : ''}</div>`;
   if (f.type === 'combo') { const lid = 'dl_' + f.k; return html`<div class="fld"${wide}><label for="${id}">${f.label}</label><input class="in" id="${id}" name="${f.k}" list="${lid}" value="${f.val == null ? '' : f.val}" placeholder="${f.ph || 'ابحث أو اكتب…'}" autocomplete="off" maxlength="60" data-combo="1"><datalist id="${lid}">${opts.map((o) => html`<option value="${o[0]}">${o[1] || ''}</option>`)}</datalist>${f.hint ? html`<span class="hint">${f.hint}</span>` : ''}</div>`; }
-  if (f.type === 'check') return html`<label class="row" style="min-height:44px;font-size:14px${f.wide ? ';grid-column:1/-1' : ''}"><input type="checkbox" name="${f.k}" ${f.val ? new Safe('checked') : ''} style="width:20px;height:20px;accent-color:var(--acc)"> ${f.label}</label>`;
+  if (f.type === 'check') return html`<label class="row${f.k === 'pledge' ? ' pledge' : ''}" style="min-height:44px;font-size:14px${f.wide ? ';grid-column:1/-1' : ''}"><input type="checkbox" id="${id}" name="${f.k}" ${f.val ? new Safe('checked') : ''} style="width:20px;height:20px;accent-color:var(--acc)"> ${f.label}</label>`;
   if (f.type === 'checks') { const vals = f.val || []; const all = opts.map((o) => o[0]).concat(vals.filter((v) => !opts.some((o) => o[0] === v))); return html`<fieldset class="fld" style="grid-column:1/-1;border:1px solid var(--line2);border-radius:12px;padding:12px"><legend style="font-size:13px;font-weight:600;padding:0 6px">${f.label}</legend>
     <div class="chips">${all.map((o) => html`<label class="chip" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" name="${f.k}" value="${o}" ${vals.includes(o) ? new Safe('checked') : ''} style="accent-color:var(--acc)">${o}</label>`)}</div>
     ${f.list ? html`<input class="in" name="${f.k}__new" placeholder="إضافة بنود أخرى (افصل بفاصلة)" maxlength="200" style="margin-top:8px">` : ''}</fieldset>`; }
   if (f.type === 'textarea') return html`<div class="fld" style="grid-column:1/-1"><label for="${id}">${f.label}</label><textarea class="in" id="${id}" name="${f.k}" maxlength="${f.max || 1500}">${f.val || ''}</textarea></div>`;
+  if (f.type === 'files') return html`<div class="fld"${wide}><label for="${id}">${f.label}</label><input class="in" id="${id}" name="${f.k}" type="file" multiple accept="${f.accept || 'image/*,.pdf,.docx,.xlsx'}" style="padding:8px">${f.hint ? html`<span class="hint">${f.hint}</span>` : ''}</div>`;
   if (f.type === 'file') return html`<div class="fld"${wide}><label for="${id}">${f.label}</label><input class="in" id="${id}" name="${f.k}" type="file" ${f.capture ? new Safe('accept="image/*" capture="environment"') : new Safe('accept=".pdf,.jpg,.jpeg,.png,.webp,.docx,.xlsx"')} style="padding:8px">${f.hint ? html`<span class="hint">${f.hint}</span>` : ''}</div>`;
   return html`<div class="fld"${wide}><label for="${id}">${f.label}</label><input class="in ${f.ltr ? 'ltr' : ''}" id="${id}" name="${f.k}" type="${f.type || 'text'}" value="${f.val == null ? '' : f.val}" ${f.req ? new Safe('required') : ''} ${f.ph ? html`placeholder="${f.ph}"` : ''} autocomplete="off">${f.hint ? html`<span class="hint">${f.hint}</span>` : ''}</div>`;
 }
@@ -3237,7 +3351,7 @@ function viewTasks() {
 function taskDetail(t) {
   const E = can('edit'), R = can('request'); const c = crewById(t.crewId); const al = smartAlerts().filter((a) => a.task === t.id); const ds = docStatus(t);
   const docs = DB.docs.filter((d) => d.taskId === t.id || (CREW_LEVEL_DOCS.includes(d.type) && !d.taskId && d.crewId === t.crewId));
-  return html`<div class="card"><div class="row between"><div><h2 style="font-size:21px">${t.title}</h2><span class="t-mut" style="font-size:13px">${t.dept} · التنفيذ ${fmtD(t.date)} (${t.date}) · ${t.site}</span></div><span class="pill ${JOB_ST[t.st][1]}">${JOB_ST[t.st][0]}${t.st === 'hold' && t.hold ? ' — ' + t.hold.reason : ''}</span></div>
+  return html`<div class="card" id="taskdetail" tabindex="-1" style="scroll-margin-top:76px"><div class="row between"><div><h2 style="font-size:21px">${t.title}</h2><span class="t-mut" style="font-size:13px">${t.dept} · التنفيذ ${fmtD(t.date)} (${t.date}) · ${t.site}</span></div><span class="pill ${JOB_ST[t.st][1]}">${JOB_ST[t.st][0]}${t.st === 'hold' && t.hold ? ' — ' + t.hold.reason : ''}</span></div>
     <div class="grid g4"><div class="kv"><span>التصريح</span><b>${t.permit || '—'}</b>${t.permitExp ? html`<span class="pill ${permitState(t.permitExp, true).c}" style="font-size:12px;width:max-content">${permitState(t.permitExp, true).label} · ${t.permitExp}</span>` : ''}${t.woNo || t.uid ? html`<span class="t-mut ltr" style="font-size:12px">${[t.uid, t.woNo ? 'WO ' + t.woNo : ''].filter(Boolean).join(' · ')}</span>` : ''}</div>
       <div class="kv"><span>الفرقة</span><b>${c ? c.name : 'غير مُسندة'}</b>${c ? html`<span class="pill ${crewState(c).lvl}" style="width:max-content">${crewState(c).label}</span>` : ''}</div>
       <div class="kv"><span>المهندس</span><b>${c && c.eng ? c.eng.name : '—'}</b><span>${c ? contactLinks(c.eng) : ''}</span></div>
@@ -3664,7 +3778,7 @@ function viewSettings3() {
   else if (tab === 'lists') body = listsManager();
   else if (tab === 'storage') body = storagePanel();
   else if (tab === 'data') body = dataPanel();
-  else body = html`<form class="card" data-form="settings"><h2 style="font-size:17px">القواعد</h2><div class="grid g3">
+  else body = html`${fontPicker()}<form class="card" data-form="settings"><h2 style="font-size:17px">القواعد</h2><div class="grid g3">
     ${fieldHtml({ k: 'radiusKm', label: 'نطاق البحث عن الفرقة القريبة (كم)', type: 'number', val: s.radiusKm })}${fieldHtml({ k: 'oilWarn', label: 'تنبيه غيار الزيت قبل (كم)', type: 'number', val: s.oilWarn })}${fieldHtml({ k: 'kmPerDay', label: 'متوسط السير اليومي (كم)', type: 'number', val: s.kmPerDay })}</div>
     ${CLOUD ? html`<p class="alert note">خرائط Google وتسجيل الدخول بحساب Google مضبوطان على الخادم (GOOGLE_MAPS_KEY و GOOGLE_CLIENT_ID).${CLOUD.mapsKey ? ' خرائط Google: مفعّلة.' : ' خرائط Google: غير مفعّلة.'}${CLOUD.googleClientId ? ' دخول Google: مفعّل.' : ' دخول Google: غير مفعّل.'}</p>` : fieldHtml({ k: 'mapsKey', label: 'مفتاح خرائط Google (Map Tiles API) — للنسخة المحلية', ltr: true, val: s.mapsKey || '', ph: 'AIza…', hint: 'فعّل Map Tiles API في Google Cloud وقيّد المفتاح بعنوان موقعك. اتركه فارغاً لاستخدام OpenStreetMap.' })}
     ${CLOUD ? html`<p class="alert note">يعمل الآن على الخادم: إرسال رمز التحقق يتم من الخادم عبر مزود الرسائل المضبوط في متغيرات البيئة.</p>` : fieldHtml({ k: 'otpGateway', label: 'بوابة إرسال رمز التحقق (https) — للنسخة المحلية فقط', ltr: true, val: s.otpGateway, ph: 'https://api.your-company.sa/otp', hint: 'في النشر على Google Cloud يُرسل الرمز من الخادم ولا حاجة لهذا الحقل.' })}
@@ -3906,7 +4020,7 @@ const ACT = {
   'alerts-all': () => { UI.allAlerts = !UI.allAlerts; render(); },
   'docs-crew': (d) => { const c = crewById(d.id); UI.person = c && c.eng ? c.eng.name : c ? c.sup.name : null; UI.view = 'docs'; render(); },
   'task-filter': (d) => { UI.tf = d.k; UI.task = null; render(); },
-  'task-sel': (d) => { UI.task = d.id; render(); },
+  'task-sel': (d) => { UI.task = d.id; render(); const el = $('#taskdetail'); if (el) { el.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); el.focus({ preventScroll: true }); } },
   'task-kb': (d) => { UI.taskKb = !!d.k; render(); },
   'task-open': (d) => { const t = taskById(d.id); if (!t) return; UI.task = t.id; UI.tf = t.st === 'done' ? 'all' : 'open'; UI.view = 'tasks'; render(); },
   'task-add': () => { if (!need('edit')) return; openForm('مهمة جديدة', taskFields(null), (v) => { const e = taskValidate(v); if (e) return e; const t = newTask(Object.assign(taskFromForm(v), { workType: classifyWork(v.title) })); DB.jobs.unshift(t); ensureTeamForm(t); UI.task = t.id; UI.tf = 'open'; audit(CUR.name, 'إضافة مهمة', t.title); toast('أُضيفت المهمة، وأُنشئ طلب تأمين السلامة والإنارة تلقائياً قبل التنفيذ بيوم.'); }, { note: 'سيُنشأ تلقائياً طلب لقسم السلامة والإنارة لتأمين الموقع قبل يوم التنفيذ.' }); },
@@ -4009,6 +4123,7 @@ const FORMS = {
       if (x.type === 'check') v[x.k] = !!form.elements[x.k].checked;
       else if (x.type === 'checks') { v[x.k] = Array.from(form.querySelectorAll('input[type=checkbox]')).filter((i) => i.name === x.k && i.checked).map((i) => i.value); const nn = form.elements[x.k + '__new']; if (nn && nn.value.trim()) nn.value.split(/[،,]/).map((q) => q.trim()).filter(Boolean).slice(0, 10).forEach((q) => { const val = x.list ? addToList(x.list, q) : q.slice(0, 60); if (!v[x.k].includes(val)) v[x.k].push(val); }); }
       else if (x.type === 'file') v[x.k] = form.elements[x.k].files[0] || null;
+      else if (x.type === 'files') v[x.k] = Array.from(form.elements[x.k].files || []).slice(0, 20);
       else { v[x.k] = String(form.elements[x.k].value); if (v[x.k] === '__new__') { const nv = String((form.elements[x.k + '__new'] || {}).value || '').trim(); if (!nv) bad = 'اكتب الخيار الجديد في «' + x.label + '».'; else v[x.k] = addToList(x.list, nv, x.listExtra); } }
     });
     if (bad) { errEl.hidden = false; errEl.textContent = bad; return; }

@@ -60,7 +60,7 @@ const PERMIT_LEGEND = [['exp', 'منتهية'], ['bad', 'أقل من 5 أيام'
 function permitLegend() { return html`<div class="row plegend" aria-label="دليل ألوان الرخص">${PERMIT_LEGEND.map((x) => html`<span class="pill ${x[0]}">${x[1]}</span>`)}</div>`; }
 
 // ---------- documentation (naming + GPS) ----------
-const STAGE_CODE = { gate: 'PERMIT', safety: 'SAFETY', dig: 'CIVIL', elec: 'ELEC', asphalt: 'ASPHALT', lab: 'LAB', pdc: 'PDC', ripc: 'RIPC', plan: 'PLAN', closed: 'CLOSE' };
+const STAGE_CODE = { ret: 'RETURN', close: 'SITE', gate: 'PERMIT', safety: 'SAFETY', dig: 'CIVIL', elec: 'ELEC', asphalt: 'ASPHALT', lab: 'LAB', pdc: 'PDC', ripc: 'RIPC', plan: 'PLAN', closed: 'CLOSE' };
 function flDocName(j, stage, orig) {
   const ext = (String(orig || '').match(/\.([a-z0-9]{2,5})$/i) || [, 'jpg'])[1].toLowerCase();
   const part = (s) => String(s || '').replace(/[^A-Za-z0-9\-]/g, '');
