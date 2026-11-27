@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-10i1CQlQBqyZ+CUwRqPl8YAVcdJ392dEwkLFNP7Bru8=' https://unpkg.com https://accounts.google.com/gsi/client; style-src 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com https://accounts.google.com/gsi/style; frame-src https://accounts.google.com/gsi/; font-src https://fonts.gstatic.com; img-src data: https://unpkg.com https://*.tile.openstreetmap.org https://tile.googleapis.com https://maps.gstatic.com; connect-src https: http://localhost:* http://127.0.0.1:*; form-action 'none'; base-uri 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-ANuhvuonqH9Olzd49p6eoOtR9Vs/HabzzLJmO0HhR4Q=' https://unpkg.com https://accounts.google.com/gsi/client; style-src 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com https://accounts.google.com/gsi/style; frame-src https://accounts.google.com/gsi/; font-src https://fonts.gstatic.com; img-src data: https://unpkg.com https://*.tile.openstreetmap.org https://tile.googleapis.com https://maps.gstatic.com; connect-src https: http://localhost:* http://127.0.0.1:*; form-action 'none'; base-uri 'none'; object-src 'none'">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex,nofollow">
 <meta name="maydan-server" content="0">
@@ -438,6 +438,13 @@ html[data-font="cairo"] :is(body,h1,h2,h3,h4,.hh-title b,.brand b,.flk b,button,
 .pcard .pc-id b{white-space:normal;overflow:visible;text-overflow:clip;line-height:1.35}.pcard .pc-id .pc-st{align-self:flex-start;margin-top:5px;font-size:11px;padding:2px 8px}
 .pledge{padding:10px 12px;border-radius:10px;border:1px solid color-mix(in srgb,var(--acc) 35%,transparent);background:color-mix(in srgb,var(--acc) 6%,var(--card))}
 .thumbs{display:flex;flex-wrap:wrap;gap:6px}.thumbs img{width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
+/* v15 — assignment, supply, sortable */
+.assign{padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:color-mix(in srgb,var(--acc) 5%,var(--card));font-size:14px}
+.qtbl{font-size:13px}.qtbl td,.qtbl th{padding:6px 8px}.qtbl tr.tot td{border-top:2px solid var(--line)}
+.grip{all:unset;box-sizing:border-box;display:grid;place-items:center;width:32px;height:40px;border-radius:8px;color:var(--mut);cursor:grab;touch-action:none;flex:0 0 auto}
+.grip:hover{background:color-mix(in srgb,var(--tx) 6%,var(--card));color:var(--tx)}.grip:focus-visible{outline:2px solid var(--acc);outline-offset:1px}.grip:active{cursor:grabbing}
+[data-sort].sorting{opacity:.55}[data-sort].drop-before{box-shadow:0 -3px 0 0 var(--acc)}[data-sort].drop-after{box-shadow:0 3px 0 0 var(--acc)}
+.logo-item[data-sort].drop-before{box-shadow:3px 0 0 0 var(--acc)}.logo-item[data-sort].drop-after{box-shadow:-3px 0 0 0 var(--acc)}
 </style>
 </head>
 <body>
@@ -1074,7 +1081,7 @@ function migrateFlow(d) {
   d.inbox = d.inbox || []; d.reports = d.reports || [];
   d.settings.flow = d.settings.flow || { r1: 2, r2: 5, clusterKm: 2 };
   d.jobs.forEach((j) => { if (j.flow) { j.alerts = j.alerts || {}; j.log = j.log || []; j.gate = j.gate || null; j.safety = j.safety || {}; } });
-  flMigrateIds(d); hseMigrate(d);
+  flMigrateIds(d); hseMigrate(d); supplyMigrate(d);
   return d;
 }
 
@@ -1295,7 +1302,7 @@ function flDetail(j) {
   return html`<article class="card fldetail" style="--sc:${FL_COLORS[j.stage]}"><div class="row between"><div><h2 style="font-size:20px">${j.kind} — ${j.district || ''}</h2>
       <p class="t-mut ltr" style="margin:4px 0 0;text-align:start"><b>${j.uid || ''}</b> · ${flFolderName(j)}</p></div>
       <div class="row">${flPermitChip(j)}${jobCanEdit(j) ? html`<button class="btn sm" type="button" data-act="fl-edit" data-id="${j.id}">تعديل</button>` : ''}<a class="btn sm wa" href="${wa('', '«ميدان» — ' + flJobText(j) + (flNav(j) ? '\nالموقع: ' + flPin(j) : ''))}" target="_blank" rel="noopener noreferrer">واتساب</a>${flNav(j) ? html`<a class="btn sm" href="${flNav(j)}" target="_blank" rel="noopener noreferrer">الملاحة</a>` : ''}<button class="btn sm" type="button" data-act="fl-close-detail">إغلاق</button></div></div>
-    ${flLockBox(j)}${j.elecEng ? html`<p class="t-mut" style="font-size:13px;margin:0">مهندس الكهرباء المسؤول: <b>${j.elecEng.name}</b></p>` : ''}
+    ${flLockBox(j)}${assignBox(j)}${j.elecEng ? html`<p class="t-mut" style="font-size:13px;margin:0">مهندس الكهرباء المسؤول: <b>${j.elecEng.name}</b></p>` : ''}
     ${flStepper(j)}
     <div class="grid g2"><div class="flkv"><span>المكتب</span><b>${j.office || '—'}</b><span>الحي</span><b>${j.district || '—'}</b><span>المحطة / المخطط / القطعة</span><b>${[j.station, j.plan, j.plot].filter(Boolean).join(' / ') || '—'}</b><span>التاريخ</span><b>${j.date}</b><span>طول الحفر</span><b>${j.lengthM ? j.lengthM + ' م' : '—'}</b><span>الفرقة</span><b>${crew ? crew.id + ' · ' + crew.sup.name : '—'}</b></div>
       <div class="flkv"><span>المعرّف الموحّد</span><b class="ltr">${j.uid || '—'} <span class="t-mut">(${FL_CATS[flCatOf(j)][0]})</span></b><span>أمر العمل / SAP</span><b class="ltr">${j.woNo || '—'} / ${j.sapNo || '—'}</b><span>رقم الأساس</span><b class="ltr">${j.baseNo || '—'}</b><span>رقم المعاملة</span><b class="ltr">${j.txNo || '—'}</b><span>الرخصة</span><b>${flPermitLine(j)}</b><span>بوابة الرخصة</span><b>${flGateLabel(j)[0]}</b>
@@ -1303,6 +1310,7 @@ function flDetail(j) {
     ${flStageActions(j)}
     ${flQaBox(j)}
     ${flHseBox(j)}
+    ${supplyBox(j)}
     ${j.gate && j.gate.mode === 'override' && !j.gate.fileId ? html`<p class="alert wr">تجاوز بواسطة ${j.gate.by}: ${j.gate.reason} — يجب إرفاق الرخصة قبل ${j.gate.due}. <button class="btn sm" type="button" data-act="fl-gate" data-id="${j.id}" data-k="late">إرفاق الرخصة الآن</button></p>` : ''}
     <div class="grid g2"><div><h3 style="font-size:15px">المعاملات القريبة (${nb.length}) — نطاق ${cfg().flow.r2} كم</h3>${nb.length ? html`<ul class="nb">${nb.map((x) => html`<li><button type="button" class="lnk" data-act="fl-open" data-id="${x.o.id}">${x.o.baseNo || x.o.id} — ${x.o.kind}</button><span class="t-mut">${x.o.district} · ${x.o.date}${x.dist != null ? ' · ' + x.dist.toFixed(1) + ' كم' : ''} · ${x.why.join('، ')}</span></li>`)}</ul>` : html`<p class="t-mut">لا توجد معاملات قريبة.</p>`}</div>
       <div><h3 style="font-size:15px">المستندات (${docs.length})</h3>${docs.length ? html`<ul class="nb">${docs.map((d) => html`<li><span>${d.type} — <span class="ltr">${d.fileName || d.title}</span>${d.geo ? html` <a class="pill ok" href="${'https://www.google.com/maps?q=' + d.geo.lat + ',' + d.geo.lng}" target="_blank" rel="noopener noreferrer" title="دقة ${d.geo.acc} م">GPS</a>` : ''}</span>${d.fileId ? html`<button class="btn sm" type="button" data-act="doc-file" data-id="${d.id}">تنزيل</button>` : ''}</li>`)}</ul>` : html`<p class="t-mut">لا مستندات بعد.</p>`}</div></div>
@@ -1439,6 +1447,7 @@ function flJobFields(j) {
     { k: 'permitExp', label: 'تاريخ انتهاء الرخصة', type: 'date', val: j.permitExp || '' }, { k: 'date', label: 'تاريخ التنفيذ', type: 'date', val: j.date || addDays(1) },
     { k: 'district', label: 'الحي (ابحث في أحياء الرياض)', type: 'combo', opts: districtOpts(), val: j.district || '', hint: 'اختر من القائمة أو اكتب حياً جديداً فيُضاف' }, { k: 'station', label: 'المحطة', val: j.station || '' }, { k: 'plan', label: 'المخطط', val: j.plan || '' }, { k: 'plot', label: 'القطعة', val: j.plot || '' },
     { k: 'lat', label: 'خط العرض', type: 'number', val: j.lat || '', ltr: true, hint: 'إن تُرك فارغاً يُملأ بمركز الحي تقريبياً' }, { k: 'lng', label: 'خط الطول', type: 'number', val: j.lng || '', ltr: true },
+    { k: 'widthM', label: 'عرض الحفر (م)', type: 'number', val: j.widthM || '', hint: 'فارغ = العرض الافتراضي من معاملات الحساب' },
     { k: 'lengthM', label: 'طول الحفر (م)', type: 'number', val: j.lengthM || '' }, { k: 'depthM', label: 'عمق الحفر (م)', type: 'number', val: j.depthM || '', hint: 'أكثر من 1.5 م يتطلب تدعيماً وسلّماً' }, { k: 'barrier', label: 'نوع الصبات', type: 'select', opts: [['صبات خرسانية', 'صبات خرسانية'], ['صبات بلاستيكية', 'صبات بلاستيكية']], val: (j.safety && j.safety.barrier) || 'صبات خرسانية' },
     { k: 'elecEng', label: 'مهندس الكهرباء المسؤول (يرى المعاملة ويعدّلها)', type: 'select', opts: [['', '— بدون —']].concat(DB.users.filter((u) => u.role === 'eng' && userSpec(u) === 'elec').map((u) => [u.id, u.name])), val: (DB.users.find((u) => j.elecEng && personIs(j.elecEng, u)) || {}).id || '' },
     { k: 'crewId', label: 'الفرقة المنفذة', type: 'select', opts: [['', '— بدون —']].concat(DB.crews.map((c) => [c.id, c.id + ' · ' + (TYPES[c.type] ? TYPES[c.type][0] : '') + ' · ' + c.sup.name])), val: j.crewId || '' },
@@ -1450,7 +1459,7 @@ function flApply(j, v) {
   j.district = rememberDistrict(j.district);
   { const eu = DB.users.find((u) => u.id === v.elecEng && u.role === 'eng'); j.elecEng = eu ? { name: eu.name, iqama: eu.iqama || '', phone: eu.phone || '' } : null; }
   jobTouch(j);
-  j.lat = parseFloat(v.lat) || 0; j.lng = parseFloat(v.lng) || 0; j.lengthM = Math.max(0, Math.round(+v.lengthM || 0)); j.depthM = Math.max(0, Math.min(20, Math.round((+v.depthM || 0) * 10) / 10));
+  j.lat = parseFloat(v.lat) || 0; j.lng = parseFloat(v.lng) || 0; j.lengthM = Math.max(0, Math.round(+v.lengthM || 0)); j.depthM = Math.max(0, Math.min(20, Math.round((+v.depthM || 0) * 10) / 10)); j.widthM = Math.max(0, Math.min(10, Math.round((+v.widthM || 0) * 100) / 100));
   if (!flHasXY(j) && DISTRICT_XY[j.district]) { j.lat = DISTRICT_XY[j.district][0]; j.lng = DISTRICT_XY[j.district][1]; j.xyApprox = true; } else if (v.lat) j.xyApprox = false;
   j.cat = FL_CATS[v.cat] ? v.cat : ''; const nc = flCatOf(j); flEnsureUid(j, !!oldCat && oldCat !== nc);
   j.safety = j.safety || {}; j.safety.barrier = v.barrier || 'صبات خرسانية';
@@ -2481,6 +2490,195 @@ Object.assign(FL_ACT, {
   font: (d) => { if (!FONTS.some((f) => f[0] === d.k)) return; FONT_K = d.k; setPref('maydan_font', FONT_K); applyPrefs(); toast('الخط: ' + FONTS.find((f) => f[0] === d.k)[1]); render(); }
 });
 
+// ---- module: 70-supply.js ----
+// ================================================================
+// Module: work assignment, supply control and quantities
+//   • Assignment: every time a task / transaction is assigned to a crew, the crew's engineer and
+//     supervisor are notified that this crew is authorised to finish the work; they acknowledge it.
+//   • Supply & safety requests (safety + lighting, backfill, sand, subbase, concrete, asphalt, waste):
+//     supervisor → his engineer + project manager approve and link a supplier (registry number / PO)
+//     → delivery receipt photographed on site with the delivered quantity → variance vs estimate is
+//     flagged to the project manager and the platform admin.
+//   • Quantities per transaction are calculated from the excavation length with parameters editable
+//     in Settings (defaults must be checked against the unified contract).
+//   • Sortable lists: drag the grip handle (mouse or touch) or use the arrow keys on it.
+// Loaded before the DB is created, so only declarations live at top level.
+// ================================================================
+const SUPPLY = {
+  safety: ['السلامة والإنارة', 'طقم', 'صبات وحواجز وأقماع ولوحات وإنارة LED'],
+  backfill: ['دفان / ردم', 'م³', 'مواد الردم المعتمدة'],
+  sand: ['رمل ناعم', 'م³', 'فرشة ووسادة الكابلات'],
+  subbase: ['صبيز (Subbase)', 'م³', 'طبقة الأساس تحت الأسفلت'],
+  concrete: ['خرسانة', 'م³', 'بلاطات حماية وقواعد'],
+  asphalt: ['أسفلت', 'طن', 'إعادة السفلتة حسب العقد'],
+  waste: ['إزالة مخلفات', 'م³', 'نقل ناتج الحفر والمخلفات']
+};
+const SUP_ST = { req: ['بانتظار الاعتماد', 'warn'], ok: ['معتمد — بانتظار المورد', 'info'], ord: ['مُسند للمورد', 'info'], del: ['تم التوريد — بانتظار المطابقة', 'warn'], done: ['مطابق ومغلق', 'ok'], rej: ['مرفوض', 'bad'] };
+const QTY_DEF = { width: 0.6, depth: 1.0, sandT: 0.3, concT: 0.1, subT: 0.2, overlap: 0.3, asphT: 0.07, density: 2.35, swell: 1.25, tol: 10 };
+const qcfg = () => Object.assign({}, QTY_DEF, (cfg().qty || {}));
+const r2 = (x) => Math.round(x * 100) / 100;
+function qtyEstimate(j) {
+  const Q = qcfg(); const L = +j.lengthM || 0; if (!L) return null;
+  const W = +j.widthM || Q.width, D = +j.depthM || Q.depth, AW = W + 2 * Q.overlap;
+  const exc = L * W * D, sand = L * W * Q.sandT, conc = L * W * Q.concT, sub = L * AW * Q.subT, aArea = L * AW;
+  const back = Math.max(0, L * W * (D - Q.sandT - Q.concT) - L * W * (Q.subT + Q.asphT));
+  return { L, W, D, exc: r2(exc), backfill: r2(back), sand: r2(sand), concrete: r2(conc), subbase: r2(sub), asphaltArea: r2(aArea), asphalt: r2(aArea * Q.asphT * Q.density), waste: r2(exc * Q.swell), safety: 1 };
+}
+const supList = (j) => (j.supply = j.supply || []);
+function supTotals(j, k) { const L = supList(j).filter((s) => s.kind === k && s.st !== 'rej'); return { req: r2(L.reduce((a, s) => a + (+s.qty || 0), 0)), del: r2(L.reduce((a, s) => a + (+s.dq || 0), 0)) }; }
+
+// ---------- people to notify ----------
+function crewPeople(c) { if (!c) return []; return [c.eng ? { id: 'p-eng-' + c.id, role: 'eng', name: c.eng.name, phone: c.eng.phone || '' } : null, c.sup ? { id: 'p-sup-' + c.id, role: 'sup', name: c.sup.name, phone: c.sup.phone || '' } : null].filter(Boolean); }
+function pmPeople(j) { return DB.users.filter((u) => u.active !== false && (u.role === 'pm' || u.role === 'admin') && (u.role === 'admin' || jobCanEdit(j, u))).map((u) => ({ id: u.id, role: u.role, name: u.name, phone: u.phone || '' })); }
+function notifyPeople(kind, to, title, body, j, extra) {
+  const seen = new Set(); to = to.filter((p) => p && !seen.has(p.name) && seen.add(p.name));
+  const it = Object.assign({ id: uid('in'), tm: nowIso(), kind, roles: [...new Set(to.map((p) => p.role))], to, title, body, jobIds: j ? [j.id] : [], st: 'new', fwd: [], by: CUR ? CUR.name : 'النظام' }, extra || {});
+  DB.inbox = DB.inbox || []; DB.inbox.unshift(it); if (DB.inbox.length > 600) DB.inbox.length = 600; return it;
+}
+const jobRef = (j) => (j.uid || j.baseNo || j.permit || '') + ' — ' + (j.kind || j.title);
+const jobLoc = (j) => (j.district || j.site || '') + (j.lat ? '\nالموقع: https://maps.google.com/?q=' + j.lat + ',' + j.lng : '');
+
+// ---------- assignment watch (runs on every save) ----------
+function assignWatch() {
+  if (!DB || !Array.isArray(DB.jobs) || !CUR) return;
+  DB.jobs.forEach((j) => {
+    if (j.assignedTo === undefined) { j.assignedTo = j.crewId || ''; return; }
+    if ((j.crewId || '') === j.assignedTo) return;
+    const prev = j.assignedTo; j.assignedTo = j.crewId || ''; j.ack = null;
+    j.assignLog = (j.assignLog || []).concat([{ tm: nowIso(), from: prev, to: j.assignedTo, by: CUR.name }]).slice(-20);
+    const c = crewById(j.crewId); if (!c) return;
+    notifyPeople('assign', crewPeople(c).concat(pmPeople(j).filter((p) => p.role === 'pm')), 'إسناد عمل إلى ' + c.id + ' — ' + jobRef(j),
+      'الفرقة ' + c.id + ' (' + c.name + ') مخوّلة بتنفيذ وإنهاء الأعمال:\n' + jobRef(j) + (j.permit ? '\nالرخصة ' + j.permit + (j.permitExp ? ' — تنتهي ' + j.permitExp : '') : '') + (j.woNo ? '\nأمر العمل ' + j.woNo : '') + '\n' + jobLoc(j) + (prev ? '\nنُقل الإسناد من ' + prev : '') + '\nأسندها: ' + CUR.name, j);
+  });
+}
+function assignBox(j) {
+  const c = crewById(j.crewId); if (!c) return '';
+  const me = CUR && ((c.sup && personIs(c.sup, CUR)) || (c.eng && personIs(c.eng, CUR)));
+  const last = (j.assignLog || []).slice(-1)[0];
+  return html`<div class="assign"><div class="row between" style="gap:8px"><div><b>الإسناد:</b> ${c.id} · ${c.name}<div class="t-mut" style="font-size:12px">المهندس: ${c.eng ? c.eng.name : '—'} · المراقب: ${c.sup ? c.sup.name + ' (' + supTag(c) + ')' : '—'}${last ? ' · أسندها ' + last.by + ' ' + ago(last.tm) : ''}</div></div>
+    ${j.ack ? html`<span class="pill ok">استلم ${j.ack.by} · ${ago(j.ack.tm)}</span>` : me ? html`<button class="btn sm pri" type="button" data-act="assign-ack" data-id="${j.id}">استلام الإسناد</button>` : html`<span class="pill warn">بانتظار استلام الفرقة</span>`}</div></div>`;
+}
+
+// ---------- supply requests ----------
+function canApproveSupply(j) { return !!CUR && (CUR.role === 'admin' || CUR.role === 'pm' || (CUR.role === 'eng' && jobCanEdit(j))); }
+function supplyBox(j) {
+  const S = supList(j); const est = j.flow ? qtyEstimate(j) : null; const E = can('request') && jobCanEdit(j);
+  return html`<div class="gatebox supply"><div class="row between"><b>التوريد والسلامة والكميات</b>${E ? html`<button class="btn sm pri" type="button" data-act="sup-req" data-id="${j.id}">+ طلب توريد / سلامة</button>` : ''}</div>
+    ${est ? html`<div class="tblw"><table class="qtbl"><thead><tr><th>البند</th><th>المحسوب من طول ${est.L} م</th><th>المطلوب</th><th>المورَّد</th><th>الفرق</th></tr></thead><tbody>${['backfill', 'sand', 'subbase', 'concrete', 'asphalt', 'waste'].map((k) => { const t = supTotals(j, k); const e = est[k]; const dv = t.del ? r2(((t.del - e) / (e || 1)) * 100) : null; const bad = dv !== null && Math.abs(dv) > qcfg().tol;
+      return html`<tr><td>${SUPPLY[k][0]}</td><td class="ltr">${e} ${SUPPLY[k][1]}</td><td class="ltr">${t.req || '—'}</td><td class="ltr">${t.del || '—'}</td><td>${dv === null ? '—' : html`<span class="pill ${bad ? 'bad' : 'ok'}">${dv > 0 ? '+' : ''}${dv}%</span>`}</td></tr>`; })}</tbody></table></div>
+      <p class="t-mut" style="font-size:11.5px;margin:0">عرض ${est.W} م × عمق ${est.D} م · مساحة السفلتة ${est.asphaltArea} م² · معاملات الحساب من الإعدادات (راجعها مع العقد الموحد).</p>` : j.flow ? html`<p class="t-mut" style="font-size:12px;margin:0">أدخل طول الحفر في بيانات المعاملة لتُحسب الكميات تلقائياً.</p>` : ''}
+    ${S.length ? html`<ul class="hsel">${S.map((s) => html`<li class="${SUP_ST[s.st][1] === 'bad' ? 'bad' : SUP_ST[s.st][1] === 'ok' ? 'info' : 'warn'}"><span><b>${SUPPLY[s.kind][0]}</b> ${s.qty ? s.qty + ' ' + SUPPLY[s.kind][1] : ''}${s.supplier ? ' · المورد: ' + s.supplier.name + (s.supplier.no ? ' (' + s.supplier.no + ')' : '') : ''}${s.po ? ' · أمر ' + s.po : ''}${s.dq ? ' · وُرِّد ' + s.dq + ' ' + SUPPLY[s.kind][1] : ''}<small class="t-mut" style="display:block">${s.by} · ${ago(s.tm)}${s.note ? ' · ' + s.note : ''}</small></span>
+      <span class="row" style="gap:4px"><span class="pill ${SUP_ST[s.st][1]}">${SUP_ST[s.st][0]}</span>${(s.receipts || []).map((id, i) => html`<button class="btn sm" type="button" data-act="doc-file" data-id="${id}">إيصال ${i + 1}</button>`)}${supActions(j, s)}</span></li>`)}</ul>` : ''}</div>`;
+}
+function supActions(j, s) {
+  const A = canApproveSupply(j); const site = can('request') && jobCanEdit(j);
+  if (s.st === 'req' && A) return html`<button class="btn sm pri" type="button" data-act="sup-ok" data-id="${j.id}" data-k="${s.id}">اعتماد وإسناد مورد</button><button class="btn sm" type="button" data-act="sup-rej" data-id="${j.id}" data-k="${s.id}">رفض</button>`;
+  if ((s.st === 'ok' || s.st === 'ord') && site) return html`<button class="btn sm pri" type="button" data-act="sup-del" data-id="${j.id}" data-k="${s.id}">استلام وإرفاق الإيصال</button>`;
+  if (s.st === 'del' && A) return html`<button class="btn sm pri" type="button" data-act="sup-close" data-id="${j.id}" data-k="${s.id}">مطابقة وإغلاق</button>`;
+  return '';
+}
+const supById = (j, id) => supList(j).find((s) => s.id === id);
+function supNotify(j, s, title, body, toPm) { const c = crewById(j.crewId); const to = crewPeople(c).concat(toPm ? pmPeople(j) : []); notifyPeople('supply', to, title + ' — ' + jobRef(j), body + '\n' + jobLoc(j), j); }
+const SUPPLY_ACT = {
+  'assign-ack': (d) => { const j = DB.jobs.find((x) => x.id === d.id); if (!j) return; const c = crewById(j.crewId); if (!c || !((c.sup && personIs(c.sup, CUR)) || (c.eng && personIs(c.eng, CUR)))) return toast('الاستلام لمهندس الفرقة أو مراقبها.', 'err');
+    j.ack = { by: CUR.name, tm: nowIso() }; if (j.flow) flLog(j, j.stage, 'استلام الإسناد'); audit(CUR.name, 'استلام إسناد', jobRef(j)); save(); toast('سُجّل استلام الإسناد.'); render(); },
+  'sup-req': (d) => { const j = DB.jobs.find((x) => x.id === d.id); if (!j || !need('request')) return; if (!jobCanEdit(j)) return toast('الطلب لمسؤولي هذه المعاملة.', 'err'); const est = j.flow ? qtyEstimate(j) : null;
+    openForm('طلب توريد / سلامة — ' + jobRef(j), [{ k: 'kind', label: 'النوع', type: 'select', opts: Object.keys(SUPPLY).map((k) => [k, SUPPLY[k][0] + ' — ' + SUPPLY[k][2] + (est && est[k] && k !== 'safety' ? ' (المحسوب ' + est[k] + ' ' + SUPPLY[k][1] + ')' : '')]), val: 'safety' },
+      { k: 'qty', label: 'الكمية المطلوبة (اتركها فارغة لاعتماد المحسوب)', type: 'number', ltr: true }, { k: 'due', label: 'مطلوب بتاريخ', type: 'date', val: today() }, { k: 'note', label: 'تفاصيل', type: 'textarea', max: 300 }], (v) => {
+      const K = SUPPLY[v.kind]; if (!K) return 'اختر النوع.'; let q = +v.qty || (est && v.kind !== 'safety' ? est[v.kind] : 1); if (!(q > 0) || q > 100000) return 'كمية غير صالحة.'; if (!validDate(v.due)) return 'تاريخ غير صالح.';
+      const s = { id: uid('su'), kind: v.kind, qty: r2(q), est: est && est[v.kind] ? est[v.kind] : null, due: v.due, note: String(v.note || '').trim().slice(0, 300), st: 'req', by: CUR.name, tm: nowIso(), log: [] };
+      supList(j).push(s); supNotify(j, s, 'طلب ' + K[0], 'طلب ' + CUR.name + ' ' + K[0] + ': ' + s.qty + ' ' + K[1] + (s.est ? ' (المحسوب ' + s.est + ')' : '') + ' — مطلوب ' + s.due + (s.note ? '\n' + s.note : '') + '\nبانتظار اعتماد المهندس المخوّل أو مدير المشروع.', true);
+      if (j.flow) flLog(j, j.stage, 'طلب ' + K[0] + ' ' + s.qty + ' ' + K[1]); audit(CUR.name, 'طلب توريد', K[0] + ' · ' + jobRef(j)); }, { ok: 'إرسال الطلب' }); },
+  'sup-ok': (d) => { const j = DB.jobs.find((x) => x.id === d.id); const s = j && supById(j, d.k); if (!s || !canApproveSupply(j)) return toast('الاعتماد للمهندس المخوّل أو مدير المشروع.', 'err');
+    const SP = (DB.suppliers || []).filter((x) => !x.kinds || !x.kinds.length || x.kinds.includes(s.kind));
+    openForm('اعتماد ' + SUPPLY[s.kind][0] + ' وإسناد المورد', [{ k: 'sid', label: 'المورد المسجل', type: 'select', opts: [['', '— مورد جديد أو غير مسجل —']].concat(SP.map((x) => [x.id, x.name + ' · رقم ' + x.no])) }, { k: 'sname', label: 'اسم المورد (إن لم يكن مسجلاً)' }, { k: 'sno', label: 'رقم المورد', ltr: true }, { k: 'po', label: 'رقم أمر الشراء / التوريد', ltr: true }, { k: 'qty', label: 'الكمية المعتمدة', type: 'number', val: s.qty, ltr: true }], (v) => {
+      let sp = SP.find((x) => x.id === v.sid); if (!sp && !v.sname.trim()) return 'اختر المورد أو اكتب اسمه.';
+      if (!sp) { if (v.sno && !/^[A-Za-z0-9\-]{1,20}$/.test(v.sno.trim())) return 'رقم المورد غير صالح.'; sp = { id: uid('sp'), name: v.sname.trim().slice(0, 80), no: v.sno.trim(), kinds: [s.kind], phone: '' }; DB.suppliers = DB.suppliers || []; DB.suppliers.push(sp); }
+      const q = +v.qty; if (!(q > 0)) return 'كمية غير صالحة.'; s.qty = r2(q); s.supplier = { id: sp.id, name: sp.name, no: sp.no }; s.po = String(v.po || '').trim().slice(0, 30); s.st = 'ord'; s.okBy = { by: CUR.name, role: CUR.role, tm: nowIso() };
+      supNotify(j, s, 'اعتماد ' + SUPPLY[s.kind][0], 'اعتمد ' + CUR.name + ' ' + s.qty + ' ' + SUPPLY[s.kind][1] + ' من ' + sp.name + (sp.no ? ' (رقم ' + sp.no + ')' : '') + (s.po ? ' — أمر ' + s.po : '') + '\nعند الوصول: يستلم المراقب ويرفق الإيصال بالكمية الفعلية.', false);
+      audit(CUR.name, 'اعتماد توريد', SUPPLY[s.kind][0] + ' · ' + sp.name + ' · ' + jobRef(j)); }, { ok: 'اعتماد' }); },
+  'sup-rej': (d) => { const j = DB.jobs.find((x) => x.id === d.id); const s = j && supById(j, d.k); if (!s || !canApproveSupply(j)) return;
+    openForm('رفض الطلب', [{ k: 'why', label: 'السبب', type: 'textarea', max: 200 }], (v) => { if (String(v.why || '').trim().length < 3) return 'اكتب السبب.'; s.st = 'rej'; s.rej = { by: CUR.name, why: v.why.trim().slice(0, 200), tm: nowIso() }; supNotify(j, s, 'رفض ' + SUPPLY[s.kind][0], 'رفض ' + CUR.name + ': ' + s.rej.why, false); audit(CUR.name, 'رفض توريد', jobRef(j)); }); },
+  'sup-del': (d) => { const j = DB.jobs.find((x) => x.id === d.id); const s = j && supById(j, d.k); if (!s || !jobCanEdit(j)) return;
+    openForm('استلام ' + SUPPLY[s.kind][0] + ' في الموقع', [{ k: 'dq', label: 'الكمية المستلمة فعلياً (' + SUPPLY[s.kind][1] + ')', type: 'number', val: s.qty, ltr: true }, { k: 'ticket', label: 'رقم الإيصال / بطاقة الوزن', ltr: true }, { k: 'files', label: 'صورة الإيصال وصور التوريد في الموقع', type: 'files', wide: true }, PLEDGE_FIELD], async (v) => {
+      const q = +v.dq; if (!(q > 0)) return 'أدخل الكمية المستلمة.'; const F = (v.files || []).filter((f) => f && f.size); if (!F.length) return 'أرفق صورة الإيصال.'; if (!v.pledge) return PLEDGE_ERR;
+      const ids = await flAttachMany(j, 'إيصال توريد — ' + SUPPLY[s.kind][0], F, 'supply'); if (typeof ids === 'string') return ids;
+      s.dq = r2(q); s.ticket = String(v.ticket || '').trim().slice(0, 30); s.receipts = (s.receipts || []).concat(ids); s.st = 'del'; s.delBy = { by: CUR.name, tm: nowIso() };
+      const base = s.est || s.qty; const dv = r2(((s.dq - base) / (base || 1)) * 100); const over = Math.abs(dv) > qcfg().tol;
+      supNotify(j, s, (over ? 'فرق كمية ' : 'استلام ') + SUPPLY[s.kind][0], 'استلم ' + CUR.name + ' ' + s.dq + ' ' + SUPPLY[s.kind][1] + (s.ticket ? ' — إيصال ' + s.ticket : '') + ' من ' + (s.supplier ? s.supplier.name : '—') + '\nالمعتمد ' + s.qty + (s.est ? ' · المحسوب ' + s.est : '') + ' · الفرق ' + (dv > 0 ? '+' : '') + dv + '%' + (over ? '\nتجاوز حد التفاوت ' + qcfg().tol + '% — يلزم المراجعة.' : ''), true);
+      if (over) notifyAdmins('فرق كمية توريد — ' + jobRef(j), SUPPLY[s.kind][0] + ': ' + s.dq + ' مقابل ' + base + ' (' + dv + '%)');
+      if (j.flow) flLog(j, j.stage, 'استلام ' + SUPPLY[s.kind][0] + ' ' + s.dq + ' ' + SUPPLY[s.kind][1]); audit(CUR.name, 'استلام توريد مع إيصال', SUPPLY[s.kind][0] + ' · ' + jobRef(j)); }, { ok: 'تأكيد الاستلام' }); },
+  'sup-close': (d) => { const j = DB.jobs.find((x) => x.id === d.id); const s = j && supById(j, d.k); if (!s || !canApproveSupply(j)) return; s.st = 'done'; s.closeBy = { by: CUR.name, tm: nowIso() }; audit(CUR.name, 'مطابقة توريد', SUPPLY[s.kind][0] + ' · ' + jobRef(j)); save(); render(); },
+  'supl-add': () => { if (!CUR || !['admin', 'pm'].includes(CUR.role)) return toast('سجل الموردين لمدير المشروع أو مدير المنصة.', 'err');
+    openForm('مورد جديد', [{ k: 'name', label: 'اسم المورد' }, { k: 'no', label: 'رقم المورد', ltr: true }, { k: 'phone', label: 'الجوال', ltr: true }, { k: 'kinds', label: 'المواد التي يوردها', type: 'checks', opts: Object.keys(SUPPLY).map((k) => [k, SUPPLY[k][0]]), val: [] }], (v) => {
+      if (String(v.name || '').trim().length < 2) return 'اكتب اسم المورد.'; if (!/^[A-Za-z0-9\-]{1,20}$/.test(String(v.no || '').trim())) return 'أدخل رقم المورد (حروف لاتينية وأرقام).'; if (v.phone && !/^\+?\d{9,15}$/.test(v.phone.trim())) return 'رقم الجوال غير صالح.';
+      DB.suppliers = DB.suppliers || []; if (DB.suppliers.some((x) => x.no === v.no.trim())) return 'رقم المورد مسجل مسبقاً.'; DB.suppliers.push({ id: uid('sp'), name: v.name.trim().slice(0, 80), no: v.no.trim(), phone: String(v.phone || '').replace(/\D/g, ''), kinds: v.kinds || [] }); audit(CUR.name, 'إضافة مورد', v.name.trim()); }); },
+  'qty-cfg': () => { if (!need('settings')) return; const Q = qcfg();
+    openForm('معاملات حساب الكميات', [['width', 'عرض الحفرية الافتراضي (م)'], ['depth', 'العمق الافتراضي (م)'], ['sandT', 'سماكة الرمل حول الكابل (م)'], ['concT', 'سماكة بلاطات الخرسانة (م)'], ['subT', 'سماكة الصبيز (م)'], ['overlap', 'زيادة القص لكل جانب في السفلتة (م)'], ['asphT', 'سماكة الأسفلت (م)'], ['density', 'كثافة الأسفلت (طن/م³)'], ['swell', 'معامل انتفاش ناتج الحفر'], ['tol', 'حد تفاوت الكميات المسموح (%)']].map((x) => ({ k: x[0], label: x[1], type: 'number', val: Q[x[0]], ltr: true })), (v) => {
+      const o = {}; for (const k of Object.keys(QTY_DEF)) { const n = +v[k]; if (!(n >= 0) || n > 100) return 'قيمة غير صالحة: ' + k; o[k] = n; } cfg().qty = o; audit(CUR.name, 'تعديل معاملات الكميات', JSON.stringify(o)); }, { ok: 'حفظ', note: 'القيم الافتراضية تقريبية — طابقها مع جداول الكميات في العقد الموحد قبل الاعتماد.' }); }
+};
+
+// ---------- supply view ----------
+function viewSupply() {
+  const J = jobsV(); const rows = J.flatMap((j) => supList(j).map((s) => ({ j, s }))); const tab = UI.supTab || 'req';
+  const flt = { req: (r) => r.s.st === 'req', run: (r) => ['ok', 'ord', 'del'].includes(r.s.st), all: () => true };
+  const L = rows.filter(flt[tab] || flt.all).sort((a, b) => String(b.s.tm).localeCompare(a.s.tm));
+  const over = rows.filter((r) => r.s.dq && Math.abs(((r.s.dq - (r.s.est || r.s.qty)) / ((r.s.est || r.s.qty) || 1)) * 100) > qcfg().tol);
+  const asph = J.filter((j) => j.flow).map((j) => ({ j, e: qtyEstimate(j) })).filter((x) => x.e);
+  const tot = (k) => r2(asph.reduce((a, x) => a + x.e[k], 0));
+  return html`<div class="ph"><div><h1 style="font-size:28px">التوريد والمواد</h1><p>طلبات السلامة والإنارة والدفان والرمل والصبيز والخرسانة والأسفلت وإزالة المخلفات — من طلب المراقب إلى اعتماد المهندس ومدير المشروع، وإسناد المورد، وإيصال الموقع، ومطابقة الكمية مع المحسوب من طول الحفر.</p></div>
+    <div class="row">${CUR && ['admin', 'pm'].includes(CUR.role) ? html`<button class="btn" type="button" data-act="supl-add">+ مورد</button>` : ''}${can('settings') ? html`<button class="btn" type="button" data-act="qty-cfg">معاملات الحساب</button>` : ''}</div></div>
+  <div class="flkpi"><div class="flk"><span>بانتظار الاعتماد</span><b class="t-warn">${rows.filter(flt.req).length}</b></div><div class="flk"><span>قيد التوريد</span><b>${rows.filter(flt.run).length}</b></div><div class="flk"><span>فروق كميات</span><b class="t-bad">${over.length}</b></div><div class="flk"><span>أسفلت محسوب</span><b>${tot('asphalt')} طن</b></div><div class="flk"><span>دفان محسوب</span><b>${tot('backfill')} م³</b></div></div>
+  <div class="tabs" role="tablist">${[['req', 'بانتظار الاعتماد'], ['run', 'قيد التوريد'], ['all', 'كل الطلبات'], ['qty', 'كميات المعاملات'], ['sup', 'الموردون']].map((t) => html`<button type="button" role="tab" aria-selected="${tab === t[0]}" data-act="sup-tab" data-k="${t[0]}">${t[1]}</button>`)}</div>
+  ${tab === 'sup' ? html`<div class="card">${(DB.suppliers || []).length ? html`<div class="tblw"><table><thead><tr><th>رقم المورد</th><th>المورد</th><th>المواد</th><th>الطلبات</th></tr></thead><tbody>${(DB.suppliers || []).map((x) => html`<tr><td class="ltr"><b>${x.no}</b></td><td>${x.name}</td><td>${(x.kinds || []).map((k) => SUPPLY[k] ? SUPPLY[k][0] : k).join('، ') || '—'}</td><td>${rows.filter((r) => r.s.supplier && r.s.supplier.id === x.id).length}</td></tr>`)}</tbody></table></div>` : html`<p class="empty">لا موردين مسجلين بعد.</p>`}</div>`
+  : tab === 'qty' ? html`<div class="card"><div class="tblw"><table class="qtbl"><thead><tr><th>المعاملة</th><th>الفرقة</th><th>الطول م</th><th>دفان م³</th><th>رمل م³</th><th>صبيز م³</th><th>خرسانة م³</th><th>أسفلت طن</th><th>مخلفات م³</th></tr></thead><tbody>${asph.map((x) => html`<tr><td><button type="button" class="lnk" data-act="fl-goto" data-id="${x.j.id}">${x.j.uid || x.j.baseNo}</button></td><td>${x.j.crewId || '—'}</td><td class="ltr">${x.e.L}</td>${['backfill', 'sand', 'subbase', 'concrete', 'asphalt', 'waste'].map((k) => { const t = supTotals(x.j, k); return html`<td class="ltr">${x.e[k]}${t.del ? html`<div class="t-mut" style="font-size:11px">وُرِّد ${t.del}</div>` : ''}</td>`; })}</tr>`)}
+      <tr class="tot"><td colspan="2"><b>الإجمالي</b></td><td class="ltr"><b>${tot('L')}</b></td>${['backfill', 'sand', 'subbase', 'concrete', 'asphalt', 'waste'].map((k) => html`<td class="ltr"><b>${tot(k)}</b></td>`)}</tr></tbody></table></div>
+      <p class="t-mut" style="font-size:12px">تُحسب تلقائياً من طول الحفر وعرضه وعمقه في بيانات كل معاملة. كمية الأسفلت = الطول × (العرض + زيادة القص للجانبين) × السماكة × الكثافة. راجع المعاملات من «معاملات الحساب» لتطابق العقد الموحد.</p></div>`
+  : html`<div class="card">${L.length ? html`<ul class="hsel">${L.map(({ j, s }) => html`<li class="${s.st === 'req' ? 'warn' : s.st === 'rej' ? 'bad' : 'info'}"><span><button type="button" class="lnk" data-act="${j.flow ? 'fl-goto' : 'task-open'}" data-id="${j.id}">${jobRef(j)}</button> · <b>${SUPPLY[s.kind][0]}</b> ${s.qty} ${SUPPLY[s.kind][1]}${s.supplier ? ' · ' + s.supplier.name + ' (' + s.supplier.no + ')' : ''}${s.dq ? ' · وُرِّد ' + s.dq : ''}<small class="t-mut" style="display:block">${j.crewId || '—'} · طلبه ${s.by} ${ago(s.tm)}</small></span><span class="row" style="gap:4px"><span class="pill ${SUP_ST[s.st][1]}">${SUP_ST[s.st][0]}</span>${supActions(j, s)}</span></li>`)}</ul>` : html`<p class="empty">لا طلبات في هذا التصنيف.</p>`}</div>`}`;
+}
+SUPPLY_ACT['sup-tab'] = (d) => { UI.supTab = d.k; render(); };
+
+// ---------- sortable lists (drag handle; mouse, touch and keyboard) ----------
+const SORTABLE = {
+  jobs: (from, to, after) => { if (!need('edit')) return false; return moveIn(DB.jobs, (j) => j.id, from, to, after); },
+  prov: (from, to, after) => { if (!need('settings')) return false; return moveIn(cfg().providers, (p) => p.id, from, to, after); },
+  logos: () => true // handled by index in sortCommit
+};
+function moveIn(arr, key, from, to, after) {
+  const ks = arr.map(key); const i = ks.indexOf(from); let k = ks.indexOf(to); if (i < 0 || k < 0 || i === k) return false;
+  const [it] = arr.splice(i, 1); k = arr.map(key).indexOf(to); if (k < 0) k = arr.length; arr.splice(after ? k + 1 : k, 0, it); return true;
+}
+// logos are keyed by index, recompute after the splice
+function sortCommit(list, from, to, after) { const f = SORTABLE[list]; if (!f) return; if (list === 'logos') { const L = cfg().brand.logos; const i = +from, k = +to; if (!need('settings') || isNaN(i) || isNaN(k) || i === k) return; const [it] = L.splice(i, 1); L.splice(after ? (k > i ? k : k + 1) : (k > i ? k - 1 : k), 0, it); const p = L.findIndex((l) => l.primary); if (p > 0) L.unshift(L.splice(p, 1)[0]); save(); render(); return; } if (f(from, to, after)) { save(); render(); } }
+const grip = (list, id, label) => html`<button type="button" class="grip" data-grip="${list}" data-id="${id}" aria-label="${label || 'إعادة الترتيب'} — اسحب أو استخدم الأسهم" title="اسحب لإعادة الترتيب">${new Safe('<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>')}</button>`;
+function sortWire() {
+  let S = null;
+  const items = (list) => Array.from(document.querySelectorAll('[data-sort="' + list + '"]'));
+  document.addEventListener('pointerdown', (e) => {
+    const g = e.target.closest && e.target.closest('[data-grip]'); if (!g || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    const it = g.closest('[data-sort]'); if (!it) return; e.preventDefault();
+    S = { list: g.dataset.grip, id: g.dataset.id, el: it, y: e.clientY, x: e.clientX, on: false, pid: e.pointerId, target: null, after: false };
+    try { g.setPointerCapture(e.pointerId); } catch (x) { /* ignore */ }
+  });
+  document.addEventListener('pointermove', (e) => {
+    if (!S || e.pointerId !== S.pid) return; if (!S.on && Math.hypot(e.clientX - S.x, e.clientY - S.y) < 6) return; S.on = true; S.el.classList.add('sorting');
+    const over = document.elementFromPoint(e.clientX, e.clientY); const t = over && over.closest && over.closest('[data-sort="' + S.list + '"]');
+    items(S.list).forEach((x) => x.classList.remove('drop-before', 'drop-after')); if (!t || t === S.el) { S.target = null; return; }
+    const r = t.getBoundingClientRect(); const horiz = getComputedStyle(t.parentElement).flexDirection.startsWith('row'); const after = horiz ? (document.dir === 'rtl' ? e.clientX < r.left + r.width / 2 : e.clientX > r.left + r.width / 2) : e.clientY > r.top + r.height / 2;
+    t.classList.add(after ? 'drop-after' : 'drop-before'); S.target = t.dataset.id; S.after = after;
+  });
+  const end = (e) => { if (!S || (e && e.pointerId !== S.pid)) return; const s = S; S = null; items(s.list).forEach((x) => x.classList.remove('drop-before', 'drop-after', 'sorting')); if (s.on && s.target) sortCommit(s.list, s.id, s.target, s.after); };
+  document.addEventListener('pointerup', end); document.addEventListener('pointercancel', end);
+  document.addEventListener('keydown', (e) => {
+    const g = e.target.closest && e.target.closest('[data-grip]'); if (!g || !['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return; e.preventDefault();
+    const L = items(g.dataset.grip); const i = L.findIndex((x) => x.dataset.id === g.dataset.id); const back = e.key === 'ArrowUp' || e.key === (document.dir === 'rtl' ? 'ArrowRight' : 'ArrowLeft'); const n = L[i + (back ? -1 : 1)]; if (!n) return;
+    sortCommit(g.dataset.grip, g.dataset.id, n.dataset.id, !back); const ng = document.querySelector('[data-grip="' + g.dataset.grip + '"][data-id="' + (g.dataset.grip === 'logos' ? String(i + (back ? -1 : 1)) : g.dataset.id) + '"]'); if (ng) ng.focus();
+  });
+}
+
+function supplyMigrate(d) { d.suppliers = d.suppliers || []; d.jobs.forEach((j) => { if (j.assignedTo === undefined) j.assignedTo = j.crewId || ''; }); return d; }
+Object.assign(FL_ACT, SUPPLY_ACT);
+
 const freshDB = () => seedFlow(seedV3(migrate3(seed())));
 const PRELOAD_EMP = null; /* private builds only: employees injected by scripts/build.py --preload */
 const withPreload = (d) => { if (Array.isArray(PRELOAD_EMP) && PRELOAD_EMP.length) { d.employees = PRELOAD_EMP.map((e) => Object.assign({}, e)); PRELOAD_EMP.forEach((e) => { if (e.branch && /^فرع/.test(e.branch) && !d.branches.includes(e.branch)) d.branches.push(e.branch); }); } return d; };
@@ -2488,7 +2686,7 @@ let DB = migrate3(loadDB() || withPreload(freshDB()));
 let DEMO = false;
 let CLOUD = null; const GW = { token: '', exp: 0, busy: false, timer: 0, status: '', err: '' };
 const SERVER_PAGE = (document.querySelector('meta[name="maydan-server"]') || {}).content === '1';
-const save = () => { if (DEMO) return; if (CLOUD) return cloudSave(); if (SERVER_PAGE) return; try { localStorage.setItem(KEY, JSON.stringify(DB)); } catch (e) { toast('تعذّر الحفظ على هذا الجهاز', 'err'); } gwSchedule(); };
+const save = () => { try { assignWatch(); } catch (e) { /* never block saving */ } if (DEMO) return; if (CLOUD) return cloudSave(); if (SERVER_PAGE) return; try { localStorage.setItem(KEY, JSON.stringify(DB)); } catch (e) { toast('تعذّر الحفظ على هذا الجهاز', 'err'); } gwSchedule(); };
 save();
 
 // ---------- session ----------
@@ -2982,10 +3180,10 @@ function shell(inner) {
   const A = smartAlerts(); const badN = A.filter((x) => x.lvl === 'bad').length;
   const inN = (DB.inbox || []).filter((i) => i.st === 'new').length, repN = (DB.reports || []).filter((r) => r.st !== 'resolved' && daysTo(r.due) <= 3).length, flN = (DB.jobs || []).filter((j) => j.flow && j.stage !== 'closed' && !flGateOk(j) && daysTo(j.date) <= 1).length;
   const groups = [['القيادة', [['dash', 'لوحة الأداء', badN], ['ops', 'غرفة العمليات', openN], ['cluster', 'خريطة الكلاستر', 0]]],
-    ['المعاملات الميدانية', [['flow', 'دورة المعاملات', flN], ['permits', 'تقرير الرخص الحرجة', jobsV().filter((j) => j.permit && j.permitExp && j.st !== 'done' && daysTo(j.permitExp) < 5).length], ['inbox', 'مركز التنسيق', inN], ['reports', 'البلاغات والمعادات', repN], ['hse', 'السلامة والصحة المهنية', (DB.jobs || []).filter((j) => j.flow && j.stage !== 'closed' && hseRecs(j).some((x) => x.lvl === 'bad')).length], ['tasks', 'المهام والطلبات', DB.jobs.filter((j) => j.st !== 'done' && A.some((x) => x.task === j.id)).length], ['docs', 'الوثائق والمستندات', 0]]],
+    ['المعاملات الميدانية', [['flow', 'دورة المعاملات', flN], ['permits', 'تقرير الرخص الحرجة', jobsV().filter((j) => j.permit && j.permitExp && j.st !== 'done' && daysTo(j.permitExp) < 5).length], ['inbox', 'مركز التنسيق', inN], ['reports', 'البلاغات والمعادات', repN], ['supply', 'التوريد والمواد', jobsV().reduce((n, j) => n + (j.supply || []).filter((s) => s.st === 'req' || s.st === 'del').length, 0)], ['hse', 'السلامة والصحة المهنية', (DB.jobs || []).filter((j) => j.flow && j.stage !== 'closed' && hseRecs(j).some((x) => x.lvl === 'bad')).length], ['tasks', 'المهام والطلبات', DB.jobs.filter((j) => j.st !== 'done' && A.some((x) => x.task === j.id)).length], ['docs', 'الوثائق والمستندات', 0]]],
     ['الفرق والأصول', [['crews', 'الفرق ومعداتها', DB.crews.filter((c) => crewState(c).lvl === 'bad').length], ['cards', 'بطاقات الفريق', 0], ['equip', 'سجل المعدات', allEquipment().filter((x) => needsCare(x.u)).length], ['inv', 'الحصر والهيكل', hierarchyIssues().length]]],
     ['الإدارة', [['ai', 'الوكيل الذكي', 0]].concat(can('users') ? [['users', 'المستخدمون والطلبات', pendingR]] : []).concat(can('audit') ? [['security', 'الأمان وسجل الدخول', 0]] : []).concat(can('settings') ? [['settings', 'الإعدادات', 0]] : [])]];
-  const HIDE = { hr: ['flow', 'permits', 'inbox', 'reports', 'cluster', 'tasks', 'inv', 'ops'], sup: ['cards', 'inv'], viewer: ['cards'] }[CUR.role] || []; if (!canSeeCards()) HIDE.push('cards');
+  const HIDE = { hr: ['flow', 'permits', 'inbox', 'reports', 'cluster', 'tasks', 'inv', 'ops', 'supply'], sup: ['cards', 'inv'], viewer: ['cards'] }[CUR.role] || []; if (!canSeeCards()) HIDE.push('cards');
   groups.forEach((g) => { g[1] = g[1].filter((i) => !HIDE.includes(i[0])); });
   const curItem = groups.flatMap((g) => g[1]).find((i) => i[0] === UI.view) || groups[0][1][0]; const totalN = groups.flatMap((g) => g[1]).reduce((s, i) => s + (+i[2] || 0), 0);
   return html`<div class="shell"><header class="mbar" role="banner"><button type="button" class="mb-btn" data-act="nav-open" aria-controls="sidenav" aria-expanded="false" aria-label="فتح القائمة الرئيسية">${new Safe('<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10"/></svg>')}${totalN ? html`<i class="mb-dot" aria-hidden="true"></i>` : ''}</button>
@@ -3142,12 +3340,12 @@ function viewAI() {
   return html`<div class="ph"><div><h1 style="font-size:28px">الوكيل الذكي</h1><p>تحليل بيانات الأعمال والتحقق المكاني عبر مزودين مجانيين بترتيب احتياطي. إن لم يتوفر مزود، يعمل تحليل محلي داخل المنصة.</p></div></div>
   ${perfPanel()}
   ${CLOUD ? html`<div class="card"><h2 style="font-size:17px">المزودون</h2><p style="font-size:14px;line-height:1.8">يعمل الذكاء الاصطناعي عبر خادم الشركة: ${(CLOUD.ai || []).length ? (CLOUD.ai || []).join(' ← ') : 'لم يُضبط أي مزود بعد'}. المفاتيح محفوظة في Secret Manager ولا تصل إلى المتصفح.</p></div>` : html`<div class="card"><h2 style="font-size:17px">المزودون — بالترتيب (الأول أساسي والباقي احتياطي)</h2>
-    ${P.map((p, i) => html`<div class="prov"><label class="row" style="gap:8px"><input type="checkbox" data-change="prov-on" data-id="${p.id}" ${p.on ? new Safe('checked') : ''} style="width:20px;height:20px;accent-color:var(--acc)"><span class="sr">تفعيل ${p.name}</span><span class="num">${i + 1}</span></label>
+    ${P.map((p, i) => html`<div class="prov" data-sort="prov" data-id="${p.id}"><label class="row" style="gap:8px"><input type="checkbox" data-change="prov-on" data-id="${p.id}" ${p.on ? new Safe('checked') : ''} style="width:20px;height:20px;accent-color:var(--acc)"><span class="sr">تفعيل ${p.name}</span><span class="num">${i + 1}</span></label>
       <div><b>${p.name}</b>${p.note ? html`<div class="t-mut" style="font-size:12px">${p.note}</div>` : ''}</div>
       <div class="fld"><label class="sr" for="pb_${p.id}">العنوان</label><input class="in ltr" id="pb_${p.id}" value="${p.base}" data-change="prov-base" data-id="${p.id}" ${can('settings') ? '' : new Safe('disabled')}></div>
       <div class="fld"><label class="sr" for="pm_${p.id}">النموذج</label>${p.models && p.models.length ? html`<select class="in ltr" id="pm_${p.id}" data-change="prov-model" data-id="${p.id}">${p.models.map((m) => html`<option ${m === p.model ? new Safe('selected') : ''}>${m}</option>`)}</select>` : html`<input class="in ltr" id="pm_${p.id}" placeholder="model id" value="${p.model}" data-change="prov-model" data-id="${p.id}">`}</div>
       <div class="fld"><label class="sr" for="pk_${p.id}">المفتاح</label><input class="in ltr" id="pk_${p.id}" type="password" autocomplete="off" placeholder="${p.id === '9router' ? 'مفتاح البوابة إن وُجد' : 'API key — في الذاكرة فقط'}" value="${AI_KEYS[p.id] || ''}" data-change="prov-key" data-id="${p.id}"></div>
-      <div class="row" style="gap:6px"><button class="btn sm" type="button" data-act="prov-models" data-id="${p.id}">جلب النماذج</button><button class="btn sm" type="button" data-act="prov-up" data-id="${p.id}" aria-label="رفع ${p.name}">▲</button></div></div>`)}
+      <div class="row" style="gap:6px"><button class="btn sm" type="button" data-act="prov-models" data-id="${p.id}">جلب النماذج</button>${can('settings') ? grip('prov', p.id, 'ترتيب ' + p.name) : ''}</div></div>`)}
     <p class="alert note">المفاتيح تُحفظ في ذاكرة الصفحة فقط وتُمسح عند الإغلاق. للتشغيل الدائم استخدم 9Router على جهاز أو خادم الشركة: تضع المفاتيح داخل البوابة، ولا يصل أي مفتاح إلى المتصفح. لا تُرسل أرقام الجوالات للمزودين.</p></div>`}
   <div class="card"><h2 style="font-size:17px">اسأل عن الميدان</h2>
     <div class="chips">${quick.map((q) => html`<button type="button" class="chip" data-act="ai-quick" data-q="${q}">${q}</button>`)}</div>
@@ -3342,16 +3540,17 @@ function viewTasks() {
   <div class="row between"><div class="chips">${kb ? '' : chips.map((c) => html`<button type="button" class="chip" aria-pressed="${f === c[0]}" data-act="task-filter" data-k="${c[0]}">${c[1]} · ${jobsV().filter((j) => c[0] === 'all' || (c[0] === 'open' ? j.st !== 'done' : j.st === c[0])).length}</button>`)}</div>
     <div class="row"><input class="in" type="search" style="width:240px" placeholder="بحث بالوصف أو أمر العمل أو الرخصة أو الحي" value="${UI.taskQ || ''}" data-input="task-q" aria-label="بحث في المهام"><div class="seg" role="group" aria-label="طريقة العرض"><button type="button" class="chip" data-act="task-kb" data-k="" aria-pressed="${!kb}">قائمة</button><button type="button" class="chip" data-act="task-kb" data-k="1" aria-pressed="${!!kb}">كانبان</button></div></div></div>
   ${kb ? html`${permitLegend()}<p class="t-mut" style="font-size:12px">اسحب البطاقة بين الأعمدة: «قيد التنفيذ» تبدأ أو تستأنف، «متوقفة» تطلب سبب التوقف، «منجزة» تطلب تحديث حالة الموقع.</p>${viewTaskKanban(jobsV().filter((j) => !q || [j.title, j.uid, j.woNo, j.permit, j.site, j.crewId].join(' ').toLowerCase().includes(q)))}${sel ? taskDetail(sel) : ''}` : html`<div class="split"><aside class="side" style="flex:1 1 340px">
-    ${list.length ? html`<ol class="jobs">${list.map((j) => { const c = crewById(j.crewId); const al = smartAlerts().filter((a) => a.task === j.id); return html`<li class="job" ${E && f === 'all' ? new Safe('draggable="true"') : ''} data-job="${j.id}" style="${sel && sel.id === j.id ? 'border:2px solid var(--acc);background:#fff' : ''}">
+    ${list.length ? html`<ol class="jobs">${list.map((j) => { const c = crewById(j.crewId); const al = smartAlerts().filter((a) => a.task === j.id); return html`<li class="job" data-sort="jobs" data-id="${j.id}" data-job="${j.id}" style="${sel && sel.id === j.id ? 'border:2px solid var(--acc);background:#fff' : ''}">
       <button type="button" data-act="task-sel" data-id="${j.id}" style="all:unset;cursor:pointer;flex:1 1 200px;min-width:0;display:flex;flex-direction:column;gap:2px"><b style="font-size:14px">${j.title}</b><span class="t-mut" style="font-size:12px">${j.uid ? j.uid + ' · ' : ''}${c ? c.id : 'غير مُسندة'} · ${j.dept} · ${fmtD(j.date)}${j.woNo ? ' · WO ' + j.woNo : ''}</span></button>
       <span class="pill ${JOB_ST[j.st][1]}">${JOB_ST[j.st][0]}</span>${al.length ? html`<span class="pill ${al.some((a) => a.lvl === 'bad') ? 'bad' : 'warn'}" title="تنبيهات">${al.length} !</span>` : ''}
-      ${E ? html`<span style="display:flex;flex-direction:column;gap:2px"><button class="btn sm" type="button" data-act="job-up" data-id="${j.id}" aria-label="تقديم ${j.title}" style="min-height:22px;padding:0 10px">▲</button><button class="btn sm" type="button" data-act="job-down" data-id="${j.id}" aria-label="تأخير ${j.title}" style="min-height:22px;padding:0 10px">▼</button></span>` : ''}</li>`; })}</ol>` : html`<p class="empty">لا مهام في هذا التصنيف.</p>`}
+      ${E ? grip('jobs', j.id, 'ترتيب ' + j.title) : ''}</li>`; })}</ol>` : html`<p class="empty">لا مهام في هذا التصنيف.</p>`}
   </aside><section class="wide">${sel ? taskDetail(sel) : ''}</section></div>`}`;
 }
 function taskDetail(t) {
   const E = can('edit'), R = can('request'); const c = crewById(t.crewId); const al = smartAlerts().filter((a) => a.task === t.id); const ds = docStatus(t);
   const docs = DB.docs.filter((d) => d.taskId === t.id || (CREW_LEVEL_DOCS.includes(d.type) && !d.taskId && d.crewId === t.crewId));
   return html`<div class="card" id="taskdetail" tabindex="-1" style="scroll-margin-top:76px"><div class="row between"><div><h2 style="font-size:21px">${t.title}</h2><span class="t-mut" style="font-size:13px">${t.dept} · التنفيذ ${fmtD(t.date)} (${t.date}) · ${t.site}</span></div><span class="pill ${JOB_ST[t.st][1]}">${JOB_ST[t.st][0]}${t.st === 'hold' && t.hold ? ' — ' + t.hold.reason : ''}</span></div>
+    ${assignBox(t)}
     <div class="grid g4"><div class="kv"><span>التصريح</span><b>${t.permit || '—'}</b>${t.permitExp ? html`<span class="pill ${permitState(t.permitExp, true).c}" style="font-size:12px;width:max-content">${permitState(t.permitExp, true).label} · ${t.permitExp}</span>` : ''}${t.woNo || t.uid ? html`<span class="t-mut ltr" style="font-size:12px">${[t.uid, t.woNo ? 'WO ' + t.woNo : ''].filter(Boolean).join(' · ')}</span>` : ''}</div>
       <div class="kv"><span>الفرقة</span><b>${c ? c.name : 'غير مُسندة'}</b>${c ? html`<span class="pill ${crewState(c).lvl}" style="width:max-content">${crewState(c).label}</span>` : ''}</div>
       <div class="kv"><span>المهندس</span><b>${c && c.eng ? c.eng.name : '—'}</b><span>${c ? contactLinks(c.eng) : ''}</span></div>
@@ -3366,6 +3565,7 @@ function taskDetail(t) {
     ${t.close ? html`<div class="alert ${t.close.finished ? 'okk' : 'wr'}"><b>آخر حالة للموقع (${ago(t.close.tm)}${t.close.by ? ' — ' + t.close.by : ''}):</b> ${t.close.finished ? 'تم الانتهاء من الأعمال.' : 'لم يكتمل — متبقٍ: ' + (t.close.remaining.join('، ') || 'غير محدد')}${t.close.note ? ' · ' + t.close.note : ''}</div>` : ''}
   </div>
   ${al.length ? html`<div class="card"><h3 style="font-size:16px">تنبيهات هذه المهمة · ${al.length}</h3>${al.map(alertCard)}</div>` : ''}
+  ${t.flow ? '' : supplyBox(t)}
   <div class="card"><div class="row between"><h3 style="font-size:16px">الطلبات للأقسام</h3>${R ? html`<button class="btn sm" type="button" data-act="req-add" data-id="${t.id}">+ طلب لقسم</button>` : ''}</div>
     <div class="tblw"><table style="min-width:620px"><thead><tr><th scope="col">الطلب</th><th scope="col">القسم</th><th scope="col">الموعد</th><th scope="col">الحالة</th><th scope="col">إجراء</th></tr></thead><tbody>
     ${t.reqs.map((r) => html`<tr><td><b>${r.type}</b>${r.note ? html`<div class="t-mut" style="font-size:12px">${r.note}</div>` : ''}</td><td>${r.dept}</td><td><span class="${r.st === 'open' && r.due && daysTo(r.due) < 0 ? 'pill bad' : ''}">${fmtD(r.due)}</span></td><td><span class="pill ${r.st === 'done' ? 'ok' : 'warn'}">${r.st === 'done' ? 'منفّذ' : 'مفتوح'}</span></td>
@@ -3768,7 +3968,7 @@ function viewSettings3() {
   let body;
   if (tab === 'brand') body = html`<form class="card" data-form="brand"><h2 style="font-size:17px">الهوية</h2><div class="grid g2">${fieldHtml({ k: 'company', label: 'اسم الشركة', val: B.company })}${fieldHtml({ k: 'app', label: 'اسم المنصة', val: B.app })}${fieldHtml({ k: 'client', label: 'الجهة المالكة / العميل', val: B.client })}${fieldHtml({ k: 'secLabel', label: 'مسمى التعميد في النماذج', val: B.secLabel })}${fieldHtml({ k: 'teamTitle', label: 'عنوان نموذج فريق العمل', val: B.teamTitle })}${fieldHtml({ k: 'meetingTitle', label: 'عنوان محضر اجتماع ما قبل العمل', val: B.meetingTitle })}</div>${fieldHtml({ k: 'footer', label: 'نص تذييل النماذج', type: 'textarea', val: B.footer })}<div class="row"><button class="btn pri" type="submit">حفظ الهوية</button></div></form>
     <div class="card"><div class="row between"><h2 style="font-size:17px">الشعارات · شعار الشركة أولاً ثم الجهات الشريكة، في الهيدر وشاشة الدخول والنماذج المطبوعة</h2><div class="row"><label class="btn" for="logof">+ رفع شعار</label><input id="logof" class="sr" type="file" accept="image/png,image/jpeg,image/webp" data-change="logo-upload"><button class="btn sm" type="button" data-act="logo-reset">استعادة الافتراضية</button></div></div>
-    <div class="row" style="gap:14px">${(B.logos || []).filter((l) => imgOk(l.src)).map((l, i) => html`<div class="logo-item"><img src="${l.src}" alt="${l.name}" style="height:56px;width:auto"><span style="font-size:12px">${l.name}</span>${l.primary ? html`<span class="pill ok">شعار الشركة — يظهر أولاً</span>` : html`<button class="btn sm" type="button" data-act="logo-primary" data-i="${i}">اجعله شعار الشركة</button>`}<div class="row" style="gap:4px"><button class="btn sm" type="button" data-act="logo-move" data-i="${i}" aria-label="تقديم ${l.name}">◀</button><button class="btn sm" type="button" data-act="logo-name" data-i="${i}">الاسم</button><button class="btn sm" type="button" data-act="logo-del" data-i="${i}" style="color:var(--red)">حذف</button></div></div>`)}</div>
+    <div class="row" style="gap:14px">${(B.logos || []).filter((l) => imgOk(l.src)).map((l, i) => html`<div class="logo-item" data-sort="logos" data-id="${i}"><img src="${l.src}" alt="${l.name}" style="height:56px;width:auto"><span style="font-size:12px">${l.name}</span>${l.primary ? html`<span class="pill ok">شعار الشركة — يظهر أولاً</span>` : html`<button class="btn sm" type="button" data-act="logo-primary" data-i="${i}">اجعله شعار الشركة</button>`}<div class="row" style="gap:4px">${l.primary ? '' : grip('logos', String(i), 'ترتيب ' + l.name)}<button class="btn sm" type="button" data-act="logo-name" data-i="${i}">الاسم</button><button class="btn sm" type="button" data-act="logo-del" data-i="${i}" style="color:var(--red)">حذف</button></div></div>`)}</div>
     </div><div class="card"><div class="row between"><h2 style="font-size:17px">صورة الهيدر</h2><div class="row"><label class="btn" for="coverf">رفع / تغيير الصورة</label><input id="coverf" class="sr" type="file" accept="image/png,image/jpeg,image/webp" data-change="cover-upload"><button class="btn sm" type="button" data-act="cover-reset">الصورة الافتراضية</button><button class="btn sm" type="button" data-act="cover-del">بدون صورة</button></div></div>${imgOk(B.cover) ? html`<img src="${B.cover}" alt="صورة الهيدر الحالية" style="width:100%;max-height:180px;object-fit:cover;border-radius:12px">` : html`<p class="t-mut">لا توجد صورة؛ يظهر الهيدر بلون الهوية.</p>`}<p class="t-mut" style="font-size:12px">صورة عريضة (يُفضّل 1600×400) حتى 4 ميجابايت؛ تُضغط داخل المتصفح. الصورة الافتراضية رسم أصلي لأعمال الشبكات والسلامة.</p>
     <p class="t-mut" style="font-size:12px">الشعارات: PNG أو JPG أو WEBP حتى 2 ميجابايت. يُعاد رسم الشعار داخل المتصفح بارتفاع ثابت قبل حفظه. لا تُقبل صيغة SVG لأنها قد تحمل كوداً.</p></div>`;
   else if (tab === 'gauges') body = html`<form class="card" data-form="gauges"><h2 style="font-size:17px">المؤشرات المعروضة في لوحة الأداء</h2><div class="chips">${Object.keys(GAUGES).map((k) => html`<label class="chip" style="display:inline-flex;gap:6px;align-items:center"><input type="checkbox" name="g" value="${k}" ${s.gauges.includes(k) ? new Safe('checked') : ''}>${GAUGES[k]}</label>`)}</div>
@@ -3844,7 +4044,7 @@ function render() {
   if (!CUR) { if (MAP) { MAP.remove(); MAP = null; } app.innerHTML = viewAuth().s; translateUI(app); mountGoogleBtn(); const f = app.querySelector('input'); if (f) f.focus(); return; }
   if (!can('users') && UI.view === 'users') UI.view = 'ops';
   if ((UI.view === 'cards' && !canSeeCards()) || (CUR.role === 'hr' && ['flow', 'permits', 'inbox', 'reports', 'cluster', 'tasks', 'inv', 'ops'].includes(UI.view))) UI.view = 'dash';
-  const v = { flow: viewFlow, permits: viewPermits, hse: viewHse, cluster: viewCluster, inbox: viewInbox, reports: viewReports, cards: viewCards, dash: viewDash, tasks: viewTasks, docs: viewDocs3, inv: viewInv, ops: viewOps, crews: viewCrews, equip: viewEquip3, ai: viewAI, users: viewUsers3, security: viewSecurity, settings: viewSettings3 }[UI.view] || viewDash;
+  const v = { flow: viewFlow, permits: viewPermits, hse: viewHse, supply: viewSupply, cluster: viewCluster, inbox: viewInbox, reports: viewReports, cards: viewCards, dash: viewDash, tasks: viewTasks, docs: viewDocs3, inv: viewInv, ops: viewOps, crews: viewCrews, equip: viewEquip3, ai: viewAI, users: viewUsers3, security: viewSecurity, settings: viewSettings3 }[UI.view] || viewDash;
   if (MAP) { MAP.remove(); MAP = null; }
   flBeforeRender();
   const entering = UI.lastView !== UI.view; UI.lastView = UI.view;
@@ -4042,7 +4242,8 @@ const ACT = {
         else { if (t.st === 'new') t.st = 'prog'; toast('حُفظت حالة الموقع: متبقٍ ' + v.remaining.join('، ') + '.'); }
         audit(CUR.name, 'تحديث حالة الموقع', t.title + ': ' + (v.finished ? 'منتهٍ' : 'متبقٍ ' + v.remaining.join('، '))); }, { ok: 'حفظ حالة الموقع' }); },
   'req-add': (d) => { const t = taskById(d.id); if (!t || !need('request')) return; openForm('طلب لقسم', [{ k: 'type', label: 'نوع الطلب', type: 'select', val: 'توريد مواد', list: 'reqTypes' }, { k: 'dept', label: 'القسم', type: 'select', val: '', list: 'depts', hint: 'يُختار تلقائياً حسب نوع الطلب إن تُرك على الأول' }, { k: 'due', label: 'مطلوب بتاريخ', type: 'date', val: t.date, ltr: true }, { k: 'note', label: 'تفاصيل', type: 'textarea' }],
-    (v) => { if (v.due && !validDate(v.due)) return 'تاريخ غير صالح.'; const dept = REQ_DEPT[v.type] && v.dept === DB.lists.depts[0] ? REQ_DEPT[v.type] : v.dept; t.reqs.push({ id: uid('rq'), type: v.type, dept, due: v.due, st: 'open', note: v.note.trim().slice(0, 300), tm: nowIso(), by: CUR.name }); audit(CUR.name, 'طلب لقسم', dept + ': ' + v.type); }); },
+    (v) => { if (v.due && !validDate(v.due)) return 'تاريخ غير صالح.'; const dept = REQ_DEPT[v.type] && v.dept === DB.lists.depts[0] ? REQ_DEPT[v.type] : v.dept; t.reqs.push({ id: uid('rq'), type: v.type, dept, due: v.due, st: 'open', note: v.note.trim().slice(0, 300), tm: nowIso(), by: CUR.name }); audit(CUR.name, 'طلب لقسم', dept + ': ' + v.type);
+      if (/سلامة|إنارة|مواد|دفان|مخلف/.test(v.type)) notifyPeople('supply', crewPeople(crewById(t.crewId)).filter((p) => p.role === 'eng').concat(pmPeople(t).filter((p) => p.role === 'pm')), v.type + ' — ' + jobRef(t), 'طلب ' + CUR.name + ' «' + v.type + '» لقسم ' + dept + ' — مطلوب ' + (v.due || '—') + (v.note.trim() ? '\n' + v.note.trim() : '') + '\n' + jobLoc(t), t); }); },
   'req-toggle': (d) => { const t = taskById(d.task); if (!t || !need('request')) return; const r = t.reqs.find((x) => x.id === d.id); if (!r) return; r.st = r.st === 'done' ? 'open' : 'done'; r.doneAt = r.st === 'done' ? nowIso() : null; audit(CUR.name, r.st === 'done' ? 'تنفيذ طلب' : 'إعادة فتح طلب', r.type); save(); render(); },
   'crew-hold': () => { if (!need('request')) return; const c = curCrew(); openForm('إيقاف ' + c.name, [{ k: 'reason', label: 'سبب التوقف', type: 'select', val: DB.lists.holdReasons[0], list: 'holdReasons' }, { k: 'note', label: 'تفاصيل', type: 'textarea' }], (v) => { c.hold = { reason: v.reason, note: v.note.trim().slice(0, 300), since: nowIso() }; audit(CUR.name, 'إيقاف فرقة', c.id + ': ' + v.reason); }); },
   'crew-resume': () => { if (!need('request')) return; const c = curCrew(); c.hold = null; audit(CUR.name, 'استئناف فرقة', c.id); save(); render(); },
@@ -4171,11 +4372,7 @@ Object.assign(ACT, FL_ACT); Object.assign(FORMS, HSE_FORMS); applyActRules(ACT);
 const INPUTS = { 'card-q': 'cardQ', 'eq-q': 'eqQ', 'tx-q': 'txQ', 'emp-q': 'empQ', 'fl-q': 'flQ', 'task-q': 'taskQ' };
 document.addEventListener('input', (e) => { const el = e.target.closest('[data-input]'); if (!el || !INPUTS[el.dataset.input]) return; UI[INPUTS[el.dataset.input]] = el.value; const pos = el.selectionStart; const sel = '[data-input="' + el.dataset.input + '"]'; render(); const n = $(sel); if (n) { n.focus(); n.setSelectionRange(pos, pos); } });
 // drag & drop ordering for jobs
-kbWire();
-document.addEventListener('dragstart', (e) => { const li = e.target.closest && e.target.closest('[data-job]'); if (!li) return; UI.dragId = li.dataset.job; li.classList.add('drag'); e.dataTransfer.effectAllowed = 'move'; });
-document.addEventListener('dragover', (e) => { if (UI.dragId && e.target.closest && e.target.closest('[data-job]')) e.preventDefault(); });
-document.addEventListener('drop', (e) => { const li = e.target.closest && e.target.closest('[data-job]'); if (!li || !UI.dragId) return; e.preventDefault(); const from = DB.jobs.findIndex((j) => j.id === UI.dragId), to = DB.jobs.findIndex((j) => j.id === li.dataset.job); if (from > -1 && to > -1 && from !== to) { const [it] = DB.jobs.splice(from, 1); DB.jobs.splice(to, 0, it); save(); } UI.dragId = null; render(); });
-document.addEventListener('dragend', () => { UI.dragId = null; document.querySelectorAll('.drag').forEach((x) => x.classList.remove('drag')); });
+kbWire(); sortWire();
 
 const lf = document.getElementById('lf');
 if (lf && !window.L) lf.addEventListener('load', () => { if (CUR && UI.view === 'ops') mountMap(); });

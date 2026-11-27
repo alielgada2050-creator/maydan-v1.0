@@ -70,6 +70,7 @@ function guardJobs(me, oldS, newS) {
     const a = om.get(id), b = nm.get(id); if (J(a) === J(b)) continue;
     if (a && b && J(a.grants) !== J(b.grants)) E(403, 'منح صلاحية التعديل لمدير المشروع أو مدير المنصة.');
     if (!a) { if (b.crewId && !ids.has(b.crewId) && me.role !== 'pm') E(403, 'إنشاء معاملة لفرقة خارج نطاقك.'); continue; }
+    if (me.role === 'sup' || me.role === 'viewer') { const sm = new Map(((a && a.supply) || []).map((x) => [x.id, x])); for (const x of (b && b.supply) || []) { const y = sm.get(x.id); const st = y ? y.st : 'req'; if ((x.st !== st && !['req', 'del'].includes(x.st)) || (y && (J(y.supplier) !== J(x.supplier) || y.qty !== x.qty))) E(403, 'اعتماد التوريد وإسناد المورد للمهندس المخوّل أو مدير المشروع.'); } }
     if (jobEditable(a, me, ids)) continue;
     const strip = (j) => Object.assign({}, j || {}, { accessReq: null, editors: null });
     const mineOnly = J(strip(a)) === J(strip(b)) && (b.accessReq || []).filter((r) => !(a.accessReq || []).some((x) => J(x) === J(r))).every((r) => r.uid === me.id && r.st === 'pending');
@@ -85,6 +86,7 @@ function guardState(me, oldS, newS) {
   if (me.role === 'admin') return;
   if (me.role === 'hr') { const free = new Set(['employees', 'docs', 'inbox', 'notifs', 'audit', 'version', 'v', 'lists']); for (const k of new Set(Object.keys(oldS).concat(Object.keys(newS)))) if (!free.has(k) && J(oldS[k]) !== J(newS[k])) E(403, 'الموارد البشرية تعدّل بطاقات الموظفين ومستنداتهم فقط.'); return; }
   guardJobs(me, oldS, newS); guardEmployees(me, oldS, newS);
+  if (!['pm', 'eng'].includes(me.role) && J(oldS.suppliers) !== J(newS.suppliers)) E(403, 'سجل الموردين للمهندس المخوّل أو مدير المشروع.');
   const pmScoped = me.role === 'pm' && ((me.scope || {}).offices || []).length + ((me.scope || {}).projects || []).length + ((me.scope || {}).crews || []).length > 0;
   if (me.role === 'pm' && !pmScoped) { if (J(oldS.settings) !== J(newS.settings)) E(403, 'تعديل الإعدادات لمدير المنصة فقط.'); return; }
   if (me.role === 'ops') { const free = new Set(['inbox', 'notifs', 'audit', 'version', 'v']); for (const k of new Set(Object.keys(oldS).concat(Object.keys(newS)))) if (!free.has(k) && J(oldS[k]) !== J(newS[k])) E(403, 'مدير العمليات يرسل التنبيهات فقط ولا يعدّل البيانات.'); return; }

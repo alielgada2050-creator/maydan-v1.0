@@ -57,7 +57,7 @@ function migrateFlow(d) {
   d.inbox = d.inbox || []; d.reports = d.reports || [];
   d.settings.flow = d.settings.flow || { r1: 2, r2: 5, clusterKm: 2 };
   d.jobs.forEach((j) => { if (j.flow) { j.alerts = j.alerts || {}; j.log = j.log || []; j.gate = j.gate || null; j.safety = j.safety || {}; } });
-  flMigrateIds(d); hseMigrate(d);
+  flMigrateIds(d); hseMigrate(d); supplyMigrate(d);
   return d;
 }
 

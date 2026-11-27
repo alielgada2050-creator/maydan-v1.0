@@ -187,3 +187,15 @@ test('need-to-know: scoped users receive only their part; saves keep hidden data
   n = clone(); n.crews[0].workers = []; assert.throws(() => guardState(hr, S, n), /الموارد البشرية/);
   assert.strictEqual(viewState(clone(), hr).crews.length, 2);
 });
+
+test('supply control: a supervisor requests and receives; only engineer / project manager approve and register suppliers', () => {
+  const { guardState } = require('../index.js');
+  const S = { crews: [{ id: 'X-1', branch: 'b', sup: { name: 'أحمد', iqama: '2111111111' }, eng: { name: 'م. سامي', iqama: '2555555555' }, workers: [], eq: [] }], jobs: [{ id: 'j1', crewId: 'X-1', supply: [{ id: 's1', kind: 'backfill', qty: 50, st: 'req' }] }], employees: [], suppliers: [] };
+  const sup = { id: 'u-s', role: 'sup', name: 'أحمد', iqama: '2111111111' }, eng = { id: 'u-e', role: 'eng', name: 'م. سامي', iqama: '2555555555' };
+  const c = () => JSON.parse(JSON.stringify(S));
+  let n = c(); n.jobs[0].supply.push({ id: 's2', kind: 'sand', qty: 5, st: 'req' }); guardState(sup, S, n);
+  n = c(); n.jobs[0].supply[0].st = 'ord'; n.jobs[0].supply[0].supplier = { name: 'x' }; assert.throws(() => guardState(sup, S, n), /اعتماد التوريد/);
+  n = c(); n.suppliers.push({ id: 'p', no: '1', name: 'x' }); assert.throws(() => guardState(sup, S, n), /الموردين/);
+  n = c(); n.jobs[0].supply[0].st = 'ord'; n.jobs[0].supply[0].supplier = { name: 'x' }; n.suppliers.push({ id: 'p', no: '1', name: 'x' }); guardState(eng, S, n);
+  const O = c(); O.jobs[0].supply[0].st = 'ord'; n = JSON.parse(JSON.stringify(O)); n.jobs[0].supply[0].st = 'del'; n.jobs[0].supply[0].dq = 48; guardState(sup, O, n);
+});

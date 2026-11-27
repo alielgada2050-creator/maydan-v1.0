@@ -112,3 +112,14 @@ It feeds the following features:
 - **Fonts:** three per-device choices (IBM Plex Sans Arabic, Tajawal, Cairo), set from Settings.
 - **Team cards:** the header shows the full three-part name, with the status badge under it.
 - **Task details:** selecting a task card scrolls its details into view.
+
+## Assignment, supply control and quantities (v12) — `src/modules/70-supply.js`
+- **Assignment:** `assignWatch` runs on every save. When a task or transaction's crew changes, the crew engineer, the supervisor and the project manager are notified that this crew is authorised to finish the work. The crew acknowledges with «استلام الإسناد».
+- **Supply chain:** safety & lighting, backfill, sand, subbase, concrete, asphalt and waste removal.
+  - The supervisor requests.
+  - The engineer or project manager approves and links a registered supplier (number / PO).
+  - The supervisor receives on site with the receipt photo, the delivered quantity and a pledge.
+  - A variance above the tolerance alerts the project manager and the admin. The approver then matches and closes.
+  - The server refuses approvals by a supervisor, and supplier-registry edits by anyone but the engineer, project manager or admin.
+- **Quantities:** `qtyEstimate` computes backfill, sand, subbase, concrete, asphalt tonnage and waste from each transaction's length (and its width and depth, or the defaults). The parameters are under Settings → «معاملات الحساب». The defaults are approximate and must be checked against the unified contract.
+- **Sortable lists:** a drag handle (mouse and touch via pointer events, plus arrow keys) replaces the ▲▼ buttons for tasks, AI providers and logos.

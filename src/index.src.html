@@ -438,6 +438,13 @@ html[data-font="cairo"] :is(body,h1,h2,h3,h4,.hh-title b,.brand b,.flk b,button,
 .pcard .pc-id b{white-space:normal;overflow:visible;text-overflow:clip;line-height:1.35}.pcard .pc-id .pc-st{align-self:flex-start;margin-top:5px;font-size:11px;padding:2px 8px}
 .pledge{padding:10px 12px;border-radius:10px;border:1px solid color-mix(in srgb,var(--acc) 35%,transparent);background:color-mix(in srgb,var(--acc) 6%,var(--card))}
 .thumbs{display:flex;flex-wrap:wrap;gap:6px}.thumbs img{width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
+/* v15 — assignment, supply, sortable */
+.assign{padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:color-mix(in srgb,var(--acc) 5%,var(--card));font-size:14px}
+.qtbl{font-size:13px}.qtbl td,.qtbl th{padding:6px 8px}.qtbl tr.tot td{border-top:2px solid var(--line)}
+.grip{all:unset;box-sizing:border-box;display:grid;place-items:center;width:32px;height:40px;border-radius:8px;color:var(--mut);cursor:grab;touch-action:none;flex:0 0 auto}
+.grip:hover{background:color-mix(in srgb,var(--tx) 6%,var(--card));color:var(--tx)}.grip:focus-visible{outline:2px solid var(--acc);outline-offset:1px}.grip:active{cursor:grabbing}
+[data-sort].sorting{opacity:.55}[data-sort].drop-before{box-shadow:0 -3px 0 0 var(--acc)}[data-sort].drop-after{box-shadow:0 3px 0 0 var(--acc)}
+.logo-item[data-sort].drop-before{box-shadow:3px 0 0 0 var(--acc)}.logo-item[data-sort].drop-after{box-shadow:-3px 0 0 0 var(--acc)}
 </style>
 </head>
 <body>

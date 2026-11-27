@@ -74,7 +74,7 @@ function flDetail(j) {
   return html`<article class="card fldetail" style="--sc:${FL_COLORS[j.stage]}"><div class="row between"><div><h2 style="font-size:20px">${j.kind} — ${j.district || ''}</h2>
       <p class="t-mut ltr" style="margin:4px 0 0;text-align:start"><b>${j.uid || ''}</b> · ${flFolderName(j)}</p></div>
       <div class="row">${flPermitChip(j)}${jobCanEdit(j) ? html`<button class="btn sm" type="button" data-act="fl-edit" data-id="${j.id}">تعديل</button>` : ''}<a class="btn sm wa" href="${wa('', '«ميدان» — ' + flJobText(j) + (flNav(j) ? '\nالموقع: ' + flPin(j) : ''))}" target="_blank" rel="noopener noreferrer">واتساب</a>${flNav(j) ? html`<a class="btn sm" href="${flNav(j)}" target="_blank" rel="noopener noreferrer">الملاحة</a>` : ''}<button class="btn sm" type="button" data-act="fl-close-detail">إغلاق</button></div></div>
-    ${flLockBox(j)}${j.elecEng ? html`<p class="t-mut" style="font-size:13px;margin:0">مهندس الكهرباء المسؤول: <b>${j.elecEng.name}</b></p>` : ''}
+    ${flLockBox(j)}${assignBox(j)}${j.elecEng ? html`<p class="t-mut" style="font-size:13px;margin:0">مهندس الكهرباء المسؤول: <b>${j.elecEng.name}</b></p>` : ''}
     ${flStepper(j)}
     <div class="grid g2"><div class="flkv"><span>المكتب</span><b>${j.office || '—'}</b><span>الحي</span><b>${j.district || '—'}</b><span>المحطة / المخطط / القطعة</span><b>${[j.station, j.plan, j.plot].filter(Boolean).join(' / ') || '—'}</b><span>التاريخ</span><b>${j.date}</b><span>طول الحفر</span><b>${j.lengthM ? j.lengthM + ' م' : '—'}</b><span>الفرقة</span><b>${crew ? crew.id + ' · ' + crew.sup.name : '—'}</b></div>
       <div class="flkv"><span>المعرّف الموحّد</span><b class="ltr">${j.uid || '—'} <span class="t-mut">(${FL_CATS[flCatOf(j)][0]})</span></b><span>أمر العمل / SAP</span><b class="ltr">${j.woNo || '—'} / ${j.sapNo || '—'}</b><span>رقم الأساس</span><b class="ltr">${j.baseNo || '—'}</b><span>رقم المعاملة</span><b class="ltr">${j.txNo || '—'}</b><span>الرخصة</span><b>${flPermitLine(j)}</b><span>بوابة الرخصة</span><b>${flGateLabel(j)[0]}</b>
@@ -82,6 +82,7 @@ function flDetail(j) {
     ${flStageActions(j)}
     ${flQaBox(j)}
     ${flHseBox(j)}
+    ${supplyBox(j)}
     ${j.gate && j.gate.mode === 'override' && !j.gate.fileId ? html`<p class="alert wr">تجاوز بواسطة ${j.gate.by}: ${j.gate.reason} — يجب إرفاق الرخصة قبل ${j.gate.due}. <button class="btn sm" type="button" data-act="fl-gate" data-id="${j.id}" data-k="late">إرفاق الرخصة الآن</button></p>` : ''}
     <div class="grid g2"><div><h3 style="font-size:15px">المعاملات القريبة (${nb.length}) — نطاق ${cfg().flow.r2} كم</h3>${nb.length ? html`<ul class="nb">${nb.map((x) => html`<li><button type="button" class="lnk" data-act="fl-open" data-id="${x.o.id}">${x.o.baseNo || x.o.id} — ${x.o.kind}</button><span class="t-mut">${x.o.district} · ${x.o.date}${x.dist != null ? ' · ' + x.dist.toFixed(1) + ' كم' : ''} · ${x.why.join('، ')}</span></li>`)}</ul>` : html`<p class="t-mut">لا توجد معاملات قريبة.</p>`}</div>
       <div><h3 style="font-size:15px">المستندات (${docs.length})</h3>${docs.length ? html`<ul class="nb">${docs.map((d) => html`<li><span>${d.type} — <span class="ltr">${d.fileName || d.title}</span>${d.geo ? html` <a class="pill ok" href="${'https://www.google.com/maps?q=' + d.geo.lat + ',' + d.geo.lng}" target="_blank" rel="noopener noreferrer" title="دقة ${d.geo.acc} م">GPS</a>` : ''}</span>${d.fileId ? html`<button class="btn sm" type="button" data-act="doc-file" data-id="${d.id}">تنزيل</button>` : ''}</li>`)}</ul>` : html`<p class="t-mut">لا مستندات بعد.</p>`}</div></div>
@@ -218,6 +219,7 @@ function flJobFields(j) {
     { k: 'permitExp', label: 'تاريخ انتهاء الرخصة', type: 'date', val: j.permitExp || '' }, { k: 'date', label: 'تاريخ التنفيذ', type: 'date', val: j.date || addDays(1) },
     { k: 'district', label: 'الحي (ابحث في أحياء الرياض)', type: 'combo', opts: districtOpts(), val: j.district || '', hint: 'اختر من القائمة أو اكتب حياً جديداً فيُضاف' }, { k: 'station', label: 'المحطة', val: j.station || '' }, { k: 'plan', label: 'المخطط', val: j.plan || '' }, { k: 'plot', label: 'القطعة', val: j.plot || '' },
     { k: 'lat', label: 'خط العرض', type: 'number', val: j.lat || '', ltr: true, hint: 'إن تُرك فارغاً يُملأ بمركز الحي تقريبياً' }, { k: 'lng', label: 'خط الطول', type: 'number', val: j.lng || '', ltr: true },
+    { k: 'widthM', label: 'عرض الحفر (م)', type: 'number', val: j.widthM || '', hint: 'فارغ = العرض الافتراضي من معاملات الحساب' },
     { k: 'lengthM', label: 'طول الحفر (م)', type: 'number', val: j.lengthM || '' }, { k: 'depthM', label: 'عمق الحفر (م)', type: 'number', val: j.depthM || '', hint: 'أكثر من 1.5 م يتطلب تدعيماً وسلّماً' }, { k: 'barrier', label: 'نوع الصبات', type: 'select', opts: [['صبات خرسانية', 'صبات خرسانية'], ['صبات بلاستيكية', 'صبات بلاستيكية']], val: (j.safety && j.safety.barrier) || 'صبات خرسانية' },
     { k: 'elecEng', label: 'مهندس الكهرباء المسؤول (يرى المعاملة ويعدّلها)', type: 'select', opts: [['', '— بدون —']].concat(DB.users.filter((u) => u.role === 'eng' && userSpec(u) === 'elec').map((u) => [u.id, u.name])), val: (DB.users.find((u) => j.elecEng && personIs(j.elecEng, u)) || {}).id || '' },
     { k: 'crewId', label: 'الفرقة المنفذة', type: 'select', opts: [['', '— بدون —']].concat(DB.crews.map((c) => [c.id, c.id + ' · ' + (TYPES[c.type] ? TYPES[c.type][0] : '') + ' · ' + c.sup.name])), val: j.crewId || '' },
@@ -229,7 +231,7 @@ function flApply(j, v) {
   j.district = rememberDistrict(j.district);
   { const eu = DB.users.find((u) => u.id === v.elecEng && u.role === 'eng'); j.elecEng = eu ? { name: eu.name, iqama: eu.iqama || '', phone: eu.phone || '' } : null; }
   jobTouch(j);
-  j.lat = parseFloat(v.lat) || 0; j.lng = parseFloat(v.lng) || 0; j.lengthM = Math.max(0, Math.round(+v.lengthM || 0)); j.depthM = Math.max(0, Math.min(20, Math.round((+v.depthM || 0) * 10) / 10));
+  j.lat = parseFloat(v.lat) || 0; j.lng = parseFloat(v.lng) || 0; j.lengthM = Math.max(0, Math.round(+v.lengthM || 0)); j.depthM = Math.max(0, Math.min(20, Math.round((+v.depthM || 0) * 10) / 10)); j.widthM = Math.max(0, Math.min(10, Math.round((+v.widthM || 0) * 100) / 100));
   if (!flHasXY(j) && DISTRICT_XY[j.district]) { j.lat = DISTRICT_XY[j.district][0]; j.lng = DISTRICT_XY[j.district][1]; j.xyApprox = true; } else if (v.lat) j.xyApprox = false;
   j.cat = FL_CATS[v.cat] ? v.cat : ''; const nc = flCatOf(j); flEnsureUid(j, !!oldCat && oldCat !== nc);
   j.safety = j.safety || {}; j.safety.barrier = v.barrier || 'صبات خرسانية';
