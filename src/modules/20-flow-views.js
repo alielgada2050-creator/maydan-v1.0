@@ -175,6 +175,7 @@ function viewCards() {
   E.forEach((e) => { const l = empLink(e); if (l && (l.role === 'مهندس' || l.role === 'مراقب')) grp['المهندسون والمراقبون'].push(e); else if (isDriverEmp(e) || /مشغل|operator/i.test(e.job || '')) grp['السائقون والمشغلون'].push(e); else if (l) grp['العمال والفنيون'].push(e); else grp['غير مربوطين بفرقة'].push(e); });
   return html`<div class="ph"><div><h1 style="font-size:28px">بطاقات الفريق</h1><p>بطاقة لكل عامل ومراقب وسائق: صورة الإقامة، كارت الأمن الصناعي، شهادة TUV للمشغلين والسائقين، الرخصة، والتأمين — بتواريخ الانتهاء. تُحفظ الصور في Google Drive عند الربط.</p></div>
     <input class="in" type="search" placeholder="بحث بالاسم أو الإقامة أو المهنة" aria-label="بحث في البطاقات" data-input="card-q" value="${q}" style="max-width:320px"></div>
+  ${canSearch() ? html`<div class="card">${searchBox(true)}</div>` : ''}
   ${Object.keys(grp).filter((k) => grp[k].length).map((k) => html`<section class="cardsec"><h2 style="font-size:17px">${k} <span class="t-mut">(${grp[k].length})</span></h2><div class="slider" tabindex="0" aria-label="${k}">${grp[k].slice(0, 60).map(flPersonCard)}</div></section>`)}
   ${E.length ? '' : html`<p class="t-mut">لا موظفين. استورد سجل الموظفين من الإعدادات.</p>`}`;
 }

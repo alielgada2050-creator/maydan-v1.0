@@ -135,3 +135,12 @@ It feeds the following features:
 - **AI:** fills only the missing fields, when a provider is configured.
 - **Review and attach:** the user reviews and edits the filled form. The file is attached as the transaction's «تصريح», which satisfies the permit gate.
 - **Limit:** scanned permits carry no text. The user enters the data, and the file is still attached.
+
+## Phase 17 · Global search (`src/modules/80-search.js`)
+- **Who:** `SEARCH_ROLES = pm, admin, hr` → `canSearch()`. Other roles never see the menu item, the mobile-bar button or the boxes; `render()` sends them back to `dash` if they reach `#search`.
+- **Where:** main menu item «البحث الشامل» (first in «القيادة»), magnifier in the mobile bar, `Ctrl+K`, and a compact `searchBox(true)` on crews, equipment register and team cards.
+- **Index (`searchIndex`)**: crew people (engineer, supervisor, workers — merged across crews by empId/iqama), units (supervisor car, equipment, dynas: `code`, new `regNo` = رقم الاستمارة, `vin`, driver iqama/name, model) and employees not already listed. Built from the already role-scoped data (`crewsV`, `empInScope`).
+- **Matching (`srchHit`)**: ignores spaces/dashes/dots, Arabic-Indic digits = Latin digits, Saudi plate letters mapped to Latin (`PLATE_AR`). Each result says which field matched.
+- **Results:** «في سجل المعدات» (sets `UI.eqQ`), «فتح الفرقة» (one button per crew), «البطاقة» (sets `UI.cardQ`).
+- **Data:** units gain `regNo` (unit form + supervisor-car form); the equipment-register filter also matches `regNo`/`vin`/driver iqama.
+- Test: `test/v17.py`.
