@@ -123,3 +123,15 @@ It feeds the following features:
   - The server refuses approvals by a supervisor, and supplier-registry edits by anyone but the engineer, project manager or admin.
 - **Quantities:** `qtyEstimate` computes backfill, sand, subbase, concrete, asphalt tonnage and waste from each transaction's length (and its width and depth, or the defaults). The parameters are under Settings → «معاملات الحساب». The defaults are approximate and must be checked against the unified contract.
 - **Sortable lists:** a drag handle (mouse and touch via pointer events, plus arrow keys) replaces the ▲▼ buttons for tasks, AI providers and logos.
+
+## New transaction from the permit PDF (v13)
+- «+ معاملة ميدانية» first asks for the permit file (optional).
+- **Extraction:** `pdfText` (40-hse.js) reads text PDFs: Flate / ASCII85 streams, literal and hex strings, and per-font ToUnicode CMaps, so embedded Arabic fonts are read.
+- **Parsing:** `permitParse` fills these fields when present:
+  - permit number, expiry and start dates (gregorian only);
+  - base, transaction, work-order and SAP numbers;
+  - district, length, width and depth, coordinates;
+  - permit type (normal / emergency) and work type.
+- **AI:** fills only the missing fields, when a provider is configured.
+- **Review and attach:** the user reviews and edits the filled form. The file is attached as the transaction's «تصريح», which satisfies the permit gate.
+- **Limit:** scanned permits carry no text. The user enters the data, and the file is still attached.

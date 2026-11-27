@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-ANuhvuonqH9Olzd49p6eoOtR9Vs/HabzzLJmO0HhR4Q=' https://unpkg.com https://accounts.google.com/gsi/client; style-src 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com https://accounts.google.com/gsi/style; frame-src https://accounts.google.com/gsi/; font-src https://fonts.gstatic.com; img-src data: https://unpkg.com https://*.tile.openstreetmap.org https://tile.googleapis.com https://maps.gstatic.com; connect-src https: http://localhost:* http://127.0.0.1:*; form-action 'none'; base-uri 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-ZSANCXZqII/W+cmA736rZa8dhvwmCIClhjYxuS0DxV8=' https://unpkg.com https://accounts.google.com/gsi/client; style-src 'unsafe-inline' https://unpkg.com https://fonts.googleapis.com https://accounts.google.com/gsi/style; frame-src https://accounts.google.com/gsi/; font-src https://fonts.gstatic.com; img-src data: https://unpkg.com https://*.tile.openstreetmap.org https://tile.googleapis.com https://maps.gstatic.com; connect-src https: http://localhost:* http://127.0.0.1:*; form-action 'none'; base-uri 'none'; object-src 'none'">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex,nofollow">
 <meta name="maydan-server" content="0">
@@ -2036,18 +2036,51 @@ async function hseFileText(file) {
   if (n.endsWith('.pdf')) return pdfText(await file.arrayBuffer());
   throw new Error('الصيغ المدعومة: Word (.docx) أو PDF أو نص أو Excel');
 }
+// text extractor for text-based PDFs: Flate / ASCII85 streams, literal and hex strings, and
+// ToUnicode CMaps (needed for Arabic fonts). Scanned PDFs have no text: the user pastes it instead.
+function a85(s) {
+  s = s.replace(/\s/g, '').replace(/^<~/, '').replace(/~>.*$/, ''); const out = []; let t = [];
+  for (let i = 0; i < s.length; i++) { const c = s[i]; if (c === 'z' && !t.length) { out.push(0, 0, 0, 0); continue; } t.push(c.charCodeAt(0) - 33); if (t.length === 5) { let v = 0; t.forEach((x) => { v = v * 85 + x; }); out.push((v >>> 24) & 255, (v >>> 16) & 255, (v >>> 8) & 255, v & 255); t = []; } }
+  if (t.length) { const n = t.length; while (t.length < 5) t.push(84); let v = 0; t.forEach((x) => { v = v * 85 + x; }); [(v >>> 24) & 255, (v >>> 16) & 255, (v >>> 8) & 255, v & 255].slice(0, n - 1).forEach((x) => out.push(x)); }
+  return new Uint8Array(out);
+}
+async function inflate(u8) { const ds = new DecompressionStream('deflate'); return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(ds)).arrayBuffer()); }
+function cmapParse(t) {
+  const map = new Map(); const hx = (h) => parseInt(h, 16); const uni = (h) => { let r = ''; for (let i = 0; i + 4 <= h.length; i += 4) r += String.fromCharCode(hx(h.substr(i, 4))); return r; };
+  const cs = t.match(/begincodespacerange\s*<([0-9a-fA-F]+)>/); const bytes = cs ? Math.max(1, cs[1].length / 2) : 2; const key = (c) => c.toString(16).toUpperCase().padStart(bytes * 2, '0');
+  let m; const bc = /beginbfchar([\s\S]*?)endbfchar/g; while ((m = bc.exec(t))) { const re = /<([0-9a-fA-F]+)>\s*<([0-9a-fA-F]+)>/g; let x; while ((x = re.exec(m[1]))) map.set(key(hx(x[1])), uni(x[2])); }
+  const br = /beginbfrange([\s\S]*?)endbfrange/g; while ((m = br.exec(t))) { const re = /<([0-9a-fA-F]+)>\s*<([0-9a-fA-F]+)>\s*(?:<([0-9a-fA-F]+)>|\[([^\]]*)\])/g; let x; while ((x = re.exec(m[1]))) { const lo = hx(x[1]), hi = hx(x[2]); if (hi - lo > 6000) continue; const arr = x[4] ? (x[4].match(/<([0-9a-fA-F]+)>/g) || []).map((z) => z.slice(1, -1)) : null; for (let c = lo; c <= hi; c++) { if (arr) { if (arr[c - lo]) map.set(key(c), uni(arr[c - lo])); } else { const u = uni(x[3]); map.set(key(c), u.slice(0, -1) + String.fromCharCode(u.charCodeAt(u.length - 1) + (c - lo))); } } } }
+  return { map, bytes };
+}
 async function pdfText(ab) {
-  // simple extractor for text-based PDFs (Flate streams + Tj/TJ). Scanned PDFs need the text pasted.
-  const u8 = new Uint8Array(ab); const s = new TextDecoder('latin1').decode(u8); const out = []; let i = 0, n = 0;
-  while ((i = s.indexOf('stream', i)) > -1 && n < 3000) { n++;
-    let a = i + 6; if (s[a] === '\r') a++; if (s[a] === '\n') a++; const e = s.indexOf('endstream', a); if (e < 0) break;
-    const dict = s.slice(Math.max(0, i - 300), i); let data = u8.subarray(a, e);
-    try { if (/FlateDecode/.test(dict)) { const ds = new DecompressionStream('deflate'); data = new Uint8Array(await new Response(new Blob([data]).stream().pipeThrough(ds)).arrayBuffer()); } } catch (x) { i = e; continue; }
-    const t = new TextDecoder('latin1').decode(data); const re = /\((?:\\.|[^\\)])*\)\s*Tj|\[(?:[^\]]*)\]\s*TJ/g; let m; const line = [];
-    while ((m = re.exec(t))) { const parts = m[0].match(/\((?:\\.|[^\\)])*\)/g) || []; line.push(parts.map((p) => p.slice(1, -1).replace(/\\([nrtbf()\\])/g, (q, c) => ({ n: '\n', r: '', t: ' ', b: '', f: '', '(': '(', ')': ')', '\\': '\\' }[c]))).join('')); }
-    if (line.length) out.push(line.join(' ')); i = e + 9;
+  const u8 = new Uint8Array(ab); const s = new TextDecoder('latin1').decode(u8); const objs = {}; const re = /(\d+)\s+\d+\s+obj\b/g; let m; const starts = [];
+  while ((m = re.exec(s)) && starts.length < 20000) starts.push([+m[1], m.index + m[0].length]);
+  for (let k = 0; k < starts.length; k++) {
+    const [num, a] = starts[k]; const end = k + 1 < starts.length ? starts[k + 1][1] : s.length; const body = s.slice(a, end); const si = body.indexOf('stream');
+    const o = { dict: si >= 0 ? body.slice(0, si) : body.slice(0, 3000), data: null };
+    if (si >= 0 && !/Image|FontFile|DCTDecode|JPXDecode|CCITT/.test(o.dict)) { let st = a + si + 6; if (s[st] === '\r') st++; if (s[st] === '\n') st++; const e = s.indexOf('endstream', st); if (e > st) { let d = u8.subarray(st, e);
+      try { if (/ASCII85Decode/.test(o.dict)) d = a85(new TextDecoder('latin1').decode(d)); if (/FlateDecode/.test(o.dict)) d = await inflate(d); o.data = new TextDecoder('latin1').decode(d); } catch (x) { o.data = null; } } }
+    objs[num] = o;
   }
-  const txt = out.join('\n'); try { return decodeURIComponent(escape(txt)).slice(0, 400000); } catch (e) { return txt.slice(0, 400000); }
+  const cmaps = {}; Object.keys(objs).forEach((n) => { const d = objs[n].data; if (d && /begincmap/.test(d)) cmaps[n] = cmapParse(d); });
+  const fontCmap = {}; Object.keys(objs).forEach((n) => { const t = objs[n].dict.match(/\/ToUnicode\s+(\d+)\s+\d+\s+R/); if (t && cmaps[t[1]]) fontCmap[n] = cmaps[t[1]]; });
+  const names = {}; const addFonts = (txt) => { const r2 = /\/([A-Za-z0-9_.+\-]+)\s+(\d+)\s+\d+\s+R/g; let x; while ((x = r2.exec(txt))) if (fontCmap[x[2]] || /\/Type\s*\/Font/.test((objs[x[2]] || {}).dict || '')) names[x[1]] = x[2]; };
+  Object.keys(objs).forEach((n) => { const d = objs[n].dict; const fb = d.match(/\/Font\s*<<([\s\S]*?)>>/); if (fb) addFonts(fb[1]); const fr = d.match(/\/Font\s+(\d+)\s+\d+\s+R/); if (fr && objs[fr[1]]) addFonts(objs[fr[1]].dict); });
+  const bytesOf = (p) => { if (p[0] === '<') { const h = p.slice(1, -1).replace(/\s/g, ''); const b = []; for (let k = 0; k + 2 <= h.length; k += 2) b.push(parseInt(h.substr(k, 2), 16)); return b; }
+    const str = p.slice(1, -1).replace(/\\(\d{1,3})/g, (q, o) => String.fromCharCode(parseInt(o, 8) & 255)).replace(/\\([nrtbf()\\])/g, (q, c) => ({ n: '\n', r: '\r', t: '\t', b: '\b', f: '\f', '(': '(', ')': ')', '\\': '\\' }[c])).replace(/\\\r?\n/g, ''); return Array.from(str, (ch) => ch.charCodeAt(0) & 255); };
+  const decode = (b, cm) => { if (!cm) return String.fromCharCode.apply(null, b); let r = ''; for (let k = 0; k + cm.bytes <= b.length; k += cm.bytes) { let c = 0; for (let z = 0; z < cm.bytes; z++) c = c * 256 + b[k + z]; r += cm.map.get(c.toString(16).toUpperCase().padStart(cm.bytes * 2, '0')) || ''; } return r; };
+  const out = [];
+  Object.keys(objs).map(Number).sort((x, y) => x - y).forEach((n) => { const t = objs[n].data; if (!t || !/\bBT\b/.test(t) || /begincmap/.test(t)) return;
+    const tk = /\/([A-Za-z0-9_.+\-]+)\s+[\d.]+\s+Tf|\[((?:\((?:\\.|[^\\)])*\)|<[0-9a-fA-F\s]*>|[^\]])*)\]\s*TJ|(\((?:\\.|[^\\)])*\)|<[0-9a-fA-F\s]*>)\s*(?:Tj|'|")|\b(T\*|Td|TD|Tm|ET)\b/g; let x; let cm = null; let line = '';
+    while ((x = tk.exec(t))) {
+      if (x[1]) { cm = fontCmap[names[x[1]]] || null; continue; }
+      if (x[4]) { if (x[4] !== 'Tm' || line.length > 0) { if (line.trim()) out.push(line); line = ''; } continue; }
+      const parts = x[2] !== undefined ? (x[2].match(/\((?:\\.|[^\\)])*\)|<[0-9a-fA-F\s]*>/g) || []) : [x[3]]; line += parts.map((pp) => decode(bytesOf(pp), cm)).join('');
+    }
+    if (line.trim()) out.push(line);
+  });
+  let txt = out.join('\n'); try { txt = txt.normalize('NFKC'); } catch (e) { /* old browser */ }
+  return txt.slice(0, 400000);
 }
 
 // ---------- local analysis of a procedure / risk assessment ----------
@@ -2490,6 +2523,67 @@ Object.assign(FL_ACT, {
   font: (d) => { if (!FONTS.some((f) => f[0] === d.k)) return; FONT_K = d.k; setPref('maydan_font', FONT_K); applyPrefs(); toast('الخط: ' + FONTS.find((f) => f[0] === d.k)[1]); render(); }
 });
 
+// ---------- new transaction from the permit PDF ----------
+// Reads the permit file (text PDFs locally; AI provider refines when configured), fills the form,
+// the user reviews and edits, then the file is attached to the transaction as its permit.
+const AR_DIG = (s) => String(s || '').replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d));
+function isoDate(y, m, d) { y = +y; m = +m; d = +d; if (y < 2015 || y > 2040 || m < 1 || m > 12 || d < 1 || d > 31) return ''; return y + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0'); }
+function permitParse(raw) {
+  const t = AR_DIG(raw).replace(/‏|‎/g, ''); const o = {}; const one = (re) => { const m = t.match(re); return m ? m[1].trim() : ''; };
+  o.permit = one(/(?:رقم\s*(?:الرخصة|التصريح|رخصة\s*الحفر)|Permit\s*(?:No|Number|#)\.?)\s*[:：#\-]?\s*([A-Za-z0-9\-\/]{4,20})/i);
+  o.baseNo = one(/(?:رقم\s*الأساس|Base\s*(?:No|Number)\.?)\s*[:\-]?\s*([A-Za-z]{0,3}\d{3,10})/i) || one(/\b(R\d{4,6})\b/);
+  o.txNo = one(/(?:رقم\s*(?:المعاملة|السكيم)|Transaction\s*(?:No|Number)\.?|Scheme\s*(?:No)?\.?)\s*[:\-]?\s*(\d{6,12})/i);
+  o.woNo = one(/(?:أمر\s*(?:العمل|الإسناد)|Work\s*Order|\bWO\b)\s*(?:No\.?|رقم)?\s*[:\-#]?\s*(\d{6,12})/i);
+  o.sapNo = one(/\bSAP\b\s*(?:No\.?)?\s*[:\-#]?\s*(\d{6,12})/i);
+  const num = (re) => { const v = one(re); return v ? +v : 0; };
+  o.lengthM = num(/(?:الطول|طول\s*(?:الحفر|المسار)?|Length)[^\d\n]{0,20}(\d{1,5}(?:\.\d+)?)/i) || num(/(\d{1,5}(?:\.\d+)?)\s*(?:م\.?\s*ط|متر\s*طولي|متر|m\b|meters?)/i);
+  o.widthM = num(/(?:العرض|عرض\s*الحفر|Width)[^\d\n]{0,15}(\d{1,2}(?:\.\d+)?)/i); o.depthM = num(/(?:العمق|عمق\s*الحفر|Depth)[^\d\n]{0,15}(\d{1,2}(?:\.\d+)?)/i);
+  const xy = t.match(/(2[0-9]\.\d{3,8})\s*[,،\s]\s*(4[0-9]\.\d{3,8})/) || t.match(/(4[0-9]\.\d{3,8})\s*[,،\s]\s*(2[0-9]\.\d{3,8})/);
+  if (xy) { const a = +xy[1], b = +xy[2]; o.lat = a < 30 ? a : b; o.lng = a < 30 ? b : a; }
+  // dates: gregorian only (hijri years are ignored), the expiry is the labelled one, else the latest
+  const D = []; const re = /(\d{4})[\-\/.](\d{1,2})[\-\/.](\d{1,2})|(\d{1,2})[\-\/.](\d{1,2})[\-\/.](\d{4})/g; let m;
+  while ((m = re.exec(t))) { const d = m[1] ? isoDate(m[1], m[2], m[3]) : isoDate(m[6], m[5], m[4]); if (d) D.push({ d, i: m.index }); }
+  const near = (lab) => { const k = t.search(lab); if (k < 0) return ''; const x = D.filter((z) => z.i > k && z.i - k < 80).sort((a, b) => a.i - b.i)[0]; return x ? x.d : ''; };
+  o.permitExp = near(/تاريخ\s*(?:الانتهاء|انتهاء|النهاية)|ينتهي|نهاية\s*الرخصة|Expiry|Expiration|End\s*Date|Valid\s*(?:Until|To)/i) || (D.length > 1 ? D.map((z) => z.d).sort().pop() : '');
+  o.date = near(/تاريخ\s*(?:البدء|البداية|الإصدار)|Start\s*Date|Issue\s*Date|From/i) || '';
+  if (o.date && o.permitExp && o.date >= o.permitExp) o.date = '';
+  const dl = districtList().filter((n) => n.length > 2 && t.includes(n)).sort((a, b) => b.length - a.length); if (dl.length) o.district = dl[0];
+  if (/طارئ|Emergency/i.test(t)) o.permitType = 'طارئ';
+  const K = [[/بايلوت|Pilot/i, 'تمديد كابلات البايلوت'], [/عداد|Meter/i, 'تركيب عدادات'], [/ميني\s*بيلر|Mini\s*Pillar/i, 'حفر مفتوح لتركيب ميني بيلر'], [/عطل|أعطال|Fault/i, 'صيانة أعطال جهد منخفض ومتوسط'], [/أسفلت|سفلتة|Asphalt/i, 'أسفلت وإعادة سفلتة'], [/كابل|Cable/i, 'تمديد كابلات']];
+  const kk = K.find((x) => x[0].test(t)); if (kk && (DB.lists.flKinds || []).includes(kk[1])) o.kind = kk[1]; if (o.permitType === 'طارئ' && (DB.lists.flKinds || []).includes('حالة طارئة')) o.kind = 'حالة طارئة';
+  Object.keys(o).forEach((k) => { if (o[k] === '' || o[k] === 0 || o[k] === undefined) delete o[k]; });
+  return o;
+}
+async function permitAi(text) {
+  const sys = 'استخرج من نص رخصة حفر (بلدي / مركز مشاريع البنية التحتية بالرياض) الحقول الموجودة فقط دون تخمين، وأعد JSON فقط: {"permit":"","permitExp":"YYYY-MM-DD","date":"YYYY-MM-DD","baseNo":"","txNo":"","woNo":"","district":"","lengthM":0,"widthM":0,"depthM":0,"lat":0,"lng":0,"permitType":"عادي|طارئ"}. التواريخ ميلادية فقط؛ إن كانت هجرية فقط اتركها فارغة.';
+  try { const a = await aiChat([{ role: 'system', content: sys }, { role: 'user', content: String(text).slice(0, 12000) }]); if (!a) return null; const mm = a.text.match(/\{[\s\S]*\}/); if (!mm) return null; const o = JSON.parse(mm[0]); const out = {};
+    ['permit', 'baseNo', 'txNo', 'woNo', 'district', 'permitType'].forEach((k) => { if (typeof o[k] === 'string' && o[k].trim()) out[k] = o[k].trim().slice(0, 60); });
+    ['permitExp', 'date'].forEach((k) => { if (/^\d{4}-\d{2}-\d{2}$/.test(o[k] || '') && validDate(o[k])) out[k] = o[k]; });
+    ['lengthM', 'widthM', 'depthM', 'lat', 'lng'].forEach((k) => { const n = +o[k]; if (n > 0 && n < 100000) out[k] = n; });
+    if (out.lat && !(out.lat > 16 && out.lat < 33 && out.lng > 34 && out.lng < 56)) { delete out.lat; delete out.lng; } return { o: out, via: a.via }; } catch (e) { return null; }
+}
+const PERMIT_LABELS = { permit: 'رقم الرخصة', permitExp: 'تاريخ الانتهاء', date: 'تاريخ البدء', baseNo: 'رقم الأساس', txNo: 'رقم المعاملة', woNo: 'أمر العمل', sapNo: 'SAP', district: 'الحي', lengthM: 'الطول', widthM: 'العرض', depthM: 'العمق', lat: 'الإحداثيات', permitType: 'نوع الرخصة', kind: 'نوع العمل' };
+function flNewForm(pre, file, note) {
+  openForm('معاملة ميدانية جديدة', flJobFields(pre || {}), async (v) => { const e = flValidate(v); if (e) return e;
+    const j = newTask({ flow: true, stage: 'plan', dept: 'التنفيذ', workType: 'excav', sec: { no: '', date: '', by: '' }, data: {}, alerts: {}, log: [], gate: null, safety: {} }); flApply(j, v); DB.jobs.push(j); flLog(j, 'plan', 'إنشاء المعاملة' + (file ? ' من ملف الرخصة' : ''));
+    if (file) { const r = await flAttach(j, 'تصريح', file, { stage: 'gate' }); if (typeof r === 'string') toast('أُنشئت المعاملة، لكن تعذّر إرفاق ملف الرخصة: ' + r, 'err'); }
+    const nb = flNeighbors(j, cfg().flow.r2).length; if (j.date === addDays(1) || j.date === today()) flCoordinate(j, 'd1'); audit(CUR.name, 'إنشاء معاملة ميدانية', flFolderName(j)); UI.view = 'flow'; UI.flSel = j.id;
+    toast((file ? 'أُنشئت المعاملة وأُرفق ملف الرخصة.' : 'أُنشئت المعاملة.') + (nb ? ' يوجد ' + nb + ' معاملات في نفس النطاق.' : '')); }, { ok: 'إنشاء', note });
+}
+FL_ACT['fl-add'] = () => {
+  if (!need('edit')) return;
+  openForm('معاملة ميدانية جديدة — ملف الرخصة', [{ k: 'file', label: 'ملف الرخصة PDF (اختياري) — تُعبأ البيانات منه تلقائياً ثم تراجعها', type: 'file', accept: 'application/pdf,image/*', wide: true }], async (v) => {
+    const f = v.file && v.file.size ? v.file : null; if (!f) { setTimeout(() => flNewForm({}, null), 60); return; }
+    if (f.size > 10 * 1024 * 1024) return 'الملف أكبر من 10 ميجابايت.'; if (!/^(application\/pdf|image\/)/.test(f.type)) return 'المسموح: PDF أو صورة.';
+    let text = ''; try { if (f.type === 'application/pdf') text = await pdfText(await f.arrayBuffer()); } catch (e) { text = ''; }
+    const pre = text ? permitParse(text) : {}; let via = 'قراءة محلية للملف';
+    if (text && text.length > 40) { const ai = await permitAi(text); if (ai) { Object.keys(ai.o).forEach((k) => { if (pre[k] === undefined) pre[k] = ai.o[k]; }); via += ' + ' + ai.via; } }
+    const got = Object.keys(pre).filter((k) => PERMIT_LABELS[k]).map((k) => PERMIT_LABELS[k]);
+    const note = got.length ? 'عُبئ من ملف الرخصة (' + via + '): ' + got.join('، ') + '. راجع كل الحقول قبل الإنشاء، ويمكن تعديلها لاحقاً.' : (f.type === 'application/pdf' ? 'لم تُقرأ بيانات من الملف (قد يكون ممسوحاً ضوئياً أو نصه مشفراً) — أدخل البيانات يدوياً، وسيُرفق الملف بالمعاملة كرخصة.' : 'الصورة تُرفق بالمعاملة كرخصة — أدخل البيانات يدوياً.');
+    setTimeout(() => flNewForm(pre, f, note), 60);
+  }, { ok: 'متابعة', note: 'ارفع ملف الرخصة لتعبئة رقمها وتاريخ انتهائها والحي والطول والإحداثيات تلقائياً، أو اضغط «متابعة» دون ملف للإدخال اليدوي. يُرفق الملف بالمعاملة ويستوفي بوابة الرخصة.' });
+};
+
 // ---- module: 70-supply.js ----
 // ================================================================
 // Module: work assignment, supply control and quantities
@@ -2771,7 +2865,7 @@ function fieldHtml(f) {
     ${f.list ? html`<input class="in" name="${f.k}__new" placeholder="إضافة بنود أخرى (افصل بفاصلة)" maxlength="200" style="margin-top:8px">` : ''}</fieldset>`; }
   if (f.type === 'textarea') return html`<div class="fld" style="grid-column:1/-1"><label for="${id}">${f.label}</label><textarea class="in" id="${id}" name="${f.k}" maxlength="${f.max || 1500}">${f.val || ''}</textarea></div>`;
   if (f.type === 'files') return html`<div class="fld"${wide}><label for="${id}">${f.label}</label><input class="in" id="${id}" name="${f.k}" type="file" multiple accept="${f.accept || 'image/*,.pdf,.docx,.xlsx'}" style="padding:8px">${f.hint ? html`<span class="hint">${f.hint}</span>` : ''}</div>`;
-  if (f.type === 'file') return html`<div class="fld"${wide}><label for="${id}">${f.label}</label><input class="in" id="${id}" name="${f.k}" type="file" ${f.capture ? new Safe('accept="image/*" capture="environment"') : new Safe('accept=".pdf,.jpg,.jpeg,.png,.webp,.docx,.xlsx"')} style="padding:8px">${f.hint ? html`<span class="hint">${f.hint}</span>` : ''}</div>`;
+  if (f.type === 'file') return html`<div class="fld"${wide}><label for="${id}">${f.label}</label><input class="in" id="${id}" name="${f.k}" type="file" ${f.capture ? new Safe('accept="image/*" capture="environment"') : f.accept ? html`accept="${f.accept}"` : new Safe('accept=".pdf,.jpg,.jpeg,.png,.webp,.docx,.xlsx"')} style="padding:8px">${f.hint ? html`<span class="hint">${f.hint}</span>` : ''}</div>`;
   return html`<div class="fld"${wide}><label for="${id}">${f.label}</label><input class="in ${f.ltr ? 'ltr' : ''}" id="${id}" name="${f.k}" type="${f.type || 'text'}" value="${f.val == null ? '' : f.val}" ${f.req ? new Safe('required') : ''} ${f.ph ? html`placeholder="${f.ph}"` : ''} autocomplete="off">${f.hint ? html`<span class="hint">${f.hint}</span>` : ''}</div>`;
 }
 

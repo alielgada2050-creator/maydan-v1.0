@@ -100,3 +100,64 @@ Object.assign(FL_ACT, {
   'fl-rep': flReportForm, 'task-close': taskCloseForm,
   font: (d) => { if (!FONTS.some((f) => f[0] === d.k)) return; FONT_K = d.k; setPref('maydan_font', FONT_K); applyPrefs(); toast('الخط: ' + FONTS.find((f) => f[0] === d.k)[1]); render(); }
 });
+
+// ---------- new transaction from the permit PDF ----------
+// Reads the permit file (text PDFs locally; AI provider refines when configured), fills the form,
+// the user reviews and edits, then the file is attached to the transaction as its permit.
+const AR_DIG = (s) => String(s || '').replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d));
+function isoDate(y, m, d) { y = +y; m = +m; d = +d; if (y < 2015 || y > 2040 || m < 1 || m > 12 || d < 1 || d > 31) return ''; return y + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0'); }
+function permitParse(raw) {
+  const t = AR_DIG(raw).replace(/‏|‎/g, ''); const o = {}; const one = (re) => { const m = t.match(re); return m ? m[1].trim() : ''; };
+  o.permit = one(/(?:رقم\s*(?:الرخصة|التصريح|رخصة\s*الحفر)|Permit\s*(?:No|Number|#)\.?)\s*[:：#\-]?\s*([A-Za-z0-9\-\/]{4,20})/i);
+  o.baseNo = one(/(?:رقم\s*الأساس|Base\s*(?:No|Number)\.?)\s*[:\-]?\s*([A-Za-z]{0,3}\d{3,10})/i) || one(/\b(R\d{4,6})\b/);
+  o.txNo = one(/(?:رقم\s*(?:المعاملة|السكيم)|Transaction\s*(?:No|Number)\.?|Scheme\s*(?:No)?\.?)\s*[:\-]?\s*(\d{6,12})/i);
+  o.woNo = one(/(?:أمر\s*(?:العمل|الإسناد)|Work\s*Order|\bWO\b)\s*(?:No\.?|رقم)?\s*[:\-#]?\s*(\d{6,12})/i);
+  o.sapNo = one(/\bSAP\b\s*(?:No\.?)?\s*[:\-#]?\s*(\d{6,12})/i);
+  const num = (re) => { const v = one(re); return v ? +v : 0; };
+  o.lengthM = num(/(?:الطول|طول\s*(?:الحفر|المسار)?|Length)[^\d\n]{0,20}(\d{1,5}(?:\.\d+)?)/i) || num(/(\d{1,5}(?:\.\d+)?)\s*(?:م\.?\s*ط|متر\s*طولي|متر|m\b|meters?)/i);
+  o.widthM = num(/(?:العرض|عرض\s*الحفر|Width)[^\d\n]{0,15}(\d{1,2}(?:\.\d+)?)/i); o.depthM = num(/(?:العمق|عمق\s*الحفر|Depth)[^\d\n]{0,15}(\d{1,2}(?:\.\d+)?)/i);
+  const xy = t.match(/(2[0-9]\.\d{3,8})\s*[,،\s]\s*(4[0-9]\.\d{3,8})/) || t.match(/(4[0-9]\.\d{3,8})\s*[,،\s]\s*(2[0-9]\.\d{3,8})/);
+  if (xy) { const a = +xy[1], b = +xy[2]; o.lat = a < 30 ? a : b; o.lng = a < 30 ? b : a; }
+  // dates: gregorian only (hijri years are ignored), the expiry is the labelled one, else the latest
+  const D = []; const re = /(\d{4})[\-\/.](\d{1,2})[\-\/.](\d{1,2})|(\d{1,2})[\-\/.](\d{1,2})[\-\/.](\d{4})/g; let m;
+  while ((m = re.exec(t))) { const d = m[1] ? isoDate(m[1], m[2], m[3]) : isoDate(m[6], m[5], m[4]); if (d) D.push({ d, i: m.index }); }
+  const near = (lab) => { const k = t.search(lab); if (k < 0) return ''; const x = D.filter((z) => z.i > k && z.i - k < 80).sort((a, b) => a.i - b.i)[0]; return x ? x.d : ''; };
+  o.permitExp = near(/تاريخ\s*(?:الانتهاء|انتهاء|النهاية)|ينتهي|نهاية\s*الرخصة|Expiry|Expiration|End\s*Date|Valid\s*(?:Until|To)/i) || (D.length > 1 ? D.map((z) => z.d).sort().pop() : '');
+  o.date = near(/تاريخ\s*(?:البدء|البداية|الإصدار)|Start\s*Date|Issue\s*Date|From/i) || '';
+  if (o.date && o.permitExp && o.date >= o.permitExp) o.date = '';
+  const dl = districtList().filter((n) => n.length > 2 && t.includes(n)).sort((a, b) => b.length - a.length); if (dl.length) o.district = dl[0];
+  if (/طارئ|Emergency/i.test(t)) o.permitType = 'طارئ';
+  const K = [[/بايلوت|Pilot/i, 'تمديد كابلات البايلوت'], [/عداد|Meter/i, 'تركيب عدادات'], [/ميني\s*بيلر|Mini\s*Pillar/i, 'حفر مفتوح لتركيب ميني بيلر'], [/عطل|أعطال|Fault/i, 'صيانة أعطال جهد منخفض ومتوسط'], [/أسفلت|سفلتة|Asphalt/i, 'أسفلت وإعادة سفلتة'], [/كابل|Cable/i, 'تمديد كابلات']];
+  const kk = K.find((x) => x[0].test(t)); if (kk && (DB.lists.flKinds || []).includes(kk[1])) o.kind = kk[1]; if (o.permitType === 'طارئ' && (DB.lists.flKinds || []).includes('حالة طارئة')) o.kind = 'حالة طارئة';
+  Object.keys(o).forEach((k) => { if (o[k] === '' || o[k] === 0 || o[k] === undefined) delete o[k]; });
+  return o;
+}
+async function permitAi(text) {
+  const sys = 'استخرج من نص رخصة حفر (بلدي / مركز مشاريع البنية التحتية بالرياض) الحقول الموجودة فقط دون تخمين، وأعد JSON فقط: {"permit":"","permitExp":"YYYY-MM-DD","date":"YYYY-MM-DD","baseNo":"","txNo":"","woNo":"","district":"","lengthM":0,"widthM":0,"depthM":0,"lat":0,"lng":0,"permitType":"عادي|طارئ"}. التواريخ ميلادية فقط؛ إن كانت هجرية فقط اتركها فارغة.';
+  try { const a = await aiChat([{ role: 'system', content: sys }, { role: 'user', content: String(text).slice(0, 12000) }]); if (!a) return null; const mm = a.text.match(/\{[\s\S]*\}/); if (!mm) return null; const o = JSON.parse(mm[0]); const out = {};
+    ['permit', 'baseNo', 'txNo', 'woNo', 'district', 'permitType'].forEach((k) => { if (typeof o[k] === 'string' && o[k].trim()) out[k] = o[k].trim().slice(0, 60); });
+    ['permitExp', 'date'].forEach((k) => { if (/^\d{4}-\d{2}-\d{2}$/.test(o[k] || '') && validDate(o[k])) out[k] = o[k]; });
+    ['lengthM', 'widthM', 'depthM', 'lat', 'lng'].forEach((k) => { const n = +o[k]; if (n > 0 && n < 100000) out[k] = n; });
+    if (out.lat && !(out.lat > 16 && out.lat < 33 && out.lng > 34 && out.lng < 56)) { delete out.lat; delete out.lng; } return { o: out, via: a.via }; } catch (e) { return null; }
+}
+const PERMIT_LABELS = { permit: 'رقم الرخصة', permitExp: 'تاريخ الانتهاء', date: 'تاريخ البدء', baseNo: 'رقم الأساس', txNo: 'رقم المعاملة', woNo: 'أمر العمل', sapNo: 'SAP', district: 'الحي', lengthM: 'الطول', widthM: 'العرض', depthM: 'العمق', lat: 'الإحداثيات', permitType: 'نوع الرخصة', kind: 'نوع العمل' };
+function flNewForm(pre, file, note) {
+  openForm('معاملة ميدانية جديدة', flJobFields(pre || {}), async (v) => { const e = flValidate(v); if (e) return e;
+    const j = newTask({ flow: true, stage: 'plan', dept: 'التنفيذ', workType: 'excav', sec: { no: '', date: '', by: '' }, data: {}, alerts: {}, log: [], gate: null, safety: {} }); flApply(j, v); DB.jobs.push(j); flLog(j, 'plan', 'إنشاء المعاملة' + (file ? ' من ملف الرخصة' : ''));
+    if (file) { const r = await flAttach(j, 'تصريح', file, { stage: 'gate' }); if (typeof r === 'string') toast('أُنشئت المعاملة، لكن تعذّر إرفاق ملف الرخصة: ' + r, 'err'); }
+    const nb = flNeighbors(j, cfg().flow.r2).length; if (j.date === addDays(1) || j.date === today()) flCoordinate(j, 'd1'); audit(CUR.name, 'إنشاء معاملة ميدانية', flFolderName(j)); UI.view = 'flow'; UI.flSel = j.id;
+    toast((file ? 'أُنشئت المعاملة وأُرفق ملف الرخصة.' : 'أُنشئت المعاملة.') + (nb ? ' يوجد ' + nb + ' معاملات في نفس النطاق.' : '')); }, { ok: 'إنشاء', note });
+}
+FL_ACT['fl-add'] = () => {
+  if (!need('edit')) return;
+  openForm('معاملة ميدانية جديدة — ملف الرخصة', [{ k: 'file', label: 'ملف الرخصة PDF (اختياري) — تُعبأ البيانات منه تلقائياً ثم تراجعها', type: 'file', accept: 'application/pdf,image/*', wide: true }], async (v) => {
+    const f = v.file && v.file.size ? v.file : null; if (!f) { setTimeout(() => flNewForm({}, null), 60); return; }
+    if (f.size > 10 * 1024 * 1024) return 'الملف أكبر من 10 ميجابايت.'; if (!/^(application\/pdf|image\/)/.test(f.type)) return 'المسموح: PDF أو صورة.';
+    let text = ''; try { if (f.type === 'application/pdf') text = await pdfText(await f.arrayBuffer()); } catch (e) { text = ''; }
+    const pre = text ? permitParse(text) : {}; let via = 'قراءة محلية للملف';
+    if (text && text.length > 40) { const ai = await permitAi(text); if (ai) { Object.keys(ai.o).forEach((k) => { if (pre[k] === undefined) pre[k] = ai.o[k]; }); via += ' + ' + ai.via; } }
+    const got = Object.keys(pre).filter((k) => PERMIT_LABELS[k]).map((k) => PERMIT_LABELS[k]);
+    const note = got.length ? 'عُبئ من ملف الرخصة (' + via + '): ' + got.join('، ') + '. راجع كل الحقول قبل الإنشاء، ويمكن تعديلها لاحقاً.' : (f.type === 'application/pdf' ? 'لم تُقرأ بيانات من الملف (قد يكون ممسوحاً ضوئياً أو نصه مشفراً) — أدخل البيانات يدوياً، وسيُرفق الملف بالمعاملة كرخصة.' : 'الصورة تُرفق بالمعاملة كرخصة — أدخل البيانات يدوياً.');
+    setTimeout(() => flNewForm(pre, f, note), 60);
+  }, { ok: 'متابعة', note: 'ارفع ملف الرخصة لتعبئة رقمها وتاريخ انتهائها والحي والطول والإحداثيات تلقائياً، أو اضغط «متابعة» دون ملف للإدخال اليدوي. يُرفق الملف بالمعاملة ويستوفي بوابة الرخصة.' });
+};

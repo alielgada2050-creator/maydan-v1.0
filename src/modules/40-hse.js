@@ -219,18 +219,51 @@ async function hseFileText(file) {
   if (n.endsWith('.pdf')) return pdfText(await file.arrayBuffer());
   throw new Error('الصيغ المدعومة: Word (.docx) أو PDF أو نص أو Excel');
 }
+// text extractor for text-based PDFs: Flate / ASCII85 streams, literal and hex strings, and
+// ToUnicode CMaps (needed for Arabic fonts). Scanned PDFs have no text: the user pastes it instead.
+function a85(s) {
+  s = s.replace(/\s/g, '').replace(/^<~/, '').replace(/~>.*$/, ''); const out = []; let t = [];
+  for (let i = 0; i < s.length; i++) { const c = s[i]; if (c === 'z' && !t.length) { out.push(0, 0, 0, 0); continue; } t.push(c.charCodeAt(0) - 33); if (t.length === 5) { let v = 0; t.forEach((x) => { v = v * 85 + x; }); out.push((v >>> 24) & 255, (v >>> 16) & 255, (v >>> 8) & 255, v & 255); t = []; } }
+  if (t.length) { const n = t.length; while (t.length < 5) t.push(84); let v = 0; t.forEach((x) => { v = v * 85 + x; }); [(v >>> 24) & 255, (v >>> 16) & 255, (v >>> 8) & 255, v & 255].slice(0, n - 1).forEach((x) => out.push(x)); }
+  return new Uint8Array(out);
+}
+async function inflate(u8) { const ds = new DecompressionStream('deflate'); return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(ds)).arrayBuffer()); }
+function cmapParse(t) {
+  const map = new Map(); const hx = (h) => parseInt(h, 16); const uni = (h) => { let r = ''; for (let i = 0; i + 4 <= h.length; i += 4) r += String.fromCharCode(hx(h.substr(i, 4))); return r; };
+  const cs = t.match(/begincodespacerange\s*<([0-9a-fA-F]+)>/); const bytes = cs ? Math.max(1, cs[1].length / 2) : 2; const key = (c) => c.toString(16).toUpperCase().padStart(bytes * 2, '0');
+  let m; const bc = /beginbfchar([\s\S]*?)endbfchar/g; while ((m = bc.exec(t))) { const re = /<([0-9a-fA-F]+)>\s*<([0-9a-fA-F]+)>/g; let x; while ((x = re.exec(m[1]))) map.set(key(hx(x[1])), uni(x[2])); }
+  const br = /beginbfrange([\s\S]*?)endbfrange/g; while ((m = br.exec(t))) { const re = /<([0-9a-fA-F]+)>\s*<([0-9a-fA-F]+)>\s*(?:<([0-9a-fA-F]+)>|\[([^\]]*)\])/g; let x; while ((x = re.exec(m[1]))) { const lo = hx(x[1]), hi = hx(x[2]); if (hi - lo > 6000) continue; const arr = x[4] ? (x[4].match(/<([0-9a-fA-F]+)>/g) || []).map((z) => z.slice(1, -1)) : null; for (let c = lo; c <= hi; c++) { if (arr) { if (arr[c - lo]) map.set(key(c), uni(arr[c - lo])); } else { const u = uni(x[3]); map.set(key(c), u.slice(0, -1) + String.fromCharCode(u.charCodeAt(u.length - 1) + (c - lo))); } } } }
+  return { map, bytes };
+}
 async function pdfText(ab) {
-  // simple extractor for text-based PDFs (Flate streams + Tj/TJ). Scanned PDFs need the text pasted.
-  const u8 = new Uint8Array(ab); const s = new TextDecoder('latin1').decode(u8); const out = []; let i = 0, n = 0;
-  while ((i = s.indexOf('stream', i)) > -1 && n < 3000) { n++;
-    let a = i + 6; if (s[a] === '\r') a++; if (s[a] === '\n') a++; const e = s.indexOf('endstream', a); if (e < 0) break;
-    const dict = s.slice(Math.max(0, i - 300), i); let data = u8.subarray(a, e);
-    try { if (/FlateDecode/.test(dict)) { const ds = new DecompressionStream('deflate'); data = new Uint8Array(await new Response(new Blob([data]).stream().pipeThrough(ds)).arrayBuffer()); } } catch (x) { i = e; continue; }
-    const t = new TextDecoder('latin1').decode(data); const re = /\((?:\\.|[^\\)])*\)\s*Tj|\[(?:[^\]]*)\]\s*TJ/g; let m; const line = [];
-    while ((m = re.exec(t))) { const parts = m[0].match(/\((?:\\.|[^\\)])*\)/g) || []; line.push(parts.map((p) => p.slice(1, -1).replace(/\\([nrtbf()\\])/g, (q, c) => ({ n: '\n', r: '', t: ' ', b: '', f: '', '(': '(', ')': ')', '\\': '\\' }[c]))).join('')); }
-    if (line.length) out.push(line.join(' ')); i = e + 9;
+  const u8 = new Uint8Array(ab); const s = new TextDecoder('latin1').decode(u8); const objs = {}; const re = /(\d+)\s+\d+\s+obj\b/g; let m; const starts = [];
+  while ((m = re.exec(s)) && starts.length < 20000) starts.push([+m[1], m.index + m[0].length]);
+  for (let k = 0; k < starts.length; k++) {
+    const [num, a] = starts[k]; const end = k + 1 < starts.length ? starts[k + 1][1] : s.length; const body = s.slice(a, end); const si = body.indexOf('stream');
+    const o = { dict: si >= 0 ? body.slice(0, si) : body.slice(0, 3000), data: null };
+    if (si >= 0 && !/Image|FontFile|DCTDecode|JPXDecode|CCITT/.test(o.dict)) { let st = a + si + 6; if (s[st] === '\r') st++; if (s[st] === '\n') st++; const e = s.indexOf('endstream', st); if (e > st) { let d = u8.subarray(st, e);
+      try { if (/ASCII85Decode/.test(o.dict)) d = a85(new TextDecoder('latin1').decode(d)); if (/FlateDecode/.test(o.dict)) d = await inflate(d); o.data = new TextDecoder('latin1').decode(d); } catch (x) { o.data = null; } } }
+    objs[num] = o;
   }
-  const txt = out.join('\n'); try { return decodeURIComponent(escape(txt)).slice(0, 400000); } catch (e) { return txt.slice(0, 400000); }
+  const cmaps = {}; Object.keys(objs).forEach((n) => { const d = objs[n].data; if (d && /begincmap/.test(d)) cmaps[n] = cmapParse(d); });
+  const fontCmap = {}; Object.keys(objs).forEach((n) => { const t = objs[n].dict.match(/\/ToUnicode\s+(\d+)\s+\d+\s+R/); if (t && cmaps[t[1]]) fontCmap[n] = cmaps[t[1]]; });
+  const names = {}; const addFonts = (txt) => { const r2 = /\/([A-Za-z0-9_.+\-]+)\s+(\d+)\s+\d+\s+R/g; let x; while ((x = r2.exec(txt))) if (fontCmap[x[2]] || /\/Type\s*\/Font/.test((objs[x[2]] || {}).dict || '')) names[x[1]] = x[2]; };
+  Object.keys(objs).forEach((n) => { const d = objs[n].dict; const fb = d.match(/\/Font\s*<<([\s\S]*?)>>/); if (fb) addFonts(fb[1]); const fr = d.match(/\/Font\s+(\d+)\s+\d+\s+R/); if (fr && objs[fr[1]]) addFonts(objs[fr[1]].dict); });
+  const bytesOf = (p) => { if (p[0] === '<') { const h = p.slice(1, -1).replace(/\s/g, ''); const b = []; for (let k = 0; k + 2 <= h.length; k += 2) b.push(parseInt(h.substr(k, 2), 16)); return b; }
+    const str = p.slice(1, -1).replace(/\\(\d{1,3})/g, (q, o) => String.fromCharCode(parseInt(o, 8) & 255)).replace(/\\([nrtbf()\\])/g, (q, c) => ({ n: '\n', r: '\r', t: '\t', b: '\b', f: '\f', '(': '(', ')': ')', '\\': '\\' }[c])).replace(/\\\r?\n/g, ''); return Array.from(str, (ch) => ch.charCodeAt(0) & 255); };
+  const decode = (b, cm) => { if (!cm) return String.fromCharCode.apply(null, b); let r = ''; for (let k = 0; k + cm.bytes <= b.length; k += cm.bytes) { let c = 0; for (let z = 0; z < cm.bytes; z++) c = c * 256 + b[k + z]; r += cm.map.get(c.toString(16).toUpperCase().padStart(cm.bytes * 2, '0')) || ''; } return r; };
+  const out = [];
+  Object.keys(objs).map(Number).sort((x, y) => x - y).forEach((n) => { const t = objs[n].data; if (!t || !/\bBT\b/.test(t) || /begincmap/.test(t)) return;
+    const tk = /\/([A-Za-z0-9_.+\-]+)\s+[\d.]+\s+Tf|\[((?:\((?:\\.|[^\\)])*\)|<[0-9a-fA-F\s]*>|[^\]])*)\]\s*TJ|(\((?:\\.|[^\\)])*\)|<[0-9a-fA-F\s]*>)\s*(?:Tj|'|")|\b(T\*|Td|TD|Tm|ET)\b/g; let x; let cm = null; let line = '';
+    while ((x = tk.exec(t))) {
+      if (x[1]) { cm = fontCmap[names[x[1]]] || null; continue; }
+      if (x[4]) { if (x[4] !== 'Tm' || line.length > 0) { if (line.trim()) out.push(line); line = ''; } continue; }
+      const parts = x[2] !== undefined ? (x[2].match(/\((?:\\.|[^\\)])*\)|<[0-9a-fA-F\s]*>/g) || []) : [x[3]]; line += parts.map((pp) => decode(bytesOf(pp), cm)).join('');
+    }
+    if (line.trim()) out.push(line);
+  });
+  let txt = out.join('\n'); try { txt = txt.normalize('NFKC'); } catch (e) { /* old browser */ }
+  return txt.slice(0, 400000);
 }
 
 // ---------- local analysis of a procedure / risk assessment ----------
